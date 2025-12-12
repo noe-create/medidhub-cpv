@@ -1,0 +1,631 @@
+[33meb983d4[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmaster[m[33m)[m HICISTES ESOS CAMBIOS?
+[33ma74ce17[m quiero que el sistema vaya super rapido a la hora de todo
+[33mb904e16[m CUANDO CADA DOCTOR INICIE SU SESION Y VAYA A REGISTRAR SUS PACIENTE LE D
+[33me93bf71[m cree un titular y marca este error
+[33mf233e7d[m aun pulso editar y sale este error
+[33m62c56f2[m le doy al boton crear usuario y nada osea no pasa nada se queda ahi es d
+[33mca6661f[m sale esto osea quiero que la opcion de usuario este funcional y agarre l
+[33m193dbd7[m BAJA LA FIRMA UN POCO MAS
+[33mf1cbc3b[m ELIMINA ESTA OPCION Y COLOCA UNA NUEVA QUE SE LLAMA MORBILIDAD QUE SE VA
+[33m711f088[m ESTA PARTE TAMBIEN LO QUIERO DE ESE AZUL
+[33maafabf7[m QUE SE VEA UN COLOR AZUL CLARO EN LOS ICONOS OSEA QUE RESALTE
+[33m46587e5[m EN EL MODO OSCURO QUIERO QUE LOS ICONOS TENGAN UN COLOR MAS RESALTANTE
+[33m054fc19[m The app isn't starting. Please investigate what could be wrong based on
+[33m91af929[m The app isn't starting. Please investigate what could be wrong based on
+[33m1363cd1[m aun esta en blanco recuerda que la imagen esta aqui
+[33maeeb93b[m en esta parte de la izquierda vas a colocar la imagen que esta en la car
+[33mba01bf1[m The app isn't starting. Please investigate what could be wrong based on
+[33m74f52c7[m esto tambien
+[33ma838242[m estas dos tambien
+[33ma1f63a4[m eliminame la opcion de salud ocupacional
+[33m4b4bea7[m quiero que coloques el logo del sistema que esta en esa carpeta al lado
+[33mef0c679[m coloca el logo un poco mas grande
+[33m316c161[m un poco mas grande el logo
+[33m8455cc3[m aun no aparece recuerda que esta en esta carpeta
+[33mdfd078f[m quiero que realices este cambio de diseño a la tarjeta de credenciales
+[33m540052a[m ahora quiero que me hagas los siguientes cambios en el Diseño de la Tarj
+[33m654c038[m quiero que este fondo se vea en la parte blanca de la derecha pero quier
+[33ma2198d3[m sigue en blanco
+[33m8510281[m quiero que en ese espacio blanco le coloques el fondo que se encuentra e
+[33ma909103[m quiero que quites este fondo azul solo el fondo
+[33m8bc7b5a[m The NextJS app server is having trouble starting. Please identify what c
+[33m1ba63ad[m[33m ([m[1;31morigin/master[m[33m)[m ahora no puedo hacer login, me dice contraseña incorrecta.
+[33m2e2b490[m No quiero dejar de usar sqlite, por ahora quiero seguir usandolo, sin em
+[33me565c47[m I see this error with the app, reported by NextJS, please fix it. The er
+[33m555d736[m si en un futuro decido cambiar mi BD de SQLite a PostgreSQL que modifica
+[33mef83d03[m instale la aplicacion en un servidor ubuntu server, pero cuando voy a ha
+[33m6e2dc98[m[33m ([m[1;31mmedihub/master[m[33m)[m .
+[33mcea8474[m SALE ESTO??
+[33mefe469a[m CAMBIA ESO Y QUE DIGA PANEL PRINCIPAL
+[33mef641eb[m Se solicita una actualización visual integral para la vista de "Sala de
+[33m5dc29da[m La vista principal de "Módulo de Consulta" (y por extensión, la "Sala de
+[33m6ca818b[m a vista principal del sistema, denominada "Sala de Espera y Registro". E
+[33m1e79781[m ESTA LA OPCION DE CLARO Y OSCURO NECESITO QUE EN MODO CLARO ESTE BLANQUI
+[33mbab26b6[m I see this error with the app, reported by NextJS, please fix it. The er
+[33m91e0347[m I see this error with the app, reported by NextJS, please fix it. The er
+[33mdfc0b74[m INGRESE SUPERUSER Y LA CONTRASEÑA Y AUN NO ME DEJA INICIAR SESION...
+[33m6c8314a[m PERO DEBERIAS BORRAR LOS CAMBIOS QUE HAS HECHO PARA CMABIAR LA CONTRASEÑ
+[33m9001afd[m AUN SALE ERROR SEGURO QUE HICISTES TODO LO DE PARA QUE LAS CONTRASEÑAS A
+[33m22d1655[m AUN DICE ERROR AUTENTICACION
+[33m2f51034[m Y SI MEJOR HACES LOS DE LAS CONTRASEÑAS DESDE CERO OSEA NO VAS A TOCAR N
+[33m83e565c[m AUN DICE ERROR DE AUNTENTICACION
+[33m3700745[m I see this error with the app, reported by NextJS, please fix it. The er
+[33m6696c32[m AUN ESTA IGUAL
+[33m2767c06[m LO MISMO:((
+[33m37606cc[m AUN NADA :(
+[33ma1b0c42[m AUN DICE ERROR DE AUNTENTICACION
+[33m87806e9[m AUN DICE ERROR DE AUNTENTICACION
+[33mf9dd1b7[m AUN DICE ERROR DE AUNTENTICACION
+[33m0a3a5ab[m AUN DICE ERROR DE AUNTENTICACION
+[33me2bf87e[m AUN DICE ERROR DE AUNTENTICACION
+[33mda48a17[m AUN DICE ERROR DE AUNTENTICACION
+[33m33b3eb1[m AUN DICE ERROR DE AUNTENTICACION
+[33mf6e2450[m AUN DICE ERROR DE AUNTENTICACION
+[33m15aa05b[m AUN DICE ERROR DE AUNTENTICACION
+[33mf81f631[m AUN DICE ERROR DE AUNTENTICACION
+[33m01961f0[m AUN DICE ERROR DE AUNTENTICACION
+[33m71bad54[m AUN DICE ERROR DE AUNTENTICACION
+[33m26d2b07[m I see this error with the app, reported by NextJS, please fix it. The er
+[33mb924a68[m AUN DICE ERROR DE AUNTENTICACION
+[33m8b873f9[m AUN DICE ERROR DE AUNTENTICACION
+[33m1f8661e[m AUN DICE ERROR DE AUNTENTICACION
+[33m3517bda[m AUN DICE ERROR DE AUNTENTICACION
+[33m37a27c2[m AUN DICE ERROR DE AUNTENTICACION
+[33m3396344[m AUN DICE ERROR DE AUNTENTICACION
+[33m3df32b1[m AUN DICE ERROR DE AUNTENTICACION
+[33macf5c74[m AUN DICE ERROR DE AUNTENTICACION
+[33m33614cc[m AUN DICE ERROR DE AUNTENTICACION
+[33me932a50[m AUN DICE ERROR DE AUNTENTICACION
+[33m3adb0ec[m AUN SALE IGUAL:/// GUIATE DE LOS CAPS Q TE MANDE Q DESDE ESE MOMENTO ME
+[33m04099a3[m AUN ME DICE ERROR DE AUTENTICACION :((
+[33m3f57345[m CUANDO APLICASTES ESTOS CAMBIOS EL VIERNES DE LA SEMANA PASADA DEJARON D
+[33mfdb2cea[m SIGUE IGUAL
+[33m9a8015d[m AUN DICE IGUAL
+[33ma4dcc30[m AUN SIGUE IGUAL Y NO TOQUES NADA DISEÑO DEL SISTEMA O TODO DEL SISTEMA E
+[33mc1973b5[m AUN DICE IGUAL
+[33m83ca2c4[m AUN DICE IGUAL
+[33m429b022[m AUN DICE ASI
+[33m8a65947[m OK YA NO TOQUEMOS MAS NADA DEL SISTEMA ESO SE QUEDA ASI AHORA ENFOQUEMON
+[33mc63db5d[m El diseño actual de la página de inicio de sesión es muy claro y funcion
+[33m3b18132[m reyena esos espacops en blanco la imagen debe quedar bien
+[33m1ced85a[m Agradezco su trabajo en la interfaz. Después de revisar el resultado, me
+[33mfd0106f[m El nuevo fondo con gradiente azul luce fantástico y ha alineado la págin
+[33md4339cc[m Propongo reemplazar el color sólido actual por un gradiente lineal azul.
+[33m7b727da[m Dando seguimiento a mi solicitud de mejorar visualmente la pantalla de i
+[33mba1c68b[m se ve asi trata de como ponerlo un poco mas pequeño para que la imagen q
+[33m9b92965[m un poco mas
+[33mcddb176[m debe salir la imagen completa a la izquierda se ve como cortado
+[33m45871b8[m sale igual
+[33m301a2e3[m aun sale igual
+[33mcc05685[m sale esto
+[33m9265a40[m ???
+[33m4e69585[m aun esta igual
+[33me5ed803[m aun esta igual
+[33m981b391[m esta igual
+[33m0d7ef3a[m ??
+[33m835c691[m sale aun esto
+[33ma8dbe0f[m ????
+[33m4577f14[m aun esta igual recuerda que estas eran los usuario con los q se ingresab
+[33m5e917e3[m aun esta igual
+[33md1154af[m aun sigue igual
+[33mcb648fa[m aun sigue igual
+[33mfa07ea6[m las credenciales ahora no me quieren agarrar
+[33m0570c2c[m aun sigue igual
+[33m647130e[m coloco mis credenciales y no lo agarra
+[33me4de6a6[m I see this error with the app, reported by NextJS, please fix it. The er
+[33ma111a0d[m aun sigue igual... osea accedo y cuando pulso una opcion me devuelve al
+[33m21146f6[m cuando accedo esta pestaña con mi usuario y estoy en panel y le doy a cu
+[33m6f6f3ab[m la imagen que vas a colocar en la izquierda esta ahiii en esa carpeta
+[33ma225741[m la imagen que vas a colocar en la izquierda esta ahi......
+[33mbc8615b[m se asi.. la imagen esta en la carpeta public en la carpeta q dice consul
+[33m9370f10[m dentro de la carpeta public esta una carpeta llamada consultorio esa ima
+[33mcbb9082[m quiero que nuestro inicio de sesion se vea de esta manera.... en la izqu
+[33m8fe4aad[m el logo se ve muy pequeño tanto en el login como en el menubar
+[33m9472a35[m en mi carpeta public coloque un archivo logo.svg quiero que lo uses como
+[33m0cf833b[m quiero que los logos que estas usando para los recipes ubicados en /publ
+[33m442fa35[m eliminalas ellas no son pacientes son las doctoras recuerda eso ... ojo
+[33m4616f12[m ????????????????????
+[33ma4f00d0[m ok esta muy los doctores ahora vamos con la enfermera ella debe aparecer
+[33m2188730[m aun esta igual necesito que le cambies esos nombres que no son... x lo q
+[33m45ed645[m ???????no aparece nada
+[33m94d6d90[m ??????????
+[33m46b6037[m ??????????????????
+[33me3d1e4c[m ?????????
+[33m62d14ad[m ESTA BIEN PERO LO DEBES HACER CON LOS NOMBRES QUE TE DI ANTERIORMENTE...
+[33m60118bc[m AUN DICE IGUAL PARECE QUE NO HAY DOCTORES DE LO Q YO TE ASIGNE
+[33m8f14fef[m AUN NO APARECE NADA
+[33mfb6fb0d[m recuerda deben aparecer los 2 doctores de la mañana la pediatra y la fam
+[33m0d64caf[m vamos a corregir esto...  los nombres de los doctores y su especialidad
+[33m80942bd[m El informe DE SALUD OCUPACIONAL debe generarse en dos partes claramente
+[33m096946c[m QUIERO QUE EN EL INFORME DE SALUD OCUPACIONAL Genera un informe narrativ
+[33m41a152b[m RECUERDA QUE TAMBIEN DEBE APARECER LA DOCTORA DE SALUD OCUPACIONAL YA Q
+[33m5585327[m SE ASI
+[33mdb480d8[m COLOCALE DE FONDO UNA IMAGEN FULL HD QUE SEA UN CONSULTORIO
+[33md5f45d6[m QUITA ESO OSEA QUE NO SE VEA LA IMAGEN .. Q SOLO SE VEA EL INICIO DE SES
+[33m7714401[m QUITA ESO Y DEJALO COMO ESTABA
+[33m6eda811[m SIGUE IGUAL
+[33m803b367[m YO QUIERO QUE LA IMAGEN ESTE A ALA IZQUIERDA YY NUESTRO INICIO DE SESION
+[33m5c1a783[m SSE VE IGUAL
+[33m524c4e3[m SE VE ASI
+[33m64fc262[m The NextJS app server is having trouble starting. Please identify what c
+[33med13e33[m VAMOS A COLOCARLE UN INICIO DE SESION MAS BONITO MAS DINAMICO VAMOS HACE
+[33md154199[m RECUERDA QUE CUANDO SE TERMINE UNA CONSULTA OSEA CUANDO SE TERMINE DE CH
+[33m78f10b5[m AUN NO SE VE NADA
+[33m06b7955[m NO VEO NADA
+[33m74983b2[m QUIERO QUE APAREZCAN EN LA SALA DE ESPERA LAS 2 DOCTORAS QUE ESTARAN DIS
+[33me433c16[m I see this error with the app, reported by NextJS, please fix it. The er
+[33m1302624[m crea una nueva opcion que que diga historial ocupasional y se guarden to
+[33mc054fe5[m quiero que salud ocupacional muestres eun informe del paciente debe tene
+[33m0b3270d[m se debe preguntar lo mismo que la opcion que q dice salud ocupacional os
+[33m5174adc[m EN LA SALA DE ESPERA DEBE APARECER EL NOMBRE DE SALUD OCUPACIONAL Y LA L
+[33m7460783[m porque sale esto??
+[33m9220347[m El sistema debe evolucionar para gestionar una consulta de salud ocupaci
+[33m704dc57[m Q FUE LO Q HICISTES?
+[33m063774b[m SIGUE IGUAL
+[33mbb9bd78[m AUN DICE IGUAL}
+[33m4bcff4a[m AUN DICE IGUAL:/
+[33m78f214a[m DICE LO MISMO
+[33m766be56[m SIGUE IGUAL CON ESTE ERROR
+[33mb05e257[m ??
+[33m42639d4[m SIGUE IGUAL
+[33m734929a[m resuelvelo
+[33ma3bba50[m me sale esto
+[33m515cf66[m ahora el error esta en beneficiarios ese error no quiere cambiar es deci
+[33me788e2b[m igual
+[33m01145a3[m aun sale.. lo mejor seria empezar de cero
+[33m14857db[m sigue apareciendo lo mismo... te recomiendo que realices y hagas de cero
+[33m206110b[m recuerda que los titulares y los afiliados a otra empresa pueden añadir
+[33mbb6e6e8[m revisa a fondo el error que esta dando al agregar beneficiarios realizar
+[33mb9a5cf7[m me meti en esa carpeta y tiene esos pequeños errores
+[33meb43bd9[m dice esto en la consola
+[33m93936c1[m sigue igual
+[33mf879e01[m aun me sale este error.. esto es lo q dice la consola
+[33m1ae1dd3[m aun me sigue apareciendo el mismo error al agregar beneficiario y esto n
+[33m64bcd1b[m cuando voy a agregar un beneficiario me aparece este error....
+[33mb0a85be[m cuando agg beneficiarios sale esto
+[33ma9b3934[m sale estooo al agg beneficiario
+[33m29c0262[m aun sale esto
+[33mc6345ee[m sale esto
+[33md3542a0[m cuando agg beneficiario sale esto
+[33m7b1b159[m en agregar titular el numero de ficha solo se le va va a preguntar al em
+[33mcb03f2c[m EN LA SECCION DE TITULAR QUIERO QUE VUELVAN LAS OPCIONES QUE TENIA LO CU
+[33m58b49d0[m estas haciendo los cambios?
+[33m28df505[m cambiale el nombre a medicina familiar
+[33m2aaa0fa[m EN ORDEN DE LABORATORIO COLOCALO UN POCO MAS ABAJO
+[33md47295a[m COLOCALO MAS ABAJOOOOOO
+[33m99c15ef[m COLOCALO MAS ABAJO LA FIRMA MAS ABAJO
+[33m5bbcec6[m LA FIRMA DEL INFORME MEDICO VA UN POCO MAS ABAJO COLOCALO UN POCO MAS AB
+[33md947e0d[m SUBELO QUE QUEDE EN LA MISMA HOJA
+[33m1657863[m EN EL ORDEB DE LABORATORIO SUBE UN POCO LA FIRMA DEL DOCTOR LO CUAL DEBE
+[33mba0abac[m recuerda que debe ser en hoja tamaño oficio osea carta que al imprimir n
+[33m71e322e[m recuerda que el informe medico y la orden de laboratorio debe ir en tama
+[33mea13ce8[m recuerda que en el extremo izquierdo va el logo anterior ,, recuerda que
+[33mb0ce742[m sube el pedasito que se salio de la pag q esta abajo deja todo igual los
+[33m6240e6e[m porque al imprimir el recipe sale asi?????
+[33mbfbc7bd[m en el orden de laboratorio quiero que hagas una linea asi y coloques est
+[33m3c9069e[m The NextJS app server is having trouble starting. Please identify what c
+[33m11b34f7[m cuando un paciente se termine de chequear es obligatorio que al doctor l
+[33mfe166b7[m quiero que elimines la parte de lo q dice ahi osea lo q dice pacetamol y
+[33m39e1699[m quiero que en la primera hoja coloques medicamento... y en la otra lo de
+[33mf2b842a[m todo el diseño esta muy bien pero quiero que cambies unas cosas como aqu
+[33mdcac88d[m sera que en los margenes del resipe me lo puedes colocar asi como redond
+[33ma1b081a[m los margenes estan bien pero falta el tamaño del recipe recuerda el tama
+[33ma01e5c8[m el tamaño del recipe debe ser de 21.59 cm y los margenes tienen que ser
+[33md162a09[m q se vuelva a ver asi x favor
+[33mfc22257[m porque se asi?? si quiero q se vea asi
+[33m1685bcb[m quiero que los margenes tengan un 1cm cada laddo
+[33m23d6b13[m revierte a como estaba hace minutos los 2 recipes alargados y no asi com
+[33m0e387b3[m revierte a como estaaba
+[33m63c0b34[m le hice un cambio a los margenes para que se viera mas personalizado y a
+[33m5acdb97[m I see this error with the app, reported by NextJS, please fix it. The er
+[33m171ad8f[m mira yo quiero que los margenes queden asi identico como este ejemplo os
+[33m43caf83[m quiero que se vea asi no alteres el diseño... quiero que los margenes es
+[33m9d1dbe0[m le puedes quitar esos espacios que le quedan en los lados en la derecha
+[33m04cd878[m revierte dejalo como estaba
+[33mb10bcca[m amplia un poco los lados del recipe
+[33md0523a0[m ahora quiero q los Márgenes Internos (el espacio dentro de cada recuadro
+[33mfd0d756[m quiero que la altura del recipe tenga estos:                  Encabezado
+[33m64aae43[m un pco mas y mas
+[33m134f292[m un poquito mas largo
+[33m19c4a10[m alarga mas el recipe osa ponlo un poco mas largo
+[33mfe3c29e[m borra esa que pusistes y quiero q los margenes esten asi :Superior=3.0 c
+[33m24e49ae[m amplialo mas que queden muchas franjas blancas como puedes ver
+[33m81eefeb[m un poco mas largo los lados y de arriba y abajo xfavor
+[33m587daae[m TRATA DE ALARGAR UN POCO MAS EL , el superior, el inferior, el izquierdo
+[33m5dd6b70[m NO ASI NO LO QUIERO REGREA A COMO ESTABA ANTES
+[33m9706e44[m CORRECCIÓN URGENTE de Plantilla de Récipes - Aplicación Correcta de Sang
+[33m345d7b6[m Acciones Requeridas: OJO NO SE CAMBIA EL DISEÑO EL DISEÑO NO SE TOCA COR
+[33m2c4fcdf[m MIRA ME ENCANTO EL DISEÑO DEL RECIPE SE VE EXTREMADAMENTE INCREIBLEEE ES
+[33m97501a2[m QUIERO Q HAGAS ESTO QUIERO  Q EN LOS EXTREMOS DERECHOS E IZQUIERDOS SE V
+[33mc26e3ae[m EN EL RECIPE CAMBIA EL RIF A ESTE .....Rif: J075055861
+[33m5fb96d2[m AHORA AQUI RECUERDA QUE EN NUESTRO SISTEMA HAY TRES AREAS.. MEDICO FAMIL
+[33m181c795[m ME ENCANTO EL DISEÑO MUY HERMOSO TODO AHORA VAMOS HACERLE ESTOS CAMBIOS
+[33mdc0d509[m MIRA ASI ES Q QUIERO QUE SE VEA EL RECIPE CLARO EL DISEÑO  NO LOS DATOS
+[33m8d2ea79[m OK Y LOS MARGENES??? OSEA QUISIERA QUE TUVIERA MARGENES TAL COMO UNA COM
+[33m2538509[m QUIERO QUE CREES EL RECIPE ASI::::.
+[33mb88e327[m VAMOS A CENTRARNOS QUE ESTE RECIPE SOLO TENGA LOS MARGENES Y LOS 2 LOGOS
+[33mec40200[m MIRA PARA EL RECIPE QUIERO ALGO ASI ESTAS SON LAS INSTRUCCIONES PARA QUE
+[33md03da02[m MIRA CENTREMONOS EN EL RECIPE SOLO EN EL RECIPE ESTA BIEN ASI ES COMO QU
+[33m400a5c2[m OK Y COMO HAGO PARA QUE ESTO ESTE VERTICAL??? DIME PASO A PASO
+[33md3b64eb[m AHORA CENTREMONOS EN EL RECIPE... LOS DEMAS DOCUMENTOS SE QUEDAN ASI NO
+[33m9852b9e[m EL RECIPE DEBE SER APARTE UNA HOJA APARTE
+[33m9d9327e[m COLOCALOS UN POCO MAS GRANDES Y ALEJALOS OTRO POQUITO
+[33m5f52023[m AGRANDALOS UN POQUITO MAS Y ALEJALOS OTRO POQUITO MAS XFA
+[33mec1a7db[m SERA QUE PUEDES COLOCAR LOS LOGOS UN POCO MAS CENTRADO OSEA SEPARALOS UN
+[33m15976cb[m XFAVOR REGRESALE ESTE LOGO AL SISTEMA XFAVOR
+[33mdc0d18e[m I see this error with the app, reported by NextJS, please fix it. The er
+[33m454e3db[m QUITA ESOS 2 LOGOS QUE COLOCASTES QUITALOS Y COLOCA SOLO LO DE LA CARPET
+[33m88c50ff[m PORQUE ME DICES ESTO?
+[33m435a023[m SIGUE IGUAL :/
+[33m7f82cb7[m AUN SIGUE IGUAL :/
+[33m006192c[m AUN SIGUE IGUAL :/XFA HAS Q ESOS 2 LOGOS SE VEAN PERO RECUERDA NO GENERE
+[33m2cbb170[m AUN SIGUE IGUAL SOLUCIONALO...... RECUERDA NO GENERES OTRO LOGO SOLO QUI
+[33mcaabfdc[m AUN SE VE IGUAL SOLUCIONALO... RECUERDA NO GENERES NINGUN LOGO... SOLO Q
+[33m20da809[m EL PROBLEMA ES QUE NO SE VEN... ESCUCHA NO QUIERO QUE GENERES OTRO LOGO
+[33m74327a0[m QUIERO QUE ME ELIMINES ESOS 2 IMAGENES Q GENERASTES YO NO QUIERO ESAS IM
+[33m6c81401[m SALE ASI RESUELVE ESE ERROR XFAVOR.... EN CARPETA PUBLIC NO CREES NINGUN
+[33mbab6d7d[m QUIERO QUE AÑADAS LOS 2 LOGOS QUE ESTAN EN LA CARPETA PUBLIC UNO QUE EST
+[33m0b5fa47[m I see this error with the app, reported by NextJS, please fix it. The er
+[33m34e6a9c[m I see this error with the app, reported by NextJS, please fix it. The er
+[33m5363c9b[m I see this error with the app, reported by NextJS, please fix it. The er
+[33m8e702bf[m QUIERO QUE EN EL INFORME EN TODO EL CENTRO DE SALUD INTEGRAL  DEBAJO COL
+[33mc66e695[m ELIMINA ESOS 2 LOGOS QUE ESTAN EN LOS EXTREMOS DE LOS INFORMES
+[33mba8471d[m SIGUE IGUAL NO ENTIENDO BUSCA LA CARPETA PUBLIC AHI ESTA LOS 2 LOGOS
+[33madd3aa3[m QUIERO QUE INFORME TODO SE VEA COMO ESTABA ANTES OSEA ASI
+[33m3cf5305[m XFAVOR QUIERO QUE ESTE TODO NORMAL OTRA VEZ REVIERTE ESTOS CAMBIOS
+[33m7fd6b33[m SIGUE APARECIENDO ESE LOGO
+[33m70e6d74[m no me entendistes  quiero que añadas los logos que estan en la carpeta p
+[33m8b36cc8[m lo que esta en el centro no lo cambies para nada...... quiero que ahora
+[33me045980[m The NextJS app server is having trouble starting. Please identify what c
+[33m5088a99[m quiero que abajo de toda esa descriocion lo que dice centro policlinico
+[33mad1241c[m pero porque eliminastes lo q decia salud integral y el logo q iba em la
+[33m1a6fa4f[m quiero que estos datos aparezcan en el encabezado de la derecha en el in
+[33m7cb2b06[m aun sigue en blanco no se muestra ninguno de los 3
+[33m6230317[m ahora no aparece nada jaja
+[33md3199b9[m osea cuando le doy para imprimir no solo apare la orden de laboratorio y
+[33md166e24[m cuando le doy imprimir tods los documentos solo aparece el de orden de l
+[33m646f41d[m ok y en donde veo el recipe
+[33m92bec29[m dame un plan general de como podriamos generar recipes pero sin ia solo
+[33ma83eb91[m quiero q esto este centrado en las 2
+[33m359a6f4[m quiero que en la orden de laboratorio se vea casi igual q el informe med
+[33mbe82625[m quiero que la orden  de laboratorio lo generes aparte que sea informe me
+[33m25ffa88[m quiero que debajo de la opcion de ordenes de radiologia e imagenes coloq
+[33m070b979[m I see this error with the app, reported by NextJS, please fix it. The er
+[33m6fa2596[m debajo de generar orden de laboratorio crea otro campo de texto en el qu
+[33m49021c6[m quiero que em este campo añadas un campo mas si x si acaso no se encuent
+[33m1695b13[m LE DI ENTER EN CATALOGO Y SALE ESTO
+[33m3b51610[m ELIMINA ESTA OPCION
+[33m192bf43[m ESTE ERA EL LOGO QUE TENIA ANTES XFAVOR Q SEA ESE
+[33mbbec32e[m es MediHub
+[33m2ac2b2b[m aun estoy viendo este logo feo
+[33ma81cb99[m te dije que quites ese logo y dejes el anterior que era como un circulo
+[33m40f2197[m aun me sigue apareciendo  los mismo y no entiendo aqui se encuentran los
+[33me3b1387[m yava pero entiendo que significa esto???estos no son los logos que yo pe
+[33m76b85c2[m I see this error with the app, reported by NextJS, please fix it. The er
+[33m0f3ba3c[m sale asi ahora
+[33ma5c0e96[m esta muy bien pero el logito de salud integral esta muy pequeño y el de
+[33m7391527[m como hago para que se pueda imprimir a color??
+[33m039537a[m le di click al historial medico y sale esto
+[33me12e414[m se asi
+[33mb8e33a0[m quiero que coloques 2 logos que se encuentran en la carpeta public estan
+[33m5c93a32[m que el informe vuelva a como estaba antes osea normal sin ningun logo
+[33m8468ad4[m Coloca el logo principal de "Salud Integral la Viña" en la esquina super
+[33mf9e015c[m se ve asi
+[33m524617a[m quisiera que atras en ese espacio coloques este pequeño logo el escrito
+[33md8cb7ed[m dime paso a paso como puedo hacer para que los logos del cpv y salud int
+[33mfea98de[m YO QUERIA QUE QUE LA PARTE DE UNIDAD/SERVICIOS SE VIERA MAS O MENOS ASI
+[33m91bbcd6[m CUANDO LE DOY CLICK EN TITULARES APARECE ESTE ERROR
+[33m2bdc156[m quiero que me elimines esta opcion y me le cambies el nombre... el tipo
+[33m9150822[m QUIERO QUE AQUI EN ESTE FORMULARIO DE TITULAR CREES UNA NUEVO CAMPO QUE
+[33m539436e[m cuando le doy eliminar titular me sale este error
+[33mb433335[m en estos campos que solo se acepten numeros solo numeros prohido las let
+[33m9c02059[m en estos campos que solo se acepten letras nada mas... prohibido los num
+[33m2a9a523[m esto no puede pasar tiene que tener un limite q que cuando llegue a 8 nu
+[33m5f0352b[m quiero que en cedula pongas un limite de numeros quiero que coloques min
+[33m1ea406a[m ya no quiero que se vea esto devuelvelo a como estaba sin ningun logo
+[33m77db3c3[m no no me entendistes yo quiero que sea identico a la imagen que te pase
+[33m02f74f8[m quiero que el informe del historial se vea este logo parecido xfavor
+[33m399ab0c[m no funciona la bitacora
+[33m758f731[m aun no aparece nada en bitacora de tratamiento quiero q esta opcion func
+[33md8a16ef[m aun nada .
+[33m382b1ec[m bitacora de tratamiento no funciona y no muestra a los pacientes
+[33m62fafd8[m aparece esto
+[33mc222fbe[m sale esto en bitacora
+[33m0962f0c[m quiero que bitacora de tratamiento funcione ya que añado cdedula y no ap
+[33ma45c776[m sale esto
+[33m784cdd7[m sale esto
+[33m2bbbdd8[m sale esto
+[33me308972[m me meto en bitacora de tratamiento y me sale esto
+[33mfd17352[m EMMM se escribe Inicio
+[33m58f5762[m QUIERO QUE LA PARTE DONDE DICE PRINCIPAL SE LA CAMBES POR: INICIO. Y DON
+[33mcd5e72d[m ES VIÑA INTEGRAL RECUERDA
+[33mf5d00c2[m NO LO PUEDES COLOCAR COMO MAS PROFESIONAL SABES?? QUE RESALTE QUE ESTE B
+[33med519d1[m SALUD INTEGRAL NO LO VEO CENTRADO TRATA DE DARLE UN ENTER PAREA QUE QUED
+[33ma669818[m QUE ES SALUD INTEGRAL CPV Y EL LOGO QUEDEN SUPER CENTRADOS EN DONDE ESTA
+[33m5c19240[m QUE QUEDE ASI XFAVOR QUE LOS 2 RESALTEN Y UN POCO MAS GRANDESITO
+[33m2fde05a[m QUE LOS 2 ESTEN EN NEGRITO Y Q CPV ESTE DEBAJO DE VIÑA INTEGRAL Y CENTRA
+[33mf22df4e[m QUE EL CPV SE VEA IGUAL Q VIÑA INTEGRAL TRATA DE DARLES UNA PRESNTEACION
+[33m78986ff[m QUITA SALUD INTEGRAL Y COLOCA CPV
+[33m1f6c57a[m QUE SE VUELVA AVER ASI Y LISTO
+[33m3528940[m QUE SEA VEA MAS PERSONALIZADO MAS PROFESIONAL
+[33m2a1673d[m SOLO DIGO QUE LE AÑADAS UN COLOR ASI QUE COMBINE CON EL SISTEMA
+[33me8c1bcd[m SE EXACAMENTE ASSI?
+[33maa654c0[m AÑADELE ESO ASI COMO LO PUSISTES AQUI
+[33m3dabfe9[m RESTABLECE EL SISTEMA CUANDO TE MANDE QUE SE VEIA ASI XFAVOR QUE QUEDE A
+[33mf316546[m EMM AUN NO SALE NADA
+[33mad3a945[m AUN NO SALE NADA
+[33m1b0d7de[m NO SALE NADA
+[33m1742528[m DEJALO CON EL FONDO DE LAS CAMILLAS Q TU MISMO LE PUSISTES XFA
+[33m51833d3[m DEJALO CON EL FONDO QUE TENIA CAMILLAS O MEJOR DE FONDO PONLE UN CONSULT
+[33m87f8d4e[m AUN SIGUE EN BLANCO
+[33m522851d[m NO APARECE NADA
+[33mfa4593b[m MEJOR COLOCA ESA EN FULL RESOLUCION
+[33m2b872fe[m Y SI LE COLOCAS ESA
+[33m0c20de7[m SABES QUE DEJALO CON UNA IMAGEN QUE TRATE SOBRE EL AREA DE LA SALUD FULL
+[33m207f3e4[m AUN SIGUE IGUAL
+[33m379f6c4[m NO QUIERO QUE APAREZCA ESE FONDO NEGRO QUIERO QUE LAS IMAGENES SE ROTEN
+[33m2de6a41[m NO LO SE NO ME GUSTA ES MEJOR LA OTRA
+[33m6343811[m AUN SE QUEDA  ASI
+[33m7f43630[m X FA AÑADE MAS IMAGENES
+[33m339d4dc[m CUANDO FINALIZA SE QUEDA UN BUEN RATO ASI Y LUEGO PASA A LA OTRA IMAGEN
+[33m91c428b[m QUE SEAN MAS OSEA QUE SEAN LAS NECESEARIAS Y VAYAN POCO A POCO QUE NO HA
+[33m8c8e8b2[m QUISIERA QUE ESTOS TIPOS DE IMAGENES OSEA LOS QUE ME HAS MANDADO MENOS E
+[33m4518a4f[m ENCUENTRA OTRO QUE REPRESENTE AL CENTRO POLICLINICO VALENCIA Y A SALUD I
+[33m7cb73d4[m MMM OTRA IMAGEN QUE SEA MAS SOFISTICADA
+[33m2661527[m SALE ESTO
+[33m5c668c7[m SALE ESTO
+[33m400a0c0[m SE VE ASI DIJE QUE QUERIA UNA IMAGEN RELACIONADA CON ESA AREA Q ES SALUD
+[33m0536be0[m MMMM NO VEO NADA
+[33mf34aea1[m QUIERO QUE EN EL FONDO DONDE ESTA TODO ES EN BLANCO SE VEA UN FONDO BONI
+[33m1c02dcb[m QUE SE VEA MAS BONITO QUE NO SEA ASI EN MAYUSCULAS ALGO BIEN
+[33m01daef8[m TRATA Q LAS LETRAS DE VIÑA INTEGRAL ESTEN UN POCO LLAMATIVAS ELEGANTES
+[33mc0b0888[m VIÑA INTEGRAL
+[33m40915d1[m MMM OTRO
+[33mc5aeb4d[m QUIERO QUE LE COLOQUES UN NOMBRE AL SISTEMA QUE NO SEA MEDIHUB QUE SEA C
+[33mb916aac[m YA SE MUESTRA EL HISTORIAL PERO ME SALE ESTE ERROR
+[33mf74531e[m ME APARECE ESTO
+[33m3268d4c[m QUIERO QUE EN EL HISTORIAL CLINICO DEL PACIENTE SE GENERE ASI TAL COMO E
+[33m8f4792e[m ELIMINA ESE Y SOLO DEJA EL HISTORIAL
+[33m882c68d[m SALE LO MISMO.. PERO EN POCAS PALABRAS QUE ME RECOMIENDAS QUE HAGA???
+[33mcf90814[m AQUI ESTA EL HISRTORIAL NO ENTIENDO PORQUE DA ESE ERROR
+[33m1c4ecba[m SALE ESTO
+[33mf1b4732[m DICE ESO
+[33md8034e9[m DICE ESTO
+[33m8693c30[m AUN
+[33mfb3db54[m AUN
+[33m68ed5ed[m DICE ESTO
+[33ma81d266[m SALE ESTO
+[33m5095a9b[m SALE ESTO
+[33m01db472[m SALE ESTO
+[33m303ca03[m OK ESPERO
+[33m17c5c5f[m OK HAZLO
+[33m5a4ac52[m SALE ESTO
+[33mf2bb77c[m QUISIERA QUE ESTA OPCION FUNCIONE LO CUAL ES LA PARTE DONDE SE BUSCA EL
+[33m6dfee2e[m I see this error with the app, reported by NextJS, please fix it. The er
+[33mcb11c25[m SE TE OLVIDO SERVICIOS Y TARIFAS
+[33mfbfe884[m QUIERO QUE ELIMINES ESTAS OPCIONES
+[33m94bdcf6[m I see this error with the app, reported by NextJS, please fix it. The er
+[33mb6b1951[m I see this error with the app, reported by NextJS, please fix it. The er
+[33m51ff062[m I see this error with the app, reported by NextJS, please fix it. The er
+[33m52cc4b3[m no em permite buscar y añadir mi titular arregglado como estaba
+[33mc4a0b78[m I see this error with the app, reported by NextJS, please fix it. The er
+[33maad8124[m elimina el modulo de crear paciente los pacientes se crean desde como te
+[33m9017427[m I see this error with the app, reported by NextJS, please fix it. The er
+[33m3f728b0[m volvamos a trabajar com sql lite y que todo vuekva a la normalidad como
+[33m7ea499f[m Para mejorar la mantenibilidad del código y la velocidad del entorno de
+[33m9413b7f[m The NextJS app server is having trouble starting. Please identify what c
+[33m90ca21b[m Quiero optimizar el rendimiento de la aplicación y la velocidad de carga
+[33m3c8c4a3[m I see this error with the app, reported by NextJS, please fix it. The er
+[33m48b360a[m I see this error with the app, reported by NextJS, please fix it. The er
+[33ma5b08f7[m Quiero un rediseño completo y definitivo de la identidad visual de Medih
+[33ma29df9d[m aun me aparece esa N
+[33m350d60e[m The NextJS app server is having trouble starting. Please identify what c
+[33m9e27d3e[m aun no se quita
+[33m243bff2[m aun esta esa n quitala xfavot
+[33m6a8fb8e[m quita esa n
+[33m077f52b[m Quiero realizar una optimización de rendimiento crítica en toda la aplic
+[33me1cd996[m I see this error with the app, reported by NextJS, please fix it. The er
+[33mcff2ebe[m Quiero realizar una transformación visual completa de la identidad de Me
+[33md252813[m Quiero un rediseño completo del logo de Medihub para que sea más profesi
+[33m81e1b7e[m Quiero iniciar una renovación visual completa de Medihub para que tenga
+[33m7441fbe[m cuando le doy clic a tarifas y servicios me sale esto
+[33m22a2798[m I see this error with the app, reported by NextJS, please fix it. The er
+[33m181a4bc[m Quiero añadir una capacidad básica de gestión de tarifas y facturación a
+[33m9398716[m elimina agenda
+[33mccd5f09[m I see this error with the app, reported by NextJS, please fix it. The er
+[33m1679a64[m Quiero implementar un sistema para recopilar el feedback de los paciente
+[33m72b3dbc[m I see this error with the app, reported by NextJS, please fix it. The er
+[33mc77ec04[m I see this error with the app, reported by NextJS, please fix it. The er
+[33m5b173b1[m I see this error with the app, reported by NextJS, please fix it. The er
+[33m0746f3e[m I see this error with the app, reported by NextJS, please fix it. The er
+[33me96d674[m I see this error with the app, reported by NextJS, please fix it. The er
+[33m18ec869[m I see this error with the app, reported by NextJS, please fix it. The er
+[33m9819302[m The NextJS app server is having trouble starting. Please identify what c
+[33m5239295[m I see this error with the app, reported by NextJS, please fix it. The er
+[33m5feb1c2[m I see this error with the app, reported by NextJS, please fix it. The er
+[33m5130cab[m I see this error with the app, reported by NextJS, please fix it. The er
+[33mb9efeec[m Quiero mejorar la experiencia de usuario y hacer que la interfaz se sien
+[33m02692d2[m I see this error with the app, reported by NextJS, please fix it. The er
+[33m5b9c584[m Quiero añadir una funcionalidad principal a Medihub: un módulo de gestió
+[33m80dd0ce[m salen estos mensajes en la consola
+[33mfa185a9[m em ahora meto mis datos y no me cargan osea queda pensando y ya
+[33m7500778[m I see this error with the app, reported by NextJS, please fix it. The er
+[33m65fa5e1[m me sigue apareciendo igual
+[33m4fdbe8e[m sigue igual osea yo inicio mi sesion coloco mi usuario y contraseña y lu
+[33m8e3afbd[m me sigue mandando al inicio de sesion
+[33m47bdf39[m cuando entro al sistema y le doy en personas me devuelve al inicio osea
+[33m07a98e8[m I see this error with the app, reported by NextJS, please fix it. The er
+[33m15afef0[m me sigue apareciendo el mismo error y estos errores en la consola
+[33ma5e835d[m me sale el mismo error en la consola
+[33m69894f4[m me sale esto
+[33m42e7309[m cuando le doy a buscar paciente y salgo yo no me aparece el historial cl
+[33m1606d82[m Ahora, quiero mejorar la experiencia en el módulo de Historia Clínica. A
+[33m7db91ad[m Quiero transformar el dashboard principal en un panel de control dinámic
+[33mbc13138[m AL TERMINAR LA CONSULTA CON EL PACIENTE CUANDO SE TERMINE DE CHEQUEAR Y
+[33mb896ece[m .svg coloca esa imagen como imagen del login
+[33ma976814[m cambiar icono del login por un icono personalizado en el codigo fuente
+[33md9b7f4f[m Que pasa al eliminar a una persona que tambien es titular y tiene afilia
+[33m7dd1403[m Error al eliminar persona desde el modulo personas
+[33m873643a[m la cedula que se guarda en la tabla personas debe tener un campo de naci
+[33m322685a[m Crear pacientes a partir del listado de Personas registradas en el siste
+[33madf04ec[m Crear boton para añadir paciente en el modulo de pacientes
+[33m12f8c2c[m la edad debe ir actualizandose automaticamente a medida que pase el tiem
+[33m660faf7[m mostrar en el listado de pacientes, la edad del paciente calculada a par
+[33m2ab38a0[m corregir error
+[33m8454056[m Cambia en el menu HCE por Historia Clinica
+[33m5636aa9[m Quiero que en el campo sexo para agregar persona solo se muestren las op
+[33m4f180d9[m Los formatos de cedula de persona se deben guardar con la nacionalidad,
+[33me658fe1[m Quise registrar una persona y tuve este error
+[33m1aed2ca[m si se registra una persona menor de edad sin cedula, este debe estar vin
+[33m22288a4[m Como se comportaria el sistema al registrar un menor de edad en el modul
+[33ma5826e8[m el formato de la fecha que se importa en el csv debe ser DD/MM/AAAA
+[33ma21a220[m El formato para importar CSV debe ser Primer Nombre (Obligatorio), Segun
+[33md66c844[m las personas se puede importar desde un archivo csv, antes de importar d
+[33m0280bea[m integrar la sección de órdenes de tratamiento directamente dentro del fo
+[33m41f35be[m un tratamiento no se puede marcar como completado si no se realiza la ej
+[33m8a1aa7c[m al registrar la ejecucion de una orden de tratamiento se observa el sigu
+[33m1a4ed78[m en la lista de los codigos CIE-10  se debe mostrar con paginacion
+[33md9ab495[m antes de importar debe salir una notificacion al usuario donde se indiqu
+[33mf5ce305[m tambien puedo importar CSV para cargar codigos CIE-10 masivos
+[33mc6fcd2b[m en el catalogo CIE-10 tambien se pueden exportar los codigos en CSV para
+[33mfbe8353[m en el modulo de consulta se debe solicitar informacion de consulta ginec
+[33mb7797ee[m tengo este error
+[33ma7575b6[m en motivo de consulta se debe colocar varios check box con los sintomas
+[33mf7cd417[m tengo este error al ver los usuarios
+[33m312ab67[m si yo elimino el rol de seguridad "doctor" que pasaria con las especiali
+[33m4f3e5c4[m cada vez que selecciono un permiso de arrastrar y soltar todavia este se
+[33mb3162bb[m ya funciona (al menos visualmente ) el drag and drop. Pero cada vez que
+[33mdcdb067[m sigue sin funcionar el drag and drop
+[33mc3ff652[m sigue sin funcionar bien, el permiso al hacerle clic para moverlo se pon
+[33m87c80c6[m al intentar tomar los permisos disponibles y querer arrastrarlos hasta l
+[33md8632ec[m tengo este error al intentar agregar un nuevo rol
+[33m2fd1160[m me gustaria que la edicion de roles de usuarios sea atraves de una herra
+[33m8955972[m en el codigo me sale esta alerta
+[33m140b673[m tuve este error al intentar guardar la consulta
+[33m60b2c13[m la ordenes de laboratorio se guardan en la base de datos para futuras co
+[33mf354bfa[m el formulario de consulta puede generar una orden de laboratorio con los
+[33m74f4640[m mejora el formulario de consulta en la parte de signos vitales el cual d
+[33m2f0a574[m en el formulario de consulta cambia el campo de Alergicos y Hábitos Psic
+[33m70c6184[m se presenta este error
+[33m35ae4ad[m quiero mejorar el formulario de consultas, el formulario de consultas de
+[33m7c028c4[m quiero que la hora se muestre en formato AM y PM y que la hora sea mas g
+[33m6d7f7a6[m aun se ve muy pequeño dale un poco mas de tamaño y ademas que en la fech
+[33m696520a[m la fecha y la hora son algo pequeñas me gustaria que fueran un poco mas
+[33mdc5f380[m quiero quen en el modulo de sala de espera aparezca la fecha y la hora e
+[33m0a1cabd[m quiero que las notificaciones de los estatus de pacientes sean mas llama
+[33m837e648[m Aun no puedo hacer login
+[33m5b5d17e[m me gustaria que los niveles de seguridad sean dinamicos, es decir que pu
+[33m955046f[m cambia el nombre de la aplicacion, no quiero que se llame careflow centr
+[33m60c7b0c[m en el menu del usuario logueado pon un icono de usuario por defecto en v
+[33m863f8fb[m al boton de usario donde se cierra la sesion agrega una opcion que le pe
+[33md4fc2c1[m quiero que el boton del usuario logueado donde se cierra sesion este arr
+[33mf62b6e4[m agrega un boton para colocar modo oscuro o modo claro en la aplicacion
+[33m9d5d150[m me gustaria cambiar los colores de la aplicacion a unos colores mas vivo
+[33m6aef4f7[m me gustaria que el boton de cambiar estado de paciente tenga un mejor di
+[33m4f62a7d[m me gustaria que los botones para cambiar el estado de un paciente en la
+[33mb3cecee[m me gustaria que la lista de espera de cada usuario ocupe todo el espacio
+[33m8ee1d53[m quiero que cuando el estado de una consulta sea pospuesto el sistema le
+[33mfb21b4a[m seria buena idea que un asistente pueda crear personas, titulares y bene
+[33m37a5272[m modifique el usuario drsmith por pediatra, y cree un usuario mgeneral y
+[33mab6b4aa[m aun persiste el error
+[33m9b54b91[m se presentan los siguientes errores
+[33m72fc80f[m los usuarios de tipo asistencial si puede ver la lista de espera de todo
+[33m5ebb406[m tengo este error
+[33m65f619e[m los usuarios de tipo doctor deben ser de dos tipos, tipo medico general
+[33md6d2f34[m quiero que en la sala de espera se muestre la edad del paciente, solo si
+[33mf8cd7fe[m no se puede cancelar una cita si tiene estatus "en consulta" o "en trata
+[33m17a2841[m los unicos estados que puede modificar el usuario asistencial es ausente
+[33m61c5168[m el unico tipo de usuario que puede iniciar consulta es el superusuario y
+[33m611a92a[m Ahora quiero que solo los pacientes menores de edad puedan ser registrad
+[33me8ed5aa[m en el formulario de realizar check in no es necesario preguntar si el pa
+[33mc49230e[m los unicos usuarios que pueden crear, actualizar y eliminar empresas, ti
+[33ma92a59e[m aun se ven los errores, hay alguna manera de cargar mas rapidamente la i
+[33m2122ef9[m el error se genera al querer vincular una persona al usuario
+[33me19124c[m me genera este error cuando selecciono una persona para vicular a un usu
+[33m86e2c24[m este error me aparecio en la gestion de usuarios
+[33md512382[m nada ha funcionado, te comparto salida de la consola del navegador
+[33ma23b11c[m no funciono lo que hiciste :( aun se sigue cerrando la sesion al intenta
+[33m49bfbca[m aun me sigue desconectando
+[33m9650986[m la gestion de usuarios sigue fallando, aun se sierra la sesion cuando in
+[33m45bbb46[m cuando selecciono gestion de usuario se cierra la sesion y me manda al f
+[33m78b5bce[m quiero que el super usuario pueda administrar los usuarios del sistema y
+[33m9cd7c5c[m coloco el usuario superuser y la contraseña password123 y aun asi no pue
+[33m6985378[m I see this error with the app, reported by NextJS, please fix it. The er
+[33m9ead8bc[m I see this error with the app, reported by NextJS, please fix it. The er
+[33m876f3cd[m ahora creemos el modulo de autenticacion y roles de usuarios
+[33mb4dbb9b[m I see this error with the app, reported by NextJS, please fix it. The er
+[33mdc45944[m Se debe crear un Módulo de Reportes donde se muestren:
+[33mac98816[m se debe crear un modulo donde se registren los codigos CIE-10 los cuales
+[33m8aeff75[m si yo selecciono el estado de reevalucion de un paciente de la lista de
+[33mdf41480[m en la sala de espera agrega los siguientes estatus para los pacientes re
+[33mf498a55[m ahora se debe crear un modulo de bitacora de tratamiento el cual debe ap
+[33mc94bf9f[m cada archivo subido debe almacenar: nombre de archivo,  fecha de carga,
+[33mce1fc78[m en la consulta medica se pueden cargar documentos, los cuales pueden ser
+[33m29cf83f[m Si una persona esta creada como la convierto en titular o beneficiario?
+[33m51672c8[m como registro personas?
+[33m7960628[m I see this error with the app, reported by NextJS, please fix it. The er
+[33mb465330[m cuando selecciono el menu de personas la aplicacion me da error 404
+[33mc856437[m I see this error with the app, reported by NextJS, please fix it. The er
+[33m2b514fc[m debes agregar el modulo personas y pacientes  al menu del dashboard y el
+[33mb9264d7[m I see this error with the app, reported by NextJS, please fix it. The er
+[33m6d3ebf5[m I see this error with the app, reported by NextJS, please fix it. The er
+[33m1c36197[m sale esta notificacion y el mensaje de consola error
+[33mc284961[m me muestra este error
+[33mf696013[m I see this error with the app, reported by NextJS, please fix it. The er
+[33mb3ee8ce[m crea una tabla personas, esta tabla puede servir como un "repositorio" c
+[33m5935031[m me gustaria que el formulario de consulta aparezca como un modal en medi
+[33me0521ff[m me gustaria que el formulario de gestionar paciente fuera mas amigable p
+[33mbae22fa[m I see this error with the app, reported by NextJS, please fix it. The er
+[33mf0304d0[m I see this error with the app, reported by NextJS, please fix it. The er
+[33m0aada4e[m el formulario de consulta medica debe tener generación de recetas médica
+[33m50d0d31[m quiero que agregues al menu el modulo de HCE donde se pueda buscar un pa
+[33m15d9fb2[m quiero que estas opciones del menu tenga animacion cuando se ajusta el m
+[33m54ee654[m quiero que los cuadros del menu del dashboard tengan animacion cuando se
+[33me96e618[m el logo de la aplicacion no se mueve con el menu desplegable
+[33m719fac4[m cuando oculto el menu lateral no lo puedo desplegar de nuevo se coloca d
+[33m1ebbd28[m no quiero que la pantalla principal del sistema sea la sala de espera si
+[33m486b9f7[m quiero que el modulo de consulta aparezca en el menu lateral y desde ahi
+[33mfbf79c8[m Crea un Módulo de Historia Clínica Electrónica (HCE) •	La HCE debe ser u
+[33m0831d20[m la sala de espera no se actualiza en tiempo real
+[33ma6bc439[m quiero que cuando se llame a consulta el estatus del paciente cambie en
+[33m67b0a18[m Módulo de Flujo de Atención •	El usuario doctor general, pediatra o nur
+[33m56afc78[m Módulo de Admisión y Sala de Espera Digital •	El usuario debe poder real
+[33m57ebf1b[m los titulares y empresas que se crean por defecto son estaticos en el ht
+[33ma536316[m agrega un campo de telefono celular al formulario de crear nuevo titular
+[33mf452459[m agrega iconos a este formulario tambien
+[33m6d97ec3[m puedes agregar iconos a los label de los campos para que sea mas agradab
+[33m388f00c[m en el formulario de crear nueva empresa en el numero de telefono debe es
+[33md7b0adf[m Quiero que el formulario de crear nueva empresa se separe la letra del r
+[33me60828e[m quiero que el campo dia en la fecha de nacimiento no este inhabilitado p
+[33m23f1053[m me gustaria que el sistema me permita crear una empresa con un boton en
+[33m0f84574[m los datos que estoy registrando no se estan almacenando en la bd sqlite
+[33ma253a53[m en el campo registrar paciente, en el buscador de pacientes deberia apar
+[33m9b6c0e0[m no puedo seleccionar una empresa en el campo select con el buscador
+[33m0cedd24[m el buscador en el campo select de empresa funciona perfectamente pero no
+[33m8250a35[m quiero que el select de empresa tenga un buscador para encontrar la empr
+[33m7bec131[m quiero que el tipo de titular sea radio button
+[33md09263f[m quiero que el campo de telefono este divido en telefono celular con los
+[33mf98322a[m quiero que la nacionalidad se elija con un radio button
+[33mf8a6d31[m quiero que la fecha de nacimiento se seleccione con campos select para c
+[33m9dc67ef[m mejora el diseño del campo fecha de nacimiento
+[33m9f91aed[m el campo de fecha de nacimiento no es amigable ya que no se puede elegir
+[33mc6c03da[m el formulario sigue sin poder usarse sale asi, no puedo registar pacient
+[33m4e5ae17[m el formulario de registrar paciente no funciona bien
+[33m441e430[m ahora quiero Implementar una función de búsqueda de pacientes por cedula
+[33me56b5d6[m Quiero que en el formulario de "Crear nuevo titular" en el campo cedula
+[33m9616e6e[m I see this error with the app, reported by NextJS, please fix it. The er
+[33m08abc3b[m quiero que las acciones en cada modulo esten representadas con iconos
+[33me8ec27a[m Se debe crear un modulo de registro de empresa que debe registrar nombre
+[33m35268bd[m quiero que el modulo de pacientes tenga dos sub modulos, uno de titulare
+[33m1762d2e[m I see this error with the app, reported by NextJS, please fix it. The er
+[33mdd7544f[m como puedo gestionar los beneficiaros de cada titular?
+[33md94969d[m The NextJS app server is having trouble starting. Please identify what c
+[33m7252cd5[m quiero que la base de datos se trabaje con sqlite
+[33mac05c5f[m crea una base de datos para almacenar la informacion registrada en el si
+[33mfc7ca13[m I see this error with the app, reported by NextJS, please fix it. The er
+[33m318210e[m The NextJS app server is having trouble starting. Please identify what c
+[33m465112f[m Hay que crear un Módulo de Gestión de Pacientes y Cuentas (CRUD Paciente
+[33m99d81c0[m el programa debe estar en español full
+[33mf8d4308[m el sistema solo sera usado por el staff quien sera los que registren a l
+[33m8b315e9[m Updated app
+[33m3696b98[m initial scaffold

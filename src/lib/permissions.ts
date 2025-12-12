@@ -1,0 +1,39 @@
+import type { Permission } from './types';
+
+export const ALL_PERMISSIONS: Permission[] = [
+  // Seguridad
+  { id: 'roles.manage', name: 'Gestionar Roles y Permisos', description: 'Permite crear, editar y eliminar roles de seguridad.', module: 'Seguridad' },
+  { id: 'users.manage', name: 'Gestionar Usuarios', description: 'Permite crear, editar y eliminar usuarios del sistema.', module: 'Seguridad' },
+  { id: 'database.view', name: 'Ver Explorador de Base de Datos', description: 'Permite acceder al explorador de la base de datos.', module: 'Seguridad' },
+  { id: 'settings.manage', name: 'Gestionar Configuración', description: 'Permite cambiar la configuración del sistema, como la apariencia.', module: 'Seguridad' },
+  
+  // Parametrización
+  { id: 'companies.manage', name: 'Gestionar Empresas', description: 'Permite administrar el catálogo de empresas afiliadas.', module: 'Parametrización' },
+  { id: 'cie10.manage', name: 'Gestionar Catálogo CIE-10', description: 'Permite administrar el catálogo de códigos de diagnóstico.', module: 'Parametrización' },
+  { id: 'services.manage', name: 'Gestionar Servicios y Tarifas', description: 'Permite definir los servicios y sus precios.', module: 'Parametrización' },
+  { id: 'specialties.manage', name: 'Gestionar Especialidades', description: 'Permite administrar el catálogo de especialidades médicas.', module: 'Parametrización' },
+
+  // Admisión y Pacientes
+  { id: 'people.manage', name: 'Gestionar Personas', description: 'Permite gestionar el repositorio central de personas.', module: 'Admisión' },
+  { id: 'titulars.manage', name: 'Gestionar Titulares', description: 'Permite crear, editar y eliminar titulares.', module: 'Admisión' },
+  { id: 'beneficiaries.manage', name: 'Gestionar Beneficiarios', description: 'Permite añadir o quitar beneficiarios de un titular.', module: 'Admisión' },
+  { id: 'patientlist.view', name: 'Ver Lista de Pacientes', description: 'Permite consultar la lista de todos los pacientes con HCE.', module: 'Admisión' },
+
+  // Flujo de Atención
+  { id: 'waitlist.manage', name: 'Gestionar Sala de Espera', description: 'Permite registrar pacientes y cambiar su estado en la cola.', module: 'Atención' },
+  { id: 'consultation.perform', name: 'Realizar Consulta Médica', description: 'Permite acceder al módulo de consulta para atender pacientes.', module: 'Atención' },
+  { id: 'hce.view', name: 'Ver Historia Clínica (HCE)', description: 'Permite buscar y consultar el historial clínico de los pacientes.', module: 'Atención' },
+  { id: 'treatmentlog.manage', name: 'Gestionar Bitácora de Tratamiento', description: 'Permite ver y administrar las órdenes de tratamiento.', module: 'Atención' },
+  
+  // Reportes
+  { id: 'reports.view', name: 'Ver Reportes', description: 'Permite generar y visualizar reportes del sistema.', module: 'Reportes' },
+  { id: 'surveys.manage', name: 'Gestionar Encuestas', description: 'Permite crear y ver resultados de encuestas de satisfacción.', module: 'Reportes' },
+];
+
+export const PERMISSION_MODULES = [
+    'Seguridad',
+    'Parametrización',
+    'Admisión',
+    'Atención',
+    'Reportes',
+];

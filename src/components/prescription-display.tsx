@@ -1,0 +1,115 @@
+
+
+'use client';
+
+import * as React from 'react';
+import type { Consultation } from '@/lib/types';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
+
+const RecipeBlock = ({ consultation, label }: { consultation: Consultation, label: string }) => {
+    const getSpecialtyTitle = () => {
+        const serviceType = (consultation.paciente as any).serviceType;
+        switch (serviceType) {
+            case 'medicina familiar':
+                return 'MEDICINA FAMILIAR';
+            case 'consulta pediatrica':
+                return 'MÉDICO PEDIATRA';
+            case 'servicio de enfermeria':
+                return 'SERVICIO DE ENFERMERÍA';
+            case 'salud ocupacional':
+                return 'SALUD OCUPACIONAL';
+            default:
+                return 'MÉDICO TRATANTE';
+        }
+    };
+
+    return (
+        <div 
+            className="flex-1 border border-black flex flex-col bg-white rounded-lg"
+        >
+            {/* Header */}
+            <div 
+                className="border-b border-black rounded-t-lg p-[1cm] flex items-center justify-between gap-2"
+                style={{ height: '4.5cm' }}
+            >
+                 <img src="/recipe/logo.png" alt="Logo Salud Integral Izquierda" className="h-14 w-auto" />
+                <div className="flex-grow text-center text-black">
+                    <h2 className="text-xl font-serif font-bold">Centro Policlínico Valencia C.A.</h2>
+                    <p className="text-xs font-sans">Rif: J075055861</p>
+                    <p className="text-lg font-serif font-bold mt-2">Dra. Alcida Joselin Perez C.</p>
+                    <p className="text-xs font-sans font-semibold">{getSpecialtyTitle()}</p>
+                </div>
+                 <img src="/recipe/logo_si.png" alt="Logo Salud Integral Derecha" className="h-14 w-auto" />
+            </div>
+
+            {/* Body */}
+            <div 
+                className="border-b border-black flex flex-col p-[1cm] flex-grow"
+                style={{ height: '13.59cm' }}
+            >
+                <div className="flex justify-between items-start text-black">
+                    <p className="text-sm font-semibold">{label}</p>
+                    <div className="flex items-center gap-1 text-sm">
+                        <span>Fecha:</span>
+                        <div className="flex gap-0.5">
+                            <div className="w-5 h-5 border border-black"></div>
+                            <div className="w-5 h-5 border border-black"></div>
+                            <div className="w-10 h-5 border border-black"></div>
+                        </div>
+                    </div>
+                </div>
+                {/* Prescription content area is intentionally left blank for handwritten notes */}
+                <div className="flex-grow mt-2">
+                </div>
+            </div>
+            
+            {/* Footer */}
+            <div 
+                className="rounded-b-lg p-2 text-xs text-black font-sans bg-gray-200 flex flex-col justify-center"
+                style={{ minHeight: '3.5cm' }}
+            >
+                <div className="flex justify-between px-2">
+                    <p><strong>PACIENTE:</strong> {consultation.paciente.nombreCompleto}</p>
+                    <p><strong>C.I. Nº:</strong> {consultation.paciente.cedula}</p>
+                </div>
+                 <p className="text-center mt-1">Avenida Carabobo, frente al Diagnóstico Urológico La Viña, en la urbanización La Viña, Valencia, Carabobo.</p>
+                 <p className="text-center">Teléfonos: 0241 8268688 / 8268431 / 8202710</p>
+            </div>
+        </div>
+    );
+};
+
+
+export function PrescriptionDisplay({ consultation }: { consultation: Consultation }) {
+  // This component is designed to be printed on a Letter-sized sheet in landscape,
+  // with two recipes side-by-side.
+  return (
+    <div className="printable-area bg-white text-black font-sans w-full h-full">
+       <style jsx global>{`
+        @media print {
+          @page {
+            size: letter landscape;
+            margin: 1cm;
+          }
+          body {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            margin: 0;
+            padding: 0;
+          }
+          .printable-area {
+            display: block !important;
+            width: 100%;
+            height: 100%;
+            padding: 0;
+          }
+        }
+      `}</style>
+      <div className="w-full h-full flex flex-row items-stretch justify-center gap-[1cm]">
+        <RecipeBlock consultation={consultation} label="Medicamentos:" />
+        <RecipeBlock consultation={consultation} label="Rp./Indicaciones:" />
+      </div>
+    </div>
+  );
+}
