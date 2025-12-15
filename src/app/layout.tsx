@@ -9,6 +9,15 @@ export const metadata: Metadata = {
   title: 'MediHub',
   description: 'Optimizando la gestión de pacientes con flujos de trabajo inteligentes.',
   manifest: '/manifest.json',
+  icons: {
+    icon: [
+      { url: '/logo-original.png', sizes: 'any' },
+      { url: '/icon-192x192.png', sizes: '192x192', type: 'image/png' },
+    ],
+    apple: [
+      { url: '/icon-192x192.png', sizes: '180x180', type: 'image/png' },
+    ],
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',

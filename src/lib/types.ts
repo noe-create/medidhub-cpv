@@ -31,7 +31,7 @@ export interface User {
   role: { id: string, name: string };
   specialty?: Specialty;
   personaId?: string;
-  name?: string; 
+  name?: string;
   genero?: Genero;
 }
 
@@ -52,7 +52,7 @@ export interface Persona {
   representanteId?: string;
   createdAt?: string;
   // Computed properties, not in DB
-  nombreCompleto?: string; 
+  nombreCompleto?: string;
   cedula?: string;
 }
 
@@ -70,7 +70,7 @@ export interface Empresa {
 }
 
 export interface Titular {
-  id: string; 
+  id: string;
   personaId: string;
   unidadServicio: string;
   numeroFicha?: string;
@@ -160,6 +160,9 @@ export interface ConsultationDocument {
   fileData: string; // as a data URI
   uploadedAt: Date;
 }
+
+export interface CreateConsultationDocumentInput extends Omit<ConsultationDocument, 'id' | 'consultationId' | 'uploadedAt'> { }
+
 
 export interface SignosVitales {
   taSistolica?: number;
@@ -257,7 +260,7 @@ export interface TreatmentOrder {
   orderedBy?: string;
 }
 
-export interface CreateTreatmentItemInput extends Omit<TreatmentOrderItem, 'id' | 'treatmentOrderId' | 'status' | 'executions'> {}
+export interface CreateTreatmentItemInput extends Omit<TreatmentOrderItem, 'id' | 'treatmentOrderId' | 'status' | 'executions'> { }
 
 export interface Consultation {
   id: string;
@@ -284,17 +287,17 @@ export interface Consultation {
 }
 
 export interface CreateConsultationInput extends Omit<Consultation, 'id' | 'consultationDate' | 'diagnoses' | 'documents' | 'treatmentOrder' | 'surveyInvitationToken' | 'invoice'> {
-    diagnoses: Diagnosis[];
-    documents?: CreateConsultationDocumentInput[];
-    treatmentItems?: CreateTreatmentItemInput[];
-    renderedServices?: Service[];
-    radiologyOrder?: string;
-    reposo?: string;
+  diagnoses: Diagnosis[];
+  documents?: CreateConsultationDocumentInput[];
+  treatmentItems?: CreateTreatmentItemInput[];
+  renderedServices?: Service[];
+  radiologyOrder?: string;
+  reposo?: string;
 }
 
 export interface PacienteConInfo extends Persona {
-    roles: string[];
-    nombreCompleto: string;
+  roles: string[];
+  nombreCompleto: string;
 }
 
 export interface CreateTreatmentExecutionInput {
@@ -304,16 +307,16 @@ export interface CreateTreatmentExecutionInput {
 
 // --- Lab Orders ---
 export interface LabOrder {
-    id: string;
-    pacienteId: string;
-    consultationId: string;
-    orderDate: Date;
-    status: 'Pendiente' | 'Completado';
-    tests: string[];
-    // Denormalized for display
-    paciente: Persona & { nombreCompleto?: string; cedula?: string; };
-    diagnosticoPrincipal?: string;
-    treatmentPlan?: string;
+  id: string;
+  pacienteId: string;
+  consultationId: string;
+  orderDate: Date;
+  status: 'Pendiente' | 'Completado';
+  tests: string[];
+  // Denormalized for display
+  paciente: Persona & { nombreCompleto?: string; cedula?: string; };
+  diagnosticoPrincipal?: string;
+  treatmentPlan?: string;
 }
 
 export type HistoryEntry =
@@ -364,33 +367,33 @@ export interface SurveyResponse {
 }
 
 export interface PublicSurveyData {
-    survey: Survey;
-    consultationDate: Date;
+  survey: Survey;
+  consultationDate: Date;
 }
 
 // --- Billing ---
 export interface Service {
-    id: string;
-    name: string;
-    description: string;
-    price: number;
+  id: string;
+  name: string;
+  description: string;
+  price: number;
 }
 
 export interface InvoiceItem {
-    id: string;
-    invoiceId: string;
-    serviceId: string;
-    serviceName: string;
-    price: number;
+  id: string;
+  invoiceId: string;
+  serviceId: string;
+  serviceName: string;
+  price: number;
 }
 
 export interface Invoice {
-    id: string;
-    consultationId: string;
-    totalAmount: number;
-    status: 'Pendiente' | 'Pagada' | 'Anulada';
-    createdAt: Date;
-    items?: InvoiceItem[];
+  id: string;
+  consultationId: string;
+  totalAmount: number;
+  status: 'Pendiente' | 'Pagada' | 'Anulada';
+  createdAt: Date;
+  items?: InvoiceItem[];
 }
 
 
@@ -441,6 +444,6 @@ export interface OperationalReportData {
 
 // --- System Settings ---
 export interface Setting {
-    key: string;
-    value: string;
+  key: string;
+  value: string;
 }

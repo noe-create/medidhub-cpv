@@ -8,8 +8,8 @@ let pool: Pool | null = null;
 
 // Wrapper interface to match existing SQLite usage
 export interface Database {
-    get(sql: string, params?: any[]): Promise<any>;
-    all(sql: string, params?: any[]): Promise<any[]>;
+    get<T>(sql: string, params?: any[]): Promise<T | undefined>;
+    all<T>(sql: string, params?: any[]): Promise<T[]>;
     run(sql: string, params?: any[]): Promise<{ changes: number; lastID?: any }>;
     exec(sql: string): Promise<void>;
 }
@@ -33,16 +33,16 @@ class PostgresWrapper implements Database {
         this.client = client;
     }
 
-    async get(sql: string, params?: any[]): Promise<any> {
+    async get<T>(sql: string, params?: any[]): Promise<T | undefined> {
         const { text, values } = preprocessQuery(sql, params);
         const res = await this.client.query(text, values);
-        return res.rows[0];
+        return res.rows[0] as T;
     }
 
-    async all(sql: string, params?: any[]): Promise<any[]> {
+    async all<T>(sql: string, params?: any[]): Promise<T[]> {
         const { text, values } = preprocessQuery(sql, params);
         const res = await this.client.query(text, values);
-        return res.rows;
+        return res.rows as T[];
     }
 
     async run(sql: string, params?: any[]): Promise<{ changes: number; lastID?: any }> {

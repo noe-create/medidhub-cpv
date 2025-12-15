@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { getSession } from '@/lib/auth';
 
 export async function middleware(req: NextRequest) {
-  const session = await getSession(req.cookies);
+  const session = await getSession();
   const { isLoggedIn } = session;
   const { pathname } = req.nextUrl;
 
@@ -18,12 +18,12 @@ export async function middleware(req: NextRequest) {
 
   // Si está logueado y intenta acceder a una ruta pública, redirigir a dashboard
   if (isLoggedIn && isPublicRoute) {
-      return NextResponse.redirect(new URL('/dashboard', req.url));
+    return NextResponse.redirect(new URL('/dashboard', req.url));
   }
-  
+
   // Si accede a la raíz, redirigir según estado de sesión
   if (pathname === '/') {
-    if(isLoggedIn) {
+    if (isLoggedIn) {
       return NextResponse.redirect(new URL('/dashboard', req.url));
     } else {
       return NextResponse.redirect(new URL('/login', req.url));
