@@ -2,24 +2,28 @@
 'use client';
 
 import * as React from 'react';
-import { ChevronsUpDown, Loader2, Users } from 'lucide-react';
+import { ChevronsUpDown, Loader2, Users, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { searchPeopleForCheckin } from '@/actions/patient-actions';
 import type { Persona, SearchResult } from '@/lib/types';
+import { cn } from '@/lib/utils';
 
 interface HceSearchProps {
   onPersonaSelect: (persona: Persona | null) => void;
+  className?: string;
 }
 
-export function HceSearch({ onPersonaSelect }: HceSearchProps) {
+export function HceSearch({ onPersonaSelect, className }: HceSearchProps) {
   const [query, setQuery] = React.useState('');
+  // ... state ...
   const [results, setResults] = React.useState<SearchResult[]>([]);
   const [isLoading, setIsLoading] = React.useState(false);
   const [isPopoverOpen, setIsPopoverOpen] = React.useState(false);
   const [selectedPersona, setSelectedPersona] = React.useState<Persona | null>(null);
 
+  // ... effects ...
   React.useEffect(() => {
     const timer = setTimeout(async () => {
       setIsLoading(true);
@@ -62,7 +66,7 @@ export function HceSearch({ onPersonaSelect }: HceSearchProps) {
     setIsPopoverOpen(false);
     setQuery(''); // Reset search query on select
   };
-  
+
   const getRoles = (result: SearchResult) => {
     const roles = [];
     if (result.titularInfo) roles.push('Titular');
@@ -77,17 +81,19 @@ export function HceSearch({ onPersonaSelect }: HceSearchProps) {
           variant="outline"
           role="combobox"
           aria-expanded={isPopoverOpen}
-          className="w-full justify-between font-normal text-left h-auto"
+          className={cn(
+            "w-full justify-start text-left h-12 rounded-full bg-white shadow-sm border-none px-4 text-muted-foreground hover:bg-white hover:text-foreground/80 hover:shadow-md transition-all gap-3",
+            className
+          )}
         >
+          <Search className="h-5 w-5 text-blue-600 shrink-0" />
           {selectedPersona ? (
-            <div className="flex items-center gap-2">
-              <div>
-                <p className="text-sm font-medium">{selectedPersona.nombreCompleto}</p>
-                <p className="text-xs text-muted-foreground">{selectedPersona.cedula}</p>
-              </div>
+            <div className="flex flex-col truncate">
+              <span className="text-sm font-semibold text-foreground truncate">{selectedPersona.nombreCompleto}</span>
             </div>
-          ) : 'Buscar por nombre o cédula...'}
-          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          ) : (
+            <span className="text-muted-foreground/80 font-normal truncate">Buscar por nombre o cédula...</span>
+          )}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="p-0 w-[--radix-popover-trigger-width]" align="start">
@@ -115,7 +121,7 @@ export function HceSearch({ onPersonaSelect }: HceSearchProps) {
                       <div>
                         <p className="text-sm">{result.persona.nombreCompleto}</p>
                         <p className="text-xs text-muted-foreground">
-                          {result.persona.cedula} &bull; <span className="font-semibold">{getRoles(result)}</span> 
+                          {result.persona.cedula} &bull; <span className="font-semibold">{getRoles(result)}</span>
                         </p>
                       </div>
                     </div>

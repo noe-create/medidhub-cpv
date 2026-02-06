@@ -73,7 +73,8 @@ export default function SalaDeEsperaPage() {
         status: 'Esperando',
         checkInTime: new Date(),
         genero: data.searchResult.persona.genero,
-        fechaNacimiento: data.searchResult.persona.fechaNacimiento
+        fechaNacimiento: data.searchResult.persona.fechaNacimiento,
+        isReintegro: !!data.isReintegro
       });
 
       toast({
@@ -96,26 +97,26 @@ export default function SalaDeEsperaPage() {
 
   return (
     <>
-      <div className="flex items-center justify-between space-y-2 bg-gradient-to-br from-card to-secondary/30 p-6 rounded-xl shadow-lg border relative overflow-hidden group">
-        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-violet-500 to-pink-500" />
-        <div>
-          <h2 className="font-headline text-3xl font-bold tracking-tight text-foreground flex items-center gap-3">
-            <RefreshCw className="h-8 w-8 text-blue-500 opacity-80" />
-            Sala de Espera y Registro
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 bg-gradient-to-r from-blue-600 to-blue-500 p-8 rounded-3xl shadow-lg relative overflow-hidden">
+        {/* Decorative background elements could be added here if desired, but keeping it clean for now */}
+        <div className="relative z-10">
+          <h2 className="font-sans text-3xl md:text-4xl font-extrabold tracking-tight text-white flex items-center gap-3">
+            <RefreshCw className="h-8 w-8 text-white/80" />
+            Sala de Espera
           </h2>
-          <p className="text-secondary-foreground/90 mt-1 font-medium">Gestione la cola de atención en tiempo real.</p>
-          <div className="mt-4">
+          <p className="text-blue-100 mt-2 font-medium text-lg">Gestione la cola de atención en tiempo real.</p>
+          <div className="mt-6">
             <RealTimeClock />
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" onClick={fetchData} disabled={isLoading}>
-            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+        <div className="flex items-center gap-3 relative z-10">
+          <Button variant="ghost" size="icon" onClick={fetchData} disabled={isLoading} className="text-white hover:bg-card/20 rounded-xl h-12 w-12">
+            <RefreshCw className={`h-5 w-5 ${isLoading ? 'animate-spin' : ''}`} />
           </Button>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button>
-                <PlusCircle className="mr-2 h-4 w-4" />
+              <Button size="lg" className="bg-card text-primary hover:bg-card/90 font-extrabold rounded-xl h-12 px-6 shadow-sm border-0">
+                <PlusCircle className="mr-2 h-5 w-5" />
                 Registrar Paciente
               </Button>
             </DialogTrigger>

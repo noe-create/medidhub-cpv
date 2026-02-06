@@ -1,0 +1,34 @@
+﻿--- PRUEBA DE CONEXI├ôN (PAR├üMETROS EXPL├ìCITOS) ---
+Intentando conectar con:
+User: postgres
+Host: localhost
+Port: 5432
+Database: medihub
+Password: cpv (Length: 3)
+node.exe : --- FALLO LA 
+CONEXI├ôN ---
+En línea: 1 Carácter: 1
++ & "C:\Program 
+Files\nodejs/node.exe" 
+"C:\Program 
+Files\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo      
+        : NotSpecified  
+  : (--- FALLO LA CON   
+ EXI├ôN ---:String)     
+[], RemoteException
+    + FullyQualifiedErr 
+   orId : NativeComman  
+  dError
+ 
+la autentificaci´┐¢n 
+password fall´┐¢ para 
+el usuario 
+´┐¢postgres´┐¢
+CONCLUSI├ôN: La 
+contrase├▒a es 
+DEFINITIVAMENTE 
+incorrecta.

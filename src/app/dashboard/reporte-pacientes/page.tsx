@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
+import { Badge } from '@/components/ui/badge';
 import { Calendar as CalendarIcon, Loader2, ClipboardCheck, Printer, Filter } from 'lucide-react';
 import { format, subDays } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -39,6 +40,7 @@ type AppointmentRow = {
     servicio: string;
     medico: string;
     estado: string;
+    isReintegro: boolean;
 };
 
 export default function ReportePacientesPage() {
@@ -143,7 +145,7 @@ export default function ReportePacientesPage() {
 
     const ReportToPrint = () => {
         return (
-            <div className="bg-white p-4 text-black">
+            <div className="bg-card p-4 text-black">
                 <div className="flex items-center px-8">
                     <img src="/recipe/logo.png" alt="Logo Izquierda" style={{ height: '70px' }} />
                     <div className="flex-grow">
@@ -152,7 +154,7 @@ export default function ReportePacientesPage() {
                     <img src="/recipe/logo_si.png" alt="Logo Derecha" style={{ height: '70px' }} />
                 </div>
                 <div className="text-center my-2">
-                    <h2 className="font-bold text-lg">Reporte de Citas y Consultas</h2>
+                    <h2 className="font-extrabold text-lg">Reporte de Citas y Consultas</h2>
                     <p className="text-sm">
                         Período: {date?.from ? format(date.from, 'P', { locale: es }) : ''} - {date?.to ? format(date.to, 'P', { locale: es }) : ''}
                     </p>
@@ -170,6 +172,7 @@ export default function ReportePacientesPage() {
                             <th className="border border-black p-1 text-left">Servicio</th>
                             <th className="border border-black p-1 text-left">Médico</th>
                             <th className="border border-black p-1 text-left">Estado</th>
+                            <th className="border border-black p-1 text-left">Reintegro</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -182,6 +185,7 @@ export default function ReportePacientesPage() {
                                 <td className="border border-black p-1">{row.servicio}</td>
                                 <td className="border border-black p-1">{row.medico}</td>
                                 <td className="border border-black p-1">{row.estado}</td>
+                                <td className="border border-black p-1 text-center">{row.isReintegro ? 'SÍ' : 'NO'}</td>
                             </tr>
                         ))}
                     </tbody>
@@ -195,167 +199,178 @@ export default function ReportePacientesPage() {
 
     return (
         <>
-            <div className="space-y-6">
-                <div className="flex items-center justify-between space-y-2 bg-gradient-to-br from-card to-secondary/30 p-6 rounded-xl shadow-lg border relative overflow-hidden group">
-                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-violet-500 to-pink-500" />
-                    <div>
-                        <h2 className="font-headline text-3xl font-bold tracking-tight text-foreground flex items-center gap-3">
-                            <ClipboardCheck className="h-8 w-8 text-violet-500 opacity-80" />
-                            Reporte de Pacientes
-                        </h2>
-                        <p className="text-secondary-foreground/90 mt-1 font-medium">Consulte el historial de citas y consultas realizadas.</p>
+            <div className="bg-card rounded-3xl shadow-sm p-8 border border-border/50 min-h-[calc(100vh-6rem)]">
+                {/* Header */}
+                <div className="mb-8 border-b border-border/50 pb-6">
+                    <h2 className="text-2xl font-extrabold text-foreground flex items-center gap-2 mb-2">
+                        <ClipboardCheck className="h-7 w-7 text-primary" />
+                        Reporte de Pacientes
+                    </h2>
+                    <p className="text-muted-foreground">Historial detallado de citas y consultas. Utilice los filtros para refinar los resultados.</p>
+                </div>
+
+                {/* Advanced Filters Toolbar */}
+                <div className="flex flex-col xl:flex-row gap-4 items-end xl:items-center justify-between mb-8 bg-muted/30 p-4 rounded-2xl border border-border/50">
+                    <div className="flex flex-col md:flex-row gap-4 w-full xl:w-auto">
+                        <div className="w-full md:w-[240px]">
+                            <label className="text-xs font-semibold text-muted-foreground ml-3 mb-1 block uppercase tracking-wider">Fecha</label>
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                    <Button
+                                        id="date"
+                                        variant={"outline"}
+                                        className={cn(
+                                            "w-full justify-start text-left font-normal rounded-xl border-border bg-card hover:bg-blue-50/50",
+                                            !date && "text-muted-foreground"
+                                        )}
+                                    >
+                                        <CalendarIcon className="mr-2 h-4 w-4 text-muted-foreground/80" />
+                                        {date?.from ? (
+                                            date.to ? (
+                                                <span className="text-foreground/90 text-sm">
+                                                    {format(date.from, "dd MMM", { locale: es })} - {format(date.to, "dd MMM, yyyy", { locale: es })}
+                                                </span>
+                                            ) : (
+                                                <span className="text-foreground/90 text-sm">{format(date.from, "PPP", { locale: es })}</span>
+                                            )
+                                        ) : (
+                                            <span className="text-muted-foreground/80 text-sm">Seleccione fechas</span>
+                                        )}
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0" align="start">
+                                    <Calendar
+                                        initialFocus
+                                        mode="range"
+                                        defaultMonth={date?.from}
+                                        selected={date}
+                                        onSelect={setDate}
+                                        numberOfMonths={2}
+                                        locale={es}
+                                    />
+                                </PopoverContent>
+                            </Popover>
+                        </div>
+
+                        <div className="w-full md:w-[200px]">
+                            <label className="text-xs font-semibold text-muted-foreground ml-3 mb-1 block uppercase tracking-wider">Servicio</label>
+                            <Select value={serviceType} onValueChange={setServiceType}>
+                                <SelectTrigger className="rounded-xl border-border bg-card text-foreground/90">
+                                    <SelectValue placeholder="Todos" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="todos">Todos los servicios</SelectItem>
+                                    <SelectItem value="Consulta Médica">Consulta Médica</SelectItem>
+                                    <SelectItem value="Pediatría">Pediatría</SelectItem>
+                                    <SelectItem value="Enfermería">Enfermería</SelectItem>
+                                    <SelectItem value="Medicina Familiar">Medicina Familiar</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <div className="w-full md:w-[200px]">
+                            <label className="text-xs font-semibold text-muted-foreground ml-3 mb-1 block uppercase tracking-wider">Estado</label>
+                            <Select value={status} onValueChange={setStatus}>
+                                <SelectTrigger className="rounded-xl border-border bg-card text-foreground/90">
+                                    <SelectValue placeholder="Todos" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="todos">Cualquier estado</SelectItem>
+                                    <SelectItem value="Completada">Completada</SelectItem>
+                                    <SelectItem value="Pendiente">Pendiente</SelectItem>
+                                    <SelectItem value="Cancelada">Cancelada</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+
+                    <div className="flex gap-3 w-full xl:w-auto mt-4 xl:mt-0">
+                        <Button onClick={handleGenerateReport} disabled={isLoading} className="flex-1 xl:flex-none rounded-xl bg-primary hover:bg-primary/90 shadow-md shadow-primary/20">
+                            {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Filter className="mr-2 h-4 w-4" />}
+                            Filtrar
+                        </Button>
+                        <Button
+                            variant="outline"
+                            onClick={() => setIsPrintDialogOpen(true)}
+                            disabled={isLoading || appointmentsData.length === 0}
+                            className="flex-1 xl:flex-none rounded-xl border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800 hover:border-red-300"
+                        >
+                            <Printer className="mr-2 h-4 w-4" />
+                            PDF
+                        </Button>
+                        <Button
+                            variant="outline"
+                            onClick={() => toast({ description: "Funcionalidad de Excel en desarrollo", duration: 2000 })}
+                            disabled={isLoading || appointmentsData.length === 0}
+                            className="flex-1 xl:flex-none rounded-xl border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 hover:border-emerald-300"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-sheet mr-2"><rect width="18" height="18" x="3" y="3" rx="2" ry="2" /><line x1="3" x2="21" y1="9" y2="9" /><line x1="3" x2="21" y1="15" y2="15" /><line x1="9" x2="9" y1="9" y2="21" /><line x1="15" x2="15" y1="9" y2="21" /></svg>
+                            Excel
+                        </Button>
                     </div>
                 </div>
 
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Filtros del Reporte</CardTitle>
-                        <CardDescription>
-                            Seleccione los criterios para generar el reporte de pacientes.
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="flex flex-wrap items-end gap-4">
-                            <div className="flex-1 min-w-[250px]">
-                                <label className="text-sm font-medium mb-2 block">Rango de Fechas</label>
-                                <Popover>
-                                    <PopoverTrigger asChild>
-                                        <Button
-                                            id="date"
-                                            variant={"outline"}
-                                            className={cn(
-                                                "w-full justify-start text-left font-normal",
-                                                !date && "text-muted-foreground"
-                                            )}
-                                        >
-                                            <CalendarIcon className="mr-2 h-4 w-4" />
-                                            {date?.from ? (
-                                                date.to ? (
-                                                    <>
-                                                        {format(date.from, "LLL dd, y", { locale: es })} -{" "}
-                                                        {format(date.to, "LLL dd, y", { locale: es })}
-                                                    </>
-                                                ) : (
-                                                    format(date.from, "LLL dd, y", { locale: es })
-                                                )
-                                            ) : (
-                                                <span>Seleccione un rango</span>
-                                            )}
-                                        </Button>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-auto p-0" align="start">
-                                        <Calendar
-                                            initialFocus
-                                            mode="range"
-                                            defaultMonth={date?.from}
-                                            selected={date}
-                                            onSelect={setDate}
-                                            numberOfMonths={2}
-                                            locale={es}
-                                        />
-                                    </PopoverContent>
-                                </Popover>
-                            </div>
-
-                            <div className="flex-1 min-w-[200px]">
-                                <label className="text-sm font-medium mb-2 block">Tipo de Servicio</label>
-                                <Select value={serviceType} onValueChange={setServiceType}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Todos" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="todos">Todos</SelectItem>
-                                        <SelectItem value="Consulta Médica">Consulta Médica</SelectItem>
-                                        <SelectItem value="Pediatría">Pediatría</SelectItem>
-                                        <SelectItem value="Enfermería">Enfermería</SelectItem>
-                                        <SelectItem value="Medicina Familiar">Medicina Familiar</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            <div className="flex-1 min-w-[200px]">
-                                <label className="text-sm font-medium mb-2 block">Estado</label>
-                                <Select value={status} onValueChange={setStatus}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Todos" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="todos">Todos</SelectItem>
-                                        <SelectItem value="Completada">Completada</SelectItem>
-                                        <SelectItem value="Pendiente">Pendiente</SelectItem>
-                                        <SelectItem value="Cancelada">Cancelada</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            <Button onClick={handleGenerateReport} disabled={isLoading} className="min-w-[150px]">
-                                {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Filter className="mr-2 h-4 w-4" />}
-                                Generar Reporte
-                            </Button>
-                            <Button variant="outline" onClick={() => setIsPrintDialogOpen(true)} disabled={isLoading || appointmentsData.length === 0}>
-                                <Printer className="mr-2 h-4 w-4" />
-                                Imprimir
-                            </Button>
-                        </div>
-                    </CardContent>
-                </Card>
-
                 {isLoading ? (
-                    <div className="flex justify-center items-center h-96"><Loader2 className="h-10 w-10 animate-spin text-muted-foreground" /></div>
+                    <div className="flex justify-center items-center h-96"><Loader2 className="h-10 w-10 animate-spin text-blue-400" /></div>
                 ) : appointmentsData.length === 0 ? (
-                    <Card>
-                        <CardContent className="p-8 text-center text-muted-foreground">
-                            No se encontraron registros para el período seleccionado.
-                        </CardContent>
-                    </Card>
+                    <div className="flex flex-col items-center justify-center h-64 text-center bg-muted/50 rounded-2xl border border-border/50">
+                        <div className="bg-card p-4 rounded-full shadow-sm mb-4">
+                            <ClipboardCheck className="h-8 w-8 text-muted-foreground/60" />
+                        </div>
+                        <p className="text-muted-foreground font-medium">No se encontraron registros para los filtros seleccionados.</p>
+                    </div>
                 ) : (
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Resultados del Reporte</CardTitle>
-                            <CardDescription>
-                                Se encontraron {appointmentsData.length} registros.
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <ScrollArea className="h-[600px]">
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>Fecha</TableHead>
-                                            <TableHead>Hora</TableHead>
-                                            <TableHead>Cédula</TableHead>
-                                            <TableHead>Paciente</TableHead>
-                                            <TableHead>Servicio</TableHead>
-                                            <TableHead>Médico</TableHead>
-                                            <TableHead>Estado</TableHead>
+                    <div className="rounded-2xl border border-border overflow-hidden">
+                        <div className="bg-muted/50 px-6 py-4 border-b border-border flex justify-between items-center">
+                            <h3 className="font-extrabold text-foreground/90">Resultados</h3>
+                            <Badge variant="secondary" className="bg-card text-foreground/80 border border-border">{appointmentsData.length} registros</Badge>
+                        </div>
+                        <ScrollArea className="h-[600px] bg-card">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow className="border-border/50 hover:bg-transparent bg-muted/30">
+                                        <TableHead className="font-extrabold text-foreground/90 pl-6">Fecha</TableHead>
+                                        <TableHead className="font-extrabold text-foreground/90">Hora</TableHead>
+                                        <TableHead className="font-extrabold text-foreground/90">Cédula</TableHead>
+                                        <TableHead className="font-extrabold text-foreground/90">Paciente</TableHead>
+                                        <TableHead className="font-extrabold text-foreground/90">Servicio</TableHead>
+                                        <TableHead className="font-extrabold text-foreground/90">Médico</TableHead>
+                                        <TableHead className="font-extrabold text-foreground/90">Estado</TableHead>
+                                        <TableHead className="font-extrabold text-foreground/90 text-center">Reintegro</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {appointmentsData.map((row, idx) => (
+                                        <TableRow key={idx} className="hover:bg-blue-50/30 border-border/50">
+                                            <TableCell className="font-medium text-foreground/90 pl-6">{row.fecha}</TableCell>
+                                            <TableCell className="text-foreground/80">{row.hora}</TableCell>
+                                            <TableCell className="font-mono text-xs text-muted-foreground">{row.cedula}</TableCell>
+                                            <TableCell className="font-medium text-foreground">{row.paciente}</TableCell>
+                                            <TableCell className="text-foreground/80">{row.servicio}</TableCell>
+                                            <TableCell className="text-foreground/80">{row.medico}</TableCell>
+                                            <TableCell>
+                                                <span className={cn(
+                                                    "px-2.5 py-0.5 rounded-full text-xs font-semibold border",
+                                                    row.estado === 'Completada' && "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
+                                                    row.estado === 'Pendiente' && "bg-amber-500/10 text-amber-500 border-amber-500/20",
+                                                    row.estado === 'Cancelada' && "bg-rose-500/10 text-rose-500 border-rose-500/20"
+                                                )}>
+                                                    {row.estado}
+                                                </span>
+                                            </TableCell>
+                                            <TableCell className="text-center">
+                                                {row.isReintegro ? (
+                                                    <Badge className="bg-blue-500 text-white border-none shadow-sm shadow-blue-500/20">REINTEGRO</Badge>
+                                                ) : (
+                                                    <span className="text-muted-foreground text-xs">—</span>
+                                                )}
+                                            </TableCell>
                                         </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {appointmentsData.map((row, idx) => (
-                                            <TableRow key={idx}>
-                                                <TableCell className="font-medium">{row.fecha}</TableCell>
-                                                <TableCell>{row.hora}</TableCell>
-                                                <TableCell className="font-mono text-sm">{row.cedula}</TableCell>
-                                                <TableCell>{row.paciente}</TableCell>
-                                                <TableCell>{row.servicio}</TableCell>
-                                                <TableCell>{row.medico}</TableCell>
-                                                <TableCell>
-                                                    <span className={cn(
-                                                        "px-2 py-1 rounded-full text-xs font-medium",
-                                                        row.estado === 'Completada' && "bg-green-100 text-green-800",
-                                                        row.estado === 'Pendiente' && "bg-yellow-100 text-yellow-800",
-                                                        row.estado === 'Cancelada' && "bg-red-100 text-red-800"
-                                                    )}>
-                                                        {row.estado}
-                                                    </span>
-                                                </TableCell>
-                                            </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                            </ScrollArea>
-                        </CardContent>
-                    </Card>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </ScrollArea>
+                    </div>
                 )}
             </div>
 

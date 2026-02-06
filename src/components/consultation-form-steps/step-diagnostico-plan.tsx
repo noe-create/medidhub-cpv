@@ -8,7 +8,7 @@ import { FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/comp
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, X, PlusCircle, Wand2, FilePenLine, Trash2, Beaker, ChevronsUpDown, Check, Pill, BrainCircuit, Stethoscope, Monitor, Bed } from 'lucide-react';
+import { Loader2, X, PlusCircle, Wand2, FilePenLine, Trash2, Beaker, ChevronsUpDown, Check, Pill, BrainCircuit, Stethoscope, Monitor, Bed, RefreshCw } from 'lucide-react';
 import type { Patient, Cie10Code, Diagnosis, CreateTreatmentItemInput, Service } from '@/lib/types';
 import { searchCie10Codes, createLabOrder } from '@/actions/patient-actions';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -276,6 +276,60 @@ export const StepDiagnosticoPlan = ({ form, patient, onLabOrderChange }: { form:
 
     return (
         <div className="space-y-6">
+            {patient.isReintegro && (
+                <FormSection icon={<RefreshCw className="h-5 w-5 text-blue-600 animate-spin-slow" />} title="Orden de Reintegro Laboral">
+                    <div className="p-6 bg-blue-50/50 border-2 border-blue-100 rounded-2xl space-y-4">
+                        <div className="flex items-start gap-4">
+                            <div className="p-3 bg-blue-100 rounded-xl">
+                                <RefreshCw className="h-6 w-6 text-blue-700" />
+                            </div>
+                            <div className="flex-1">
+                                <h4 className="text-lg font-black text-blue-900 tracking-tight">Paciente en Proceso de Reintegro</h4>
+                                <p className="text-sm text-blue-700 font-medium">Este trabajador regresa de un reposo médico. Debe generar la orden de remisión a Salud Ocupacional.</p>
+                            </div>
+                        </div>
+
+                        <FormField
+                            control={form.control}
+                            name="occupationalReferral.enabled"
+                            render={({ field }) => (
+                                <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-xl border bg-white p-4 shadow-sm">
+                                    <FormControl>
+                                        <Checkbox
+                                            checked={field.value}
+                                            onCheckedChange={field.onChange}
+                                        />
+                                    </FormControl>
+                                    <div className="space-y-1 leading-none">
+                                        <FormLabel className="text-sm font-bold text-slate-800">Generar Remisión a Salud Ocupacional</FormLabel>
+                                        <p className="text-xs text-muted-foreground italic">Se incluirá un documento formal de remisión en el historial.</p>
+                                    </div>
+                                </FormItem>
+                            )}
+                        />
+
+                        {form.watch('occupationalReferral.enabled') && (
+                            <FormField
+                                control={form.control}
+                                name="occupationalReferral.observations"
+                                render={({ field }) => (
+                                    <FormItem className="animate-in fade-in slide-in-from-top-2 duration-300">
+                                        <FormLabel className="text-xs font-black uppercase text-blue-800 px-1">Observaciones para Medicina Ocupacional</FormLabel>
+                                        <FormControl>
+                                            <Textarea
+                                                placeholder="Ej: Paciente en buenas condiciones generales, asintomático, sin hallazgos relevantes al examen físico que impidan el reintegro."
+                                                className="bg-white border-blue-200 focus:border-blue-400 min-h-[100px] rounded-xl shadow-inner placeholder:italic"
+                                                {...field}
+                                            />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                        )}
+                    </div>
+                </FormSection>
+            )}
 
             <FormSection icon={<Pill className="h-5 w-5 text-primary" />} title="Plan y Órdenes">
                 <FormField control={form.control} name="treatmentPlan" render={({ field }) => (

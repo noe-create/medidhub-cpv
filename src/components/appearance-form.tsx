@@ -14,12 +14,12 @@ import {
   FormItem,
   FormMessage,
 } from '@/components/ui/form';
-import { Loader2, Save, CheckCircle, Upload, Image as ImageIcon } from 'lucide-react';
+import { Loader2, Save, CheckCircle, Upload, Image as ImageIcon, LayoutTemplate, Palette } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { updateSettings } from '@/actions/settings-actions';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 
 const appearanceSchema = z.object({
   loginImage: z.string().url({ message: 'Por favor, introduzca una URL válida.' }).or(z.string().startsWith('data:image/')).or(z.literal('')),
@@ -57,12 +57,12 @@ const themeOptions = [
 ];
 
 const fileToDataUrl = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-    });
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 };
 
 const ImageUploader = ({ field, title }: { field: any, title: string }) => {
@@ -83,16 +83,20 @@ const ImageUploader = ({ field, title }: { field: any, title: string }) => {
   const isDataUrl = field.value && field.value.startsWith('data:image/');
 
   return (
-    <div className="space-y-2 mt-4">
-      <Button
-        type="button"
-        variant="outline"
-        className="w-full"
+    <div className="space-y-4">
+      <div
         onClick={() => inputRef.current?.click()}
+        className="group relative flex flex-col items-center justify-center w-full h-32 rounded-xl border-2 border-dashed border-blue-200 bg-blue-50/30 hover:bg-blue-50 hover:border-blue-400 transition-all cursor-pointer"
       >
-        <Upload className="mr-2 h-4 w-4" />
-        {title}
-      </Button>
+        <div className="flex flex-col items-center justify-center pt-5 pb-6">
+          <div className="p-3 bg-white rounded-full shadow-sm mb-2 group-hover:scale-110 transition-transform">
+            <Upload className="w-6 h-6 text-blue-600" />
+          </div>
+          <p className="mb-1 text-sm text-foreground/80 font-medium">{title}</p>
+          <p className="text-xs text-muted-foreground/80">Click para subir imagen</p>
+        </div>
+      </div>
+
       <input
         type="file"
         ref={inputRef}
@@ -100,7 +104,12 @@ const ImageUploader = ({ field, title }: { field: any, title: string }) => {
         accept="image/*,.png,.jpg,.jpeg,.gif,.webp"
         className="hidden"
       />
-      {isDataUrl && <p className="text-sm text-muted-foreground italic text-center">Imagen local seleccionada.</p>}
+      {isDataUrl && (
+        <div className="flex items-center gap-2 text-xs text-emerald-600 font-medium bg-emerald-50 px-3 py-2 rounded-lg border border-emerald-100">
+          <CheckCircle className="h-4 w-4" />
+          Imagen cargada correctamente
+        </div>
+      )}
     </div>
   );
 };
@@ -115,7 +124,7 @@ export function AppearanceForm({ initialSettings }: AppearanceFormProps) {
 
   const watchLoginImage = form.watch('loginImage');
   const watchLoginOverlayImage = form.watch('loginOverlayImage');
-  
+
   async function onSubmit(values: AppearanceFormValues) {
     try {
       const settingsToUpdate = [
@@ -138,126 +147,140 @@ export function AppearanceForm({ initialSettings }: AppearanceFormProps) {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Configuración de Apariencia del Inicio de Sesión</CardTitle>
-        <CardDescription>
-          Personalice la apariencia de la pantalla de inicio de sesión. Puede seleccionar un tema predefinido o usar sus propias imágenes.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-            <div>
-              <h3 className="text-lg font-medium mb-4">Galería de Temas</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {themeOptions.map((theme) => (
-                  <div
-                    key={theme.name}
-                    className={cn(
-                      'relative cursor-pointer rounded-lg border-2 transition-all duration-200',
-                      watchLoginImage === theme.loginImage
-                        ? 'border-primary ring-2 ring-primary ring-offset-2'
-                        : 'border-transparent hover:border-primary/50'
-                    )}
-                    onClick={() => {
-                      form.setValue('loginImage', theme.loginImage, { shouldValidate: true });
-                      form.setValue('loginOverlayImage', theme.loginOverlayImage, { shouldValidate: true });
-                    }}
-                  >
-                    <Card className="overflow-hidden">
-                      <CardHeader className="p-3">
-                          <CardTitle className="text-base">{theme.name}</CardTitle>
-                      </CardHeader>
-                      <CardContent className="p-0 aspect-video relative">
-                            <Image src={theme.loginImage} alt={`Fondo de ${theme.name}`} fill className="object-cover" unoptimized />
-                            <div className="absolute inset-0 bg-gradient-to-r from-transparent to-black/50" />
-                            <Image src={theme.loginOverlayImage} alt={`Superposición de ${theme.name}`} className="absolute top-0 right-0 h-full w-1/2 object-cover" width={100} height={200} unoptimized />
-                      </CardContent>
-                    </Card>
-                    {watchLoginImage === theme.loginImage && (
-                        <div className="absolute top-2 right-2 flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground">
-                            <CheckCircle className="h-4 w-4" />
-                        </div>
-                    )}
-                  </div>
-                ))}
+    <div className="space-y-6">
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+
+          {/* Gallery Section */}
+          <div className="bg-white rounded-3xl shadow-sm p-8 border border-slate-100">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <LayoutTemplate className="h-6 w-6 text-blue-700" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-foreground">Galería de Temas</h3>
+                <p className="text-muted-foreground text-sm">Seleccione un tema predefinido para la pantalla de Login.</p>
               </div>
             </div>
-            
-            <div className="space-y-6 pt-8 border-t">
-                <h3 className="text-lg font-medium">Opciones Personalizadas</h3>
-                <FormDescription>
-                    Use los botones "Cambiar Imagen" para seleccionar una imagen de su computadora.
-                </FormDescription>
-                
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="text-base">Imagen de Fondo (Lado Izquierdo)</CardTitle>
-                            <CardDescription>La imagen principal que ocupa toda la pantalla del lado izquierdo.</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="aspect-video relative mb-4">
-                                {watchLoginImage ? (
-                                    <Image src={watchLoginImage} alt="Vista previa de la imagen de fondo" fill className="object-cover rounded-md" unoptimized/>
-                                ) : (
-                                    <div className="w-full h-full bg-muted rounded-md flex items-center justify-center">
-                                        <ImageIcon className="h-10 w-10 text-muted-foreground"/>
-                                    </div>
-                                )}
-                            </div>
-                           <FormField
-                            control={form.control}
-                            name="loginImage"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <ImageUploader field={field} title="Cambiar Imagen de Fondo"/>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                            />
-                        </CardContent>
-                    </Card>
-                     <Card>
-                        <CardHeader>
-                            <CardTitle className="text-base">Imagen de Superposición (Lado Derecho)</CardTitle>
-                            <CardDescription>La imagen que aparece en el lado derecho.</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                             <div className="aspect-video relative mb-4">
-                                {watchLoginOverlayImage ? (
-                                    <Image src={watchLoginOverlayImage} alt="Vista previa de la imagen de superposición" fill className="object-cover rounded-md" unoptimized/>
-                                ) : (
-                                    <div className="w-full h-full bg-muted rounded-md flex items-center justify-center">
-                                        <ImageIcon className="h-10 w-10 text-muted-foreground"/>
-                                    </div>
-                                )}
-                            </div>
-                           <FormField
-                            control={form.control}
-                            name="loginOverlayImage"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <ImageUploader field={field} title="Cambiar Imagen de Superposición"/>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                            />
-                        </CardContent>
-                    </Card>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {themeOptions.map((theme) => (
+                <div
+                  key={theme.name}
+                  className={cn(
+                    'relative cursor-pointer group',
+                    watchLoginImage === theme.loginImage
+                      ? 'ring-2 ring-blue-600 ring-offset-2 rounded-xl'
+                      : ''
+                  )}
+                  onClick={() => {
+                    form.setValue('loginImage', theme.loginImage, { shouldValidate: true });
+                    form.setValue('loginOverlayImage', theme.loginOverlayImage, { shouldValidate: true });
+                  }}
+                >
+                  <div className="overflow-hidden rounded-xl border border-slate-200 shadow-sm transition-all hover:shadow-md h-full bg-white">
+                    <div className="aspect-[16/10] relative overflow-hidden bg-muted">
+                      <Image src={theme.loginImage} alt={`Fondo de ${theme.name}`} fill className="object-cover group-hover:scale-105 transition-transform duration-500" unoptimized />
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent to-black/30" />
+                    </div>
+                    <div className="p-4">
+                      <h4 className="font-semibold text-foreground">{theme.name}</h4>
+                      <p className="text-xs text-muted-foreground mt-1">Tema Corporativo</p>
+                    </div>
+                  </div>
+                  {watchLoginImage === theme.loginImage && (
+                    <div className="absolute -top-2 -right-2 flex h-7 w-7 items-center justify-center rounded-full bg-blue-600 text-white shadow-md border-2 border-white">
+                      <CheckCircle className="h-4 w-4" />
+                    </div>
+                  )}
                 </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Custom Options Section */}
+          <div className="bg-white rounded-3xl shadow-sm p-8 border border-slate-100">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <Palette className="h-6 w-6 text-blue-700" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-foreground">Personalización Avanzada</h3>
+                <p className="text-muted-foreground text-sm">Suba sus propias imágenes para un branding único.</p>
+              </div>
             </div>
 
-            <div className="flex justify-end">
-              <Button type="submit" disabled={form.formState.isSubmitting}>
-                {form.formState.isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                Guardar Cambios
-              </Button>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              {/* Left Image Card */}
+              <div className="bg-muted/50/50 rounded-2xl border border-slate-100 p-6">
+                <div className="mb-4">
+                  <h4 className="font-semibold text-foreground text-lg">Fondo Principal</h4>
+                  <p className="text-sm text-muted-foreground">Imagen de fondo (Izquierda)</p>
+                </div>
+
+                <div className="aspect-video relative mb-6 rounded-xl overflow-hidden shadow-sm border border-slate-200 bg-white">
+                  {watchLoginImage ? (
+                    <Image src={watchLoginImage} alt="Vista previa de la imagen de fondo" fill className="object-cover" unoptimized />
+                  ) : (
+                    <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground/60">
+                      <ImageIcon className="h-12 w-12 mb-2" />
+                      <span className="text-sm">Sin imagen</span>
+                    </div>
+                  )}
+                </div>
+
+                <FormField
+                  control={form.control}
+                  name="loginImage"
+                  render={({ field }) => (
+                    <FormItem>
+                      <ImageUploader field={field} title="Subir Fondo" />
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              {/* Right Image Card */}
+              <div className="bg-muted/50/50 rounded-2xl border border-slate-100 p-6">
+                <div className="mb-4">
+                  <h4 className="font-semibold text-foreground text-lg">Superposición</h4>
+                  <p className="text-sm text-muted-foreground">Imagen lateral (Derecha)</p>
+                </div>
+
+                <div className="aspect-video relative mb-6 rounded-xl overflow-hidden shadow-sm border border-slate-200 bg-white">
+                  {watchLoginOverlayImage ? (
+                    <Image src={watchLoginOverlayImage} alt="Vista previa de la imagen de superposición" fill className="object-cover" unoptimized />
+                  ) : (
+                    <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground/60">
+                      <ImageIcon className="h-12 w-12 mb-2" />
+                      <span className="text-sm">Sin imagen</span>
+                    </div>
+                  )}
+                </div>
+
+                <FormField
+                  control={form.control}
+                  name="loginOverlayImage"
+                  render={({ field }) => (
+                    <FormItem>
+                      <ImageUploader field={field} title="Subir Superposición" />
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
             </div>
-          </form>
-        </Form>
-      </CardContent>
-    </Card>
+          </div>
+
+          <div className="flex justify-end pt-4">
+            <Button type="submit" disabled={form.formState.isSubmitting} size="lg" className="rounded-full bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-200 px-8 transition-all hover:scale-105">
+              {form.formState.isSubmitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Save className="mr-2 h-5 w-5" />}
+              Guardar Configuración
+            </Button>
+          </div>
+        </form>
+      </Form>
+    </div>
   );
 }

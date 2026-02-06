@@ -31,7 +31,7 @@ export function ThemeToggle() {
         onCheckedChange={handleCheckedChange}
         aria-label="Toggle theme"
       />
-      <Moon className="h-5 w-5 text-slate-400" />
+      <Moon className="h-5 w-5 text-muted-foreground/80" />
     </div>
   );
 }

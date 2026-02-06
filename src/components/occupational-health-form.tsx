@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -23,22 +22,15 @@ import {
 } from '@/components/ui/form';
 import { Button } from './ui/button';
 import { useToast } from '@/hooks/use-toast';
+import { Icon } from '@iconify/react';
 import {
   Loader2,
   ArrowLeft,
   ArrowRight,
   Save,
-  Briefcase,
-  HeartPulse,
-  ClipboardCheck,
-  Building,
-  UserCheck,
-  FileQuestion,
-  Stethoscope,
-  Vote,
-  Forward,
-  User,
-  Check
+  Check,
+  ChevronsUpDown,
+  CalendarIcon
 } from 'lucide-react';
 import type { Persona, Empresa } from '@/lib/types';
 import { cn, calculateAge } from '@/lib/utils';
@@ -61,92 +53,17 @@ import {
   CommandItem,
   CommandList,
 } from './ui/command';
-import { ChevronsUpDown } from 'lucide-react';
 import { Cie10Autocomplete } from './cie10-autocomplete';
 import { Calendar } from './ui/calendar';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { CalendarIcon } from 'lucide-react';
-
-const occupationalHealthSchema = z.object({
-  // Initial Info
-  patientType: z.enum(['Empleado Interno', 'Beneficiario', 'Afiliado Externo']),
-  consultationPurpose: z.enum([
-    'Pre-ingreso',
-    'Periódica',
-    'Post-incapacidad',
-    'Retiro',
-    'Consulta de Morbilidad',
-  ]),
-  companyId: z.string().optional(),
-  // Occupational History
-  jobPosition: z.string().min(1, 'El puesto es requerido.'),
-  jobDescription: z.string().min(1, 'La descripción de tareas es requerida.'),
-  occupationalRisks: z
-    .array(z.string())
-    .refine((value) => value.some((item) => item), {
-      message: 'Debe seleccionar al menos un riesgo.',
-    }),
-  riskDetails: z.string().min(1, 'Debe detallar la exposición.'),
-  // Health History
-  personalHistory: z.string().min(1, 'Los antecedentes personales son requeridos.'),
-  familyHistory: z.string().min(1, 'Los antecedentes familiares son requeridos.'),
-  lifestyle: z.object({
-    diet: z.string().optional(),
-    physicalActivity: z.string().optional(),
-    sleepQuality: z.string().optional(),
-    smoking: z.string().optional(),
-    alcohol: z.string().optional(),
-  }),
-  mentalHealth: z.string().optional(),
-  // Physical Exam
-  vitalSigns: z.object({
-    ta: z.string().optional(),
-    fc: z.string().optional(),
-    fr: z.string().optional(),
-    temp: z.string().optional(),
-  }),
-  anthropometry: z.object({
-    weight: z.coerce.number().positive('El peso debe ser positivo'),
-    height: z.coerce.number().positive('La talla debe ser positiva'),
-    imc: z.string(),
-  }),
-  physicalExamFindings: z
-    .string()
-    .min(1, 'Los hallazgos del examen físico son requeridos.'),
-  // Diagnosis and Plan
-  diagnoses: z
-    .array(
-      z.object({
-        cie10Code: z.string(),
-        cie10Description: z.string(),
-      })
-    )
-    .min(1, 'Debe añadir al menos un diagnóstico.'),
-  fitnessForWork: z.enum(['Apto', 'Apto con Restricciones', 'No Apto']),
-  occupationalRecommendations: z
-    .string()
-    .min(1, 'Las recomendaciones son requeridas.'),
-  generalHealthPlan: z
-    .string()
-    .min(1, 'El plan de salud general es requerido.'),
-  interconsultation: z.string().optional(),
-  nextFollowUp: z.date().optional(),
-}).refine(data => {
-    if (data.patientType === 'Afiliado Externo') {
-        return !!data.companyId;
-    }
-    return true;
-}, {
-    message: 'Debe seleccionar una empresa para afiliados externos.',
-    path: ['companyId'],
-});
-
+import { OccupationalEvaluationSchema } from '@/lib/zod-schemas/occupational';
+import { generateOccupationalSuggestions, createOccupationalEvaluation } from '@/actions/occupational-actions';
 
 interface OccupationalHealthFormProps {
   persona: Persona;
   empresas: Empresa[];
-  onFinished: (data: z.infer<typeof occupationalHealthSchema>) => void;
+  onFinished: (data: z.infer<typeof OccupationalEvaluationSchema>) => void;
   onCancel: () => void;
 }
 
@@ -154,31 +71,31 @@ const steps = [
   {
     id: 'info',
     name: 'Información',
-    icon: FileQuestion,
+    icon: 'solar:clipboard-list-bold-duotone',
     fields: ['patientType', 'consultationPurpose', 'companyId'],
   },
   {
     id: 'occupational',
     name: 'Historia Ocupacional',
-    icon: Briefcase,
+    icon: 'solar:case-bold-duotone',
     fields: ['jobPosition', 'jobDescription', 'occupationalRisks', 'riskDetails'],
   },
   {
     id: 'health',
     name: 'Salud Integral',
-    icon: HeartPulse,
+    icon: 'solar:heart-pulse-bold-duotone',
     fields: ['personalHistory', 'familyHistory', 'lifestyle', 'mentalHealth'],
   },
   {
     id: 'exam',
     name: 'Examen Físico',
-    icon: Stethoscope,
+    icon: 'solar:stethoscope-bold-duotone',
     fields: ['vitalSigns', 'anthropometry', 'physicalExamFindings'],
   },
   {
     id: 'plan',
     name: 'Diagnóstico y Plan',
-    icon: ClipboardCheck,
+    icon: 'solar:notes-bold-duotone',
     fields: [
       'diagnoses',
       'fitnessForWork',
@@ -191,11 +108,13 @@ const steps = [
 ];
 
 const riskOptions = [
-  { id: 'ergonomicos', label: 'Ergonómicos' },
-  { id: 'psicosociales', label: 'Psicosociales' },
-  { id: 'biologicos', label: 'Biológicos' },
-  { id: 'quimicos', label: 'Químicos' },
-  { id: 'fisicos', label: 'Físicos' },
+  { id: 'Ergonomicos', label: 'Ergonómicos' },
+  { id: 'Psicosociales', label: 'Psicosociales' },
+  { id: 'Biologicos', label: 'Biológicos' },
+  { id: 'Quimicos', label: 'Químicos' },
+  { id: 'Fisicos', label: 'Físicos' },
+  { id: 'Mecánicos', label: 'Mecánicos' },
+  { id: 'Seguridad', label: 'Seguridad / Accidentes' },
 ];
 
 function CompanySelector({ field, empresas }: { field: any, empresas: Empresa[] }) {
@@ -235,9 +154,10 @@ function CompanySelector({ field, empresas }: { field: any, empresas: Empresa[] 
                     setOpen(false);
                   }}
                 >
-                  <Check
+                  <Icon
+                    icon="solar:check-circle-bold-duotone"
                     className={cn(
-                      'mr-2 h-4 w-4',
+                      'mr-2 h-4 w-4 text-primary',
                       empresa.id === field.value ? 'opacity-100' : 'opacity-0'
                     )}
                   />
@@ -260,60 +180,95 @@ export function OccupationalHealthForm({
 }: OccupationalHealthFormProps) {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [isGeneratingAI, setIsGeneratingAI] = React.useState(false);
   const [currentStep, setCurrentStep] = React.useState(0);
 
-  const form = useForm<z.infer<typeof occupationalHealthSchema>>({
-    resolver: zodResolver(occupationalHealthSchema),
+  const form = useForm<z.infer<typeof OccupationalEvaluationSchema>>({
+    resolver: zodResolver(OccupationalEvaluationSchema),
     defaultValues: {
-      patientType: undefined,
-      consultationPurpose: undefined,
+      patientType: 'Empleado Interno', // Default valid value
+      consultationPurpose: 'Periódica', // Default valid value
       jobPosition: '',
       jobDescription: '',
-      occupationalRisks: [],
+      occupationalRisks: '[]', // Init as empty JSON array string
       riskDetails: '',
       personalHistory: '',
       familyHistory: '',
-      lifestyle: {
-        diet: '',
-        physicalActivity: '',
-        sleepQuality: '',
-        smoking: '',
-        alcohol: '',
-      },
+      lifestyle: '{}',
       mentalHealth: '',
-      vitalSigns: {
-        ta: '',
-        fc: '',
-        fr: '',
-        temp: '',
-      },
-      anthropometry: { weight: 0, height: 0, imc: '0.00' },
+      vitalSigns: '{}',
+      anthropometry: '{}',
       physicalExamFindings: '',
-      diagnoses: [],
-      fitnessForWork: undefined,
+      diagnoses: '[]',
+      fitnessForWork: 'Apto',
       occupationalRecommendations: '',
       generalHealthPlan: '',
       interconsultation: '',
+      personaId: persona.id, // Add missing required field
+      evaluationDate: new Date().toISOString(), // Add missing required field
     },
   });
 
+  // Helper state for complex objects stored as JSON strings
+  const [lifestyle, setLifestyle] = React.useState({
+    diet: '', physicalActivity: '', sleepQuality: '', smoking: '', alcohol: ''
+  });
+  const [vitalSigns, setVitalSigns] = React.useState({
+    ta: '', fc: '', fr: '', temp: ''
+  });
+  const [anthropometry, setAnthropometry] = React.useState({
+    weight: 0, height: 0, imc: '0.00'
+  });
+  const [diagnosesList, setDiagnosesList] = React.useState<any[]>([]);
+  const [selectedRisks, setSelectedRisks] = React.useState<string[]>([]);
+
+
   const { watch, setValue } = form;
   const patientType = watch('patientType');
-  const weight = watch('anthropometry.weight');
-  const height = watch('anthropometry.height');
+  const jobPosition = watch('jobPosition');
+  const jobDescription = watch('jobDescription');
+
+  // Sync helpers to form
+  React.useEffect(() => {
+    setValue('jobPosition', jobPosition); // Ensure string
+  }, [jobPosition, setValue]);
+
+  // Sync helpers to form
+  React.useEffect(() => {
+    setValue('occupationalRisks', JSON.stringify(selectedRisks));
+  }, [selectedRisks, setValue]);
 
   React.useEffect(() => {
-    if (weight > 0 && height > 0) {
-      const heightInMeters = height / 100;
-      const imc = weight / (heightInMeters * heightInMeters);
-      setValue('anthropometry.imc', imc.toFixed(2));
+    setValue('lifestyle', JSON.stringify(lifestyle));
+  }, [lifestyle, setValue]);
+
+  React.useEffect(() => {
+    setValue('vitalSigns', JSON.stringify(vitalSigns));
+  }, [vitalSigns, setValue]);
+
+  React.useEffect(() => {
+    setValue('anthropometry', JSON.stringify(anthropometry));
+  }, [anthropometry, setValue]);
+
+  React.useEffect(() => {
+    setValue('diagnoses', JSON.stringify(diagnosesList));
+  }, [diagnosesList, setValue]);
+
+
+  // IMC Calc
+  React.useEffect(() => {
+    if (anthropometry.weight > 0 && anthropometry.height > 0) {
+      const heightInMeters = anthropometry.height / 100;
+      const imc = anthropometry.weight / (heightInMeters * heightInMeters);
+      setAnthropometry(prev => ({ ...prev, imc: imc.toFixed(2) }));
     }
-  }, [weight, height, setValue]);
+  }, [anthropometry.weight, anthropometry.height]);
 
   const handleNext = async () => {
     const fields = steps[currentStep].fields;
-    const output = await form.trigger(fields as any, { shouldFocus: true });
-    if (!output) return;
+    // We intentionally skip validation on intermediate steps for complex JSON fields to assume they are valid if UI is filled
+    // or trigger partial validation. Form validation runs on submit.
+    // For now, let's just move next as simple fields are valid.
     if (currentStep < steps.length - 1) {
       setCurrentStep((step) => step + 1);
     }
@@ -325,10 +280,67 @@ export function OccupationalHealthForm({
     }
   };
 
-  async function onSubmit(values: z.infer<typeof occupationalHealthSchema>) {
+  const handleGenerateAI = async () => {
+    if (!jobPosition) {
+      toast({ title: 'Falta información', description: 'Ingrese el puesto de trabajo.', variant: 'destructive' });
+      return;
+    }
+    setIsGeneratingAI(true);
+    try {
+      const response = await generateOccupationalSuggestions(jobPosition, jobDescription || '');
+      if (response.success && response.data) {
+        const { risks, suggestedExams, reasoning } = response.data;
+
+        // Auto-select risks if they match our categories
+        const foundRisks = riskOptions.filter(opt =>
+          risks.some(r => r.toLowerCase().includes(opt.label.toLowerCase()) || r.toLowerCase().includes(opt.id.toLowerCase()))
+        ).map(r => r.id);
+
+        const currentRisks = selectedRisks;
+        const newRisks = Array.from(new Set([...currentRisks, ...foundRisks]));
+        setSelectedRisks(newRisks);
+
+        // Append details
+        const details = `Riesgos IA: ${risks.join(', ')}.\n\nRazonamiento: ${reasoning}`;
+        setValue('riskDetails', details);
+
+        const recs = `Exámenes Sugeridos (IA): ${suggestedExams.join(', ')}.`;
+        setValue('occupationalRecommendations', recs);
+
+        toast({ title: 'Sugerencias Generadas', description: 'Se han completado riesgos y recomendaciones.', variant: 'success' });
+      } else {
+        throw new Error(response.error);
+      }
+    } catch (e) {
+      toast({ title: 'Error IA', description: 'No se pudo generar sugerencias.', variant: 'destructive' });
+    } finally {
+      setIsGeneratingAI(false);
+    }
+  }
+
+  async function onSubmit(values: z.infer<typeof OccupationalEvaluationSchema>) {
     setIsSubmitting(true);
-    await onFinished(values);
-    setIsSubmitting(false);
+    try {
+      // Ensure JSON fields are up to date in values
+      values.lifestyle = JSON.stringify(lifestyle);
+      values.vitalSigns = JSON.stringify(vitalSigns);
+      values.anthropometry = JSON.stringify(anthropometry);
+      values.diagnoses = JSON.stringify(diagnosesList);
+      values.occupationalRisks = JSON.stringify(selectedRisks);
+
+      const result = await createOccupationalEvaluation(values);
+
+      if (result.success) {
+        toast({ title: '¡Evaluación Guardada!', description: 'La evaluación se ha registrado exitosamente.' });
+        onFinished(values);
+      } else {
+        toast({ title: 'Error', description: result.error || 'No se pudo guardar la evaluación.', variant: 'destructive' });
+      }
+    } catch (error) {
+      toast({ title: 'Error', description: 'Ocurrió un error inesperado al guardar.', variant: 'destructive' });
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -345,9 +357,9 @@ export function OccupationalHealthForm({
                   Paciente: {persona.nombreCompleto} ({calculateAge(new Date(persona.fechaNacimiento))} años)
                 </CardDescription>
               </div>
-               <Button variant="ghost" onClick={onCancel} type="button">Volver</Button>
+              <Button variant="ghost" onClick={onCancel} type="button">Volver</Button>
             </div>
-             <div className="flex items-center justify-center pt-4">
+            <div className="flex items-center justify-center pt-4">
               {steps.map((step, index) => (
                 <React.Fragment key={step.id}>
                   <div className="flex flex-col items-center text-center w-20">
@@ -360,7 +372,7 @@ export function OccupationalHealthForm({
                         currentStep > index && 'bg-primary/50 text-primary-foreground'
                       )}
                     >
-                      <step.icon className="h-5 w-5" />
+                      <Icon icon={step.icon} className="h-5 w-5" />
                     </div>
                     <p className="text-xs mt-1">{step.name}</p>
                   </div>
@@ -380,12 +392,15 @@ export function OccupationalHealthForm({
             {/* Step 0: Initial Info */}
             {currentStep === 0 && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                 <FormField
+                <FormField
                   control={form.control}
                   name="patientType"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="flex items-center gap-2"><User className="h-4 w-4"/>Tipo de Paciente</FormLabel>
+                      <FormLabel className="flex items-center gap-2">
+                        <Icon icon="solar:user-bold-duotone" className="h-4 w-4" />
+                        Tipo de Paciente
+                      </FormLabel>
                       <Select
                         onValueChange={field.onChange}
                         defaultValue={field.value}
@@ -409,12 +424,15 @@ export function OccupationalHealthForm({
                     </FormItem>
                   )}
                 />
-                 <FormField
+                <FormField
                   control={form.control}
                   name="consultationPurpose"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="flex items-center gap-2"><FileQuestion className="h-4 w-4"/>Propósito de la Consulta</FormLabel>
+                      <FormLabel className="flex items-center gap-2">
+                        <Icon icon="solar:clipboard-list-bold-duotone" className="h-4 w-4" />
+                        Propósito de la Consulta
+                      </FormLabel>
                       <Select
                         onValueChange={field.onChange}
                         defaultValue={field.value}
@@ -437,122 +455,181 @@ export function OccupationalHealthForm({
                   )}
                 />
                 {patientType === 'Afiliado Externo' && (
-                   <FormField
-                      control={form.control}
-                      name="companyId"
-                      render={({ field }) => (
-                        <FormItem className="md:col-span-2">
-                          <FormLabel className="flex items-center gap-2"><Building className="h-4 w-4"/>Empresa del Afiliado</FormLabel>
-                          <CompanySelector field={field} empresas={empresas} />
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                  <FormField
+                    control={form.control}
+                    name="companyId"
+                    render={({ field }) => (
+                      <FormItem className="md:col-span-2">
+                        <FormLabel className="flex items-center gap-2">
+                          <Icon icon="solar:city-bold-duotone" className="h-4 w-4" />
+                          Empresa del Afiliado
+                        </FormLabel>
+                        <CompanySelector field={field} empresas={empresas} />
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 )}
               </div>
             )}
-             {/* Step 1: Occupational History */}
+            {/* Step 1: Occupational History */}
             {currentStep === 1 && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <FormField control={form.control} name="jobPosition" render={({ field }) => ( <FormItem><FormLabel>Puesto de Trabajo</FormLabel><FormControl><Input placeholder="Ej. Asistente Administrativo" {...field}/></FormControl><FormMessage/></FormItem>)} />
-                    <FormField control={form.control} name="jobDescription" render={({ field }) => ( <FormItem><FormLabel>Descripción de Tareas</FormLabel><FormControl><Textarea placeholder="Describa las principales funciones..." {...field} rows={3}/></FormControl><FormMessage/></FormItem>)} />
-                    <FormField control={form.control} name="occupationalRisks" render={() => (
-                        <FormItem className="md:col-span-2">
-                            <FormLabel>Riesgos Laborales</FormLabel>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 rounded-md border p-4">
-                                {riskOptions.map((item) => (
-                                    <FormField key={item.id} control={form.control} name="occupationalRisks"
-                                        render={({ field }) => (
-                                            <FormItem key={item.id} className="flex flex-row items-center space-x-2 space-y-0">
-                                                <FormControl>
-                                                <Checkbox checked={field.value?.includes(item.id)} onCheckedChange={(checked) => {
-                                                    const currentValue = field.value || [];
-                                                    return checked ? field.onChange([...currentValue, item.id]) : field.onChange(currentValue.filter((value: string) => value !== item.id))
-                                                }}/>
-                                                </FormControl>
-                                                <FormLabel className="font-normal">{item.label}</FormLabel>
-                                            </FormItem>
-                                        )}
-                                    />
-                                ))}
-                            </div>
-                            <FormMessage/>
-                        </FormItem>
-                    )}/>
-                    <FormField control={form.control} name="riskDetails" render={({ field }) => ( <FormItem className="md:col-span-2"><FormLabel>Detalle Cualitativo de Exposición</FormLabel><FormControl><Textarea placeholder="Describa cómo y con qué frecuencia ocurre la exposición a los riesgos marcados..." {...field} rows={3}/></FormControl><FormMessage/></FormItem>)} />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative">
+                <FormField control={form.control} name="jobPosition" render={({ field }) => (<FormItem><FormLabel>Puesto de Trabajo</FormLabel><FormControl><Input placeholder="Ej. Asistente Administrativo" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="jobDescription" render={({ field }) => (<FormItem><FormLabel>Descripción de Tareas</FormLabel><FormControl><Textarea placeholder="Describa las principales funciones..." {...field} rows={3} /></FormControl><FormMessage /></FormItem>)} />
+
+                <div className="md:col-span-2 flex justify-end">
+                  <Button type="button" variant="secondary" size="sm" onClick={handleGenerateAI} disabled={isGeneratingAI}>
+                    {isGeneratingAI ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Icon icon="solar:magic-stick-3-bold-duotone" className="mr-2 h-4 w-4 text-yellow-500" />}
+                    Sugerir Riesgos y Exámenes con IA
+                  </Button>
                 </div>
+
+                <FormField control={form.control} name="occupationalRisks" render={() => (
+                  <FormItem className="md:col-span-2">
+                    <FormLabel>Riesgos Laborales</FormLabel>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 rounded-md border p-4">
+                      {riskOptions.map((item) => (
+                        <FormItem key={item.id} className="flex flex-row items-center space-x-2 space-y-0">
+                          <FormControl>
+                            <Checkbox
+                              checked={selectedRisks.includes(item.id)}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  setSelectedRisks([...selectedRisks, item.id]);
+                                } else {
+                                  setSelectedRisks(selectedRisks.filter(r => r !== item.id));
+                                }
+                              }}
+                            />
+                          </FormControl>
+                          <FormLabel className="font-normal">{item.label}</FormLabel>
+                        </FormItem>
+                      ))}
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="riskDetails" render={({ field }) => (<FormItem className="md:col-span-2"><FormLabel>Detalle Cualitativo de Exposición</FormLabel><FormControl><Textarea placeholder="Describa cómo y con qué frecuencia ocurre la exposición a los riesgos marcados..." {...field} rows={3} /></FormControl><FormMessage /></FormItem>)} />
+              </div>
             )}
             {/* Step 2: Health History */}
             {currentStep === 2 && (
-                <div className="space-y-6">
-                    <FormField control={form.control} name="personalHistory" render={({ field }) => ( <FormItem><FormLabel>Antecedentes Personales (Enfermedades crónicas, alergias)</FormLabel><FormControl><Textarea placeholder="Ej. Hipertensión controlada, alergia a la penicilina..." {...field} rows={3}/></FormControl><FormMessage/></FormItem>)} />
-                    <FormField control={form.control} name="familyHistory" render={({ field }) => ( <FormItem><FormLabel>Antecedentes Familiares</FormLabel><FormControl><Textarea placeholder="Ej. Padre con Diabetes, madre con cáncer de mama..." {...field} rows={3}/></FormControl><FormMessage/></FormItem>)} />
-                    <div className="space-y-2 rounded-md border p-4">
-                        <h4 className="font-medium text-sm">Estilo de Vida</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <FormField control={form.control} name="lifestyle.diet" render={({ field }) => ( <FormItem><FormLabel className="font-normal">Alimentación</FormLabel><FormControl><Input placeholder="Ej. Balanceada, rica en vegetales" {...field}/></FormControl></FormItem>)} />
-                            <FormField control={form.control} name="lifestyle.physicalActivity" render={({ field }) => ( <FormItem><FormLabel className="font-normal">Actividad Física</FormLabel><FormControl><Input placeholder="Ej. Camina 3 veces por semana" {...field}/></FormControl></FormItem>)} />
-                            <FormField control={form.control} name="lifestyle.sleepQuality" render={({ field }) => ( <FormItem><FormLabel className="font-normal">Calidad del Sueño</FormLabel><FormControl><Input placeholder="Ej. Duerme 7-8 horas, reparador" {...field}/></FormControl></FormItem>)} />
-                            <FormField control={form.control} name="lifestyle.smoking" render={({ field }) => ( <FormItem><FormLabel className="font-normal">Consumo de Tabaco</FormLabel><FormControl><Input placeholder="Ej. No fumador" {...field}/></FormControl></FormItem>)} />
-                            <FormField control={form.control} name="lifestyle.alcohol" render={({ field }) => ( <FormItem><FormLabel className="font-normal">Consumo de Alcohol</FormLabel><FormControl><Input placeholder="Ej. Socialmente, fines de semana" {...field}/></FormControl></FormItem>)} />
-                        </div>
-                    </div>
-                     <FormField control={form.control} name="mentalHealth" render={({ field }) => ( <FormItem><FormLabel>Salud Mental (Estrés, estado de ánimo)</FormLabel><FormControl><Textarea placeholder="Describa el estado de ánimo general, niveles de estrés, etc." {...field} rows={2}/></FormControl><FormMessage/></FormItem>)} />
+              <div className="space-y-6">
+                <FormField control={form.control} name="personalHistory" render={({ field }) => (<FormItem><FormLabel>Antecedentes Personales</FormLabel><FormControl><Textarea placeholder="Enfermedades crónicas, alergias..." {...field} rows={3} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="familyHistory" render={({ field }) => (<FormItem><FormLabel>Antecedentes Familiares</FormLabel><FormControl><Textarea placeholder="Diabetes, Hipertensión, Cáncer..." {...field} rows={3} /></FormControl><FormMessage /></FormItem>)} />
+                <div className="space-y-2 rounded-md border p-4">
+                  <h4 className="font-medium text-sm">Estilo de Vida</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2"><FormLabel>Alimentación</FormLabel><Input value={lifestyle.diet} onChange={e => setLifestyle({ ...lifestyle, diet: e.target.value })} placeholder="Ej. Balanceada" /></div>
+                    <div className="space-y-2"><FormLabel>Actividad Física</FormLabel><Input value={lifestyle.physicalActivity} onChange={e => setLifestyle({ ...lifestyle, physicalActivity: e.target.value })} placeholder="Ej. Sedentario" /></div>
+                    <div className="space-y-2"><FormLabel>Sueño</FormLabel><Input value={lifestyle.sleepQuality} onChange={e => setLifestyle({ ...lifestyle, sleepQuality: e.target.value })} placeholder="Ej. 7 horas" /></div>
+                    <div className="space-y-2"><FormLabel>Tabaco</FormLabel><Input value={lifestyle.smoking} onChange={e => setLifestyle({ ...lifestyle, smoking: e.target.value })} placeholder="Ej. Niega" /></div>
+                    <div className="space-y-2"><FormLabel>Alcohol</FormLabel><Input value={lifestyle.alcohol} onChange={e => setLifestyle({ ...lifestyle, alcohol: e.target.value })} placeholder="Ej. Ocasional" /></div>
+                  </div>
                 </div>
+                <FormField control={form.control} name="mentalHealth" render={({ field }) => (<FormItem><FormLabel>Salud Mental</FormLabel><FormControl><Textarea placeholder="Estrés, estado de ánimo..." {...field} rows={2} /></FormControl><FormMessage /></FormItem>)} />
+              </div>
             )}
             {/* Step 3: Physical Exam */}
             {currentStep === 3 && (
-                <div className="space-y-6">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <FormField control={form.control} name="vitalSigns.ta" render={({ field }) => ( <FormItem><FormLabel>Tensión Arterial</FormLabel><FormControl><Input placeholder="Ej. 120/80 mmHg" {...field}/></FormControl></FormItem>)} />
-                        <FormField control={form.control} name="vitalSigns.fc" render={({ field }) => ( <FormItem><FormLabel>Frec. Cardíaca</FormLabel><FormControl><Input placeholder="Ej. 75 lpm" {...field}/></FormControl></FormItem>)} />
-                        <FormField control={form.control} name="vitalSigns.fr" render={({ field }) => ( <FormItem><FormLabel>Frec. Resp.</FormLabel><FormControl><Input placeholder="Ej. 16 rpm" {...field}/></FormControl></FormItem>)} />
-                        <FormField control={form.control} name="vitalSigns.temp" render={({ field }) => ( <FormItem><FormLabel>Temperatura</FormLabel><FormControl><Input placeholder="Ej. 36.5 °C" {...field}/></FormControl></FormItem>)} />
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                         <FormField control={form.control} name="anthropometry.weight" render={({ field }) => ( <FormItem><FormLabel>Peso (kg)</FormLabel><FormControl><Input type="number" placeholder="Ej. 70" {...field}/></FormControl><FormMessage/></FormItem>)} />
-                         <FormField control={form.control} name="anthropometry.height" render={({ field }) => ( <FormItem><FormLabel>Talla (cm)</FormLabel><FormControl><Input type="number" placeholder="Ej. 175" {...field}/></FormControl><FormMessage/></FormItem>)} />
-                         <FormField control={form.control} name="anthropometry.imc" render={({ field }) => ( <FormItem><FormLabel>IMC (kg/m²)</FormLabel><FormControl><Input readOnly className="bg-muted" {...field}/></FormControl><FormMessage/></FormItem>)} />
-                    </div>
-                    <FormField control={form.control} name="physicalExamFindings" render={({ field }) => ( <FormItem><FormLabel>Hallazgos del Examen Físico Dirigido</FormLabel><FormControl><Textarea placeholder="Enfoque: osteomuscular (columna, hombros, muñecas), agudeza visual, audición, piel..." {...field} rows={5}/></FormControl><FormMessage/></FormItem>)} />
+              <div className="space-y-6">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="space-y-2"><FormLabel>TA (mmHg)</FormLabel><Input value={vitalSigns.ta} onChange={e => setVitalSigns({ ...vitalSigns, ta: e.target.value })} placeholder="120/80" /></div>
+                  <div className="space-y-2"><FormLabel>FC (lpm)</FormLabel><Input value={vitalSigns.fc} onChange={e => setVitalSigns({ ...vitalSigns, fc: e.target.value })} placeholder="80" /></div>
+                  <div className="space-y-2"><FormLabel>FR (rpm)</FormLabel><Input value={vitalSigns.fr} onChange={e => setVitalSigns({ ...vitalSigns, fr: e.target.value })} placeholder="16" /></div>
+                  <div className="space-y-2"><FormLabel>Temp (°C)</FormLabel><Input value={vitalSigns.temp} onChange={e => setVitalSigns({ ...vitalSigns, temp: e.target.value })} placeholder="36.5" /></div>
                 </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-2"><FormLabel>Peso (kg)</FormLabel><Input type="number" value={anthropometry.weight} onChange={e => setAnthropometry({ ...anthropometry, weight: parseFloat(e.target.value) || 0 })} placeholder="70" /></div>
+                  <div className="space-y-2"><FormLabel>Talla (cm)</FormLabel><Input type="number" value={anthropometry.height} onChange={e => setAnthropometry({ ...anthropometry, height: parseFloat(e.target.value) || 0 })} placeholder="170" /></div>
+                  <div className="space-y-2"><FormLabel>IMC</FormLabel><Input readOnly value={anthropometry.imc} className="bg-muted" /></div>
+                </div>
+                <FormField control={form.control} name="physicalExamFindings" render={({ field }) => (<FormItem><FormLabel>Hallazgos Físicos</FormLabel><FormControl><Textarea placeholder="Hallazgos relevantes..." {...field} rows={5} /></FormControl><FormMessage /></FormItem>)} />
+              </div>
             )}
             {/* Step 4: Diagnosis and Plan */}
             {currentStep === 4 && (
-                <div className="space-y-6">
-                    <FormField control={form.control} name="diagnoses" render={({ field }) => ( <FormItem><FormLabel>Diagnósticos (CIE-10)</FormLabel><Cie10Autocomplete selected={field.value} onChange={field.onChange}/><FormMessage/></FormItem>)} />
-                    <FormField control={form.control} name="fitnessForWork" render={({ field }) => (
-                        <FormItem>
-                            <FormLabel className="flex items-center gap-2"><Vote className="h-4 w-4"/>Concepto de Aptitud Laboral</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                <FormControl><SelectTrigger><SelectValue placeholder="Seleccione un concepto"/></SelectTrigger></FormControl>
-                                <SelectContent>
-                                    <SelectItem value="Apto">Apto</SelectItem>
-                                    <SelectItem value="Apto con Restricciones">Apto con Restricciones</SelectItem>
-                                    <SelectItem value="No Apto">No Apto</SelectItem>
-                                </SelectContent>
-                            </Select>
-                            <FormMessage/>
-                        </FormItem>
-                    )}/>
-                    <FormField control={form.control} name="occupationalRecommendations" render={({ field }) => ( <FormItem><FormLabel className="flex items-center gap-2"><Briefcase className="h-4 w-4"/>Recomendaciones Ocupacionales</FormLabel><FormControl><Textarea placeholder="Dirigidas al trabajador y la empresa (pausas activas, mejoras ergonómicas, etc.)" {...field} rows={3}/></FormControl><FormMessage/></FormItem>)} />
-                    <FormField control={form.control} name="generalHealthPlan" render={({ field }) => ( <FormItem><FormLabel className="flex items-center gap-2"><HeartPulse className="h-4 w-4"/>Plan de Manejo de Salud General</FormLabel><FormControl><Textarea placeholder="Tratamientos, promoción de la salud, etc." {...field} rows={3}/></FormControl><FormMessage/></FormItem>)} />
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                         <FormField control={form.control} name="interconsultation" render={({ field }) => ( <FormItem><FormLabel className="flex items-center gap-2"><Forward className="h-4 w-4"/>Interconsultas (Opcional)</FormLabel><FormControl><Input placeholder="Ej. Referir a Fisioterapia" {...field}/></FormControl><FormMessage/></FormItem>)} />
-                         <FormField control={form.control} name="nextFollowUp" render={({ field }) => (
-                            <FormItem className="flex flex-col">
-                                <FormLabel className="flex items-center gap-2"><CalendarIcon className="h-4 w-4"/>Próximo Seguimiento (Opcional)</FormLabel>
-                                <Popover><PopoverTrigger asChild><FormControl>
-                                    <Button variant="outline" className={cn('w-full pl-3 text-left font-normal', !field.value && 'text-muted-foreground')}>
-                                        {field.value ? format(field.value, 'PPP', {locale: es}) : <span>Seleccione fecha</span>}
-                                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50"/>
-                                    </Button>
-                                </FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus/></PopoverContent></Popover>
-                                <FormMessage/>
-                            </FormItem>
-                         )} />
-                    </div>
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <FormLabel>Diagnósticos (CIE-10)</FormLabel>
+                  <Cie10Autocomplete selected={diagnosesList} onChange={setDiagnosesList} />
                 </div>
+                <FormField control={form.control} name="fitnessForWork" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center gap-2">
+                      <Icon icon="solar:check-circle-bold-duotone" className="h-4 w-4" />
+                      Concepto de Aptitud
+                    </FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl><SelectTrigger><SelectValue placeholder="Seleccione concepto" /></SelectTrigger></FormControl>
+                      <SelectContent>
+                        <SelectItem value="Apto">Apto</SelectItem>
+                        <SelectItem value="Apto con Restricciones">Apto con Restricciones</SelectItem>
+                        <SelectItem value="No Apto">No Apto</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="occupationalRecommendations" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center gap-2">
+                      <Icon icon="solar:case-bold-duotone" className="h-4 w-4" />
+                      Recomendaciones Ocupacionales
+                    </FormLabel>
+                    <FormControl><Textarea placeholder="Recomendaciones para el trabajador y empresa..." {...field} rows={3} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="generalHealthPlan" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center gap-2">
+                      <Icon icon="solar:heart-pulse-bold-duotone" className="h-4 w-4" />
+                      Plan de Salud General
+                    </FormLabel>
+                    <FormControl><Textarea placeholder="Recomendaciones generales..." {...field} rows={3} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <FormField control={form.control} name="interconsultation" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center gap-2">
+                        <Icon icon="solar:cloud-forward-bold-duotone" className="h-4 w-4" />
+                        Interconsultas
+                      </FormLabel>
+                      <FormControl><Input placeholder="Opcional..." {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="nextFollowUp" render={({ field }) => (
+                    <FormItem className="flex flex-col">
+                      <FormLabel className="flex items-center gap-2">
+                        <Icon icon="solar:calendar-date-bold-duotone" className="h-4 w-4" />
+                        Próximo Seguimiento
+                      </FormLabel>
+                      <Popover><PopoverTrigger asChild><FormControl>
+                        <Button variant="outline" className={cn('w-full pl-3 text-left font-normal', !field.value && 'text-muted-foreground')}>
+                          {field.value ? format(new Date(field.value), 'PPP', { locale: es }) : <span>Seleccione fecha</span>}
+                          <Icon icon="solar:calendar-minimalistic-bold-duotone" className="ml-auto h-4 w-4 opacity-50" />
+                        </Button>
+                      </FormControl></PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={field.value ? new Date(field.value) : undefined}
+                            onSelect={(date) => field.onChange(date ? date.toISOString() : '')}
+                            disabled={(date) => date < new Date()}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                </div>
+              </div>
             )}
 
           </CardContent>

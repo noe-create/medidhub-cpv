@@ -17,15 +17,16 @@ import { useDebounce } from '@/hooks/use-debounce';
 import { useUser } from './app-shell';
 import dynamic from 'next/dynamic';
 import { Skeleton } from './ui/skeleton';
-import { DataTable, type ColumnDef } from '@/components/ui/data-table';
+import { DataTable } from '@/components/ui/data-table';
+import { type ColumnDef } from '@tanstack/react-table';
 
 const UserForm = dynamic(() => import('./user-form').then(mod => mod.UserForm), {
-    loading: () => <div className="p-8"><Skeleton className="h-48 w-full" /></div>,
+  loading: () => <div className="p-8"><Skeleton className="h-48 w-full" /></div>,
 });
 
 
 interface DoctorManagementProps {
-    roles: Role[];
+  roles: Role[];
 }
 
 const PAGE_SIZE = 20;
@@ -39,28 +40,28 @@ export function DoctorManagement({ roles }: DoctorManagementProps) {
   const [doctors, setDoctors] = React.useState<User[]>([]);
   const [selectedDoctor, setSelectedDoctor] = React.useState<User | null>(null);
   const [isFormOpen, setIsFormOpen] = React.useState(false);
-  
+
   const [currentPage, setCurrentPage] = React.useState(1);
   const [totalCount, setTotalCount] = React.useState(0);
-  
+
   const doctorRoles = React.useMemo(() => roles.filter(r => r.hasSpecialty), [roles]);
   const doctorRoleIds = React.useMemo(() => doctorRoles.map(r => r.id), [doctorRoles]);
 
   const refreshDoctors = React.useCallback(async (currentSearch: string, page: number) => {
-      setIsLoading(true);
-      try {
-        const { users: data, totalCount } = await getUsers(currentSearch, page, PAGE_SIZE);
-        const filteredDoctors = data.filter(u => doctorRoleIds.includes(u.role.id));
-        setDoctors(filteredDoctors);
-        setTotalCount(filteredDoctors.length);
-      } catch (error: any) {
-        console.error("Error fetching doctors:", error);
-        toast({ title: 'Error de Permiso', description: error.message || 'No se pudieron cargar los doctores.', variant: 'destructive' });
-      } finally {
-        setIsLoading(false);
-      }
+    setIsLoading(true);
+    try {
+      const { users: data, totalCount } = await getUsers(currentSearch, page, PAGE_SIZE);
+      const filteredDoctors = data.filter(u => doctorRoleIds.includes(u.role.id));
+      setDoctors(filteredDoctors);
+      setTotalCount(filteredDoctors.length);
+    } catch (error: any) {
+      console.error("Error fetching doctors:", error);
+      toast({ title: 'Error de Permiso', description: error.message || 'No se pudieron cargar los doctores.', variant: 'destructive' });
+    } finally {
+      setIsLoading(false);
+    }
   }, [toast, doctorRoleIds]);
-  
+
   React.useEffect(() => {
     setCurrentPage(1);
   }, [debouncedSearch]);
@@ -71,13 +72,13 @@ export function DoctorManagement({ roles }: DoctorManagementProps) {
 
   const handleOpenForm = (user: User | null) => {
     if (user) {
-        const userToEdit: User = {
-            ...user,
-            role: user.role || { id: (user as any).roleId, name: (user as any).roleName },
-        };
-        setSelectedDoctor(userToEdit);
+      const userToEdit: User = {
+        ...user,
+        role: user.role || { id: (user as any).roleId, name: (user as any).roleName },
+      };
+      setSelectedDoctor(userToEdit);
     } else {
-        setSelectedDoctor(null);
+      setSelectedDoctor(null);
     }
     setIsFormOpen(true);
   };
@@ -102,21 +103,21 @@ export function DoctorManagement({ roles }: DoctorManagementProps) {
       toast({ title: 'Error', description: error.message || 'No se pudo guardar el usuario.', variant: 'destructive' });
     }
   };
-  
+
   const handleDeleteDoctor = async (userId: string) => {
     try {
-        await deleteUser(userId);
-        toast({ title: '¡Usuario Eliminado!', description: 'El usuario ha sido eliminado.' });
-        if (doctors.length === 1 && currentPage > 1) {
-            setCurrentPage(currentPage - 1);
-        } else {
-            await refreshDoctors(debouncedSearch, currentPage);
-        }
+      await deleteUser(userId);
+      toast({ title: '¡Usuario Eliminado!', description: 'El usuario ha sido eliminado.' });
+      if (doctors.length === 1 && currentPage > 1) {
+        setCurrentPage(currentPage - 1);
+      } else {
+        await refreshDoctors(debouncedSearch, currentPage);
+      }
     } catch (error: any) {
-        toast({ title: 'Error al Eliminar', description: error.message, variant: 'destructive' });
+      toast({ title: 'Error al Eliminar', description: error.message, variant: 'destructive' });
     }
   }
-  
+
   const columns: ColumnDef<User>[] = [
     { accessorKey: 'username', header: 'Username', cell: ({ row }) => <div className="font-mono">{row.original.username}</div> },
     { accessorKey: 'name', header: 'Nombre Asociado', cell: ({ row }) => row.original.name || <span className="text-muted-foreground">N/A</span> },
@@ -173,58 +174,58 @@ export function DoctorManagement({ roles }: DoctorManagementProps) {
   ];
 
   return (
-    <>
-      <Card>
-        <CardHeader>
-          <CardTitle>Doctores</CardTitle>
-          <CardDescription>
-            Añada y gestione los usuarios de los doctores y sus especialidades.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex justify-between items-center mb-4">
-            <Input
-              placeholder="Buscar por nombre de usuario o persona..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="max-w-sm"
-            />
-             <Button onClick={() => handleOpenForm(null)}>
-                  <PlusCircle className="mr-2 h-4 w-4" />
-                  Añadir Doctor
-              </Button>
-          </div>
-          <DataTable
-            columns={columns}
-            data={doctors}
-            isLoading={isLoading}
-            pageCount={Math.ceil(totalCount / PAGE_SIZE)}
-            currentPage={currentPage}
-            onPageChange={setCurrentPage}
-            emptyState={{
-              icon: Stethoscope,
-              title: "No se encontraron doctores",
-              description: "Puede crear el primer doctor usando el botón de arriba.",
-            }}
-          />
-        </CardContent>
-      </Card>
-      
+    <div className="space-y-6">
+      <div className="flex flex-col gap-1">
+        <h2 className="text-2xl font-extrabold tracking-tight text-foreground mb-2">Doctores</h2>
+        <p className="text-sm text-muted-foreground">
+          Añada y gestione los usuarios de los doctores y sus especialidades.
+        </p>
+      </div>
+
+      <div className="flex justify-between items-center mb-6 gap-4">
+        <Input
+          placeholder="Buscar por nombre de usuario o persona..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="max-w-sm bg-card"
+        />
+        <Button onClick={() => handleOpenForm(null)} className="rounded-xl bg-primary hover:bg-primary/90 shadow-md shadow-primary/20">
+          <PlusCircle className="mr-2 h-4 w-4" />
+          Añadir Doctor
+        </Button>
+      </div>
+
+      <div className="rounded-2xl border border-border/50 overflow-hidden shadow-sm bg-card">
+        <DataTable
+          columns={columns}
+          data={doctors}
+          isLoading={isLoading}
+          pageCount={Math.ceil(totalCount / PAGE_SIZE)}
+          currentPage={currentPage}
+          onPageChange={setCurrentPage}
+          emptyState={{
+            icon: Stethoscope,
+            title: "No se encontraron doctores",
+            description: "Puede crear el primer doctor usando el botón de arriba.",
+          }}
+        />
+      </div>
+
       <Dialog open={isFormOpen} onOpenChange={handleCloseDialog}>
-            <DialogContent className="sm:max-w-xl">
-                <DialogHeader>
-                    <DialogTitle>{selectedDoctor ? 'Editar Doctor' : 'Crear Nuevo Doctor'}</DialogTitle>
-                </DialogHeader>
-                {isFormOpen && (
-                    <UserForm
-                        user={selectedDoctor}
-                        roles={doctorRoles}
-                        onSubmitted={handleFormSubmitted}
-                        onCancel={handleCloseDialog}
-                    />
-                )}
-            </DialogContent>
-        </Dialog>
-    </>
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>{selectedDoctor ? 'Editar Doctor' : 'Crear Nuevo Doctor'}</DialogTitle>
+          </DialogHeader>
+          {isFormOpen && (
+            <UserForm
+              user={selectedDoctor}
+              roles={doctorRoles}
+              onSubmitted={handleFormSubmitted}
+              onCancel={handleCloseDialog}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }

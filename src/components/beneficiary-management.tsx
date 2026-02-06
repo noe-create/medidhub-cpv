@@ -101,121 +101,89 @@ export function BeneficiaryManagement({ titular, initialBeneficiarios }: Benefic
         <CardContent>
           <div className="flex justify-end items-center mb-4">
             {canManage && (
-                <AlertDialog>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                           <Button>
-                                <PlusCircle className="mr-2 h-4 w-4" />
-                                Añadir Beneficiario
-                            </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => handleOpenForm(null)}>
-                              <Pencil className="mr-2 h-4 w-4" />
-                              <span>Editar</span>
-                          </DropdownMenuItem>
-                          <AlertDialogTrigger asChild>
-                              <DropdownMenuItem className="text-destructive focus:text-destructive-foreground focus:bg-destructive">
-                                  <Trash2 className="mr-2 h-4 w-4" />
-                                  <span>Eliminar</span>
-                              </DropdownMenuItem>
-                          </AlertDialogTrigger>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                    <AlertDialogContent>
-                        <AlertDialogHeader>
-                            <AlertDialogTitle>¿Está absolutamente seguro?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                                Esta acción no se puede deshacer. Esto eliminará la relación de beneficiario, pero no eliminará a la persona del sistema.
-                            </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => selectedBeneficiario && handleDeleteBeneficiario(selectedBeneficiario.id)} className="bg-destructive hover:bg-destructive/90">
-                                Sí, eliminar
-                            </AlertDialogAction>
-                        </AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialog>
+              <Button onClick={() => handleOpenForm(null)}>
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Añadir Beneficiario
+              </Button>
             )}
           </div>
           {beneficiarios.length > 0 ? (
             <Table>
-                <TableHeader>
+              <TableHeader>
                 <TableRow>
-                    <TableHead>Nombre Completo</TableHead>
-                    <TableHead>Cédula</TableHead>
-                    <TableHead>Fecha de Nacimiento</TableHead>
-                    <TableHead>Género</TableHead>
-                    <TableHead className="text-right">Acciones</TableHead>
+                  <TableHead>Nombre Completo</TableHead>
+                  <TableHead>Cédula</TableHead>
+                  <TableHead>Fecha de Nacimiento</TableHead>
+                  <TableHead>Género</TableHead>
+                  <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
-                </TableHeader>
-                <TableBody>
-                  <AnimatePresence>
-                    {beneficiarios.map((beneficiario) => (
-                    <motion.tr 
+              </TableHeader>
+              <TableBody>
+                <AnimatePresence>
+                  {beneficiarios.map((beneficiario) => (
+                    <motion.tr
                       key={beneficiario.id}
                       layout
                       initial={{ opacity: 0, y: -10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -10, transition: { duration: 0.2 } }}
                     >
-                        <TableCell className="font-medium">{beneficiario.persona.nombreCompleto}</TableCell>
-                        <TableCell>{beneficiario.persona.cedula}</TableCell>
-                        <TableCell>{format(new Date(beneficiario.persona.fechaNacimiento), 'PPP', { locale: es })}</TableCell>
-                        <TableCell>{beneficiario.persona.genero}</TableCell>
-                        <TableCell className="text-right">
+                      <TableCell className="font-medium">{beneficiario.persona.nombreCompleto}</TableCell>
+                      <TableCell>{beneficiario.persona.cedula}</TableCell>
+                      <TableCell>{format(new Date(beneficiario.persona.fechaNacimiento), 'PPP', { locale: es })}</TableCell>
+                      <TableCell>{beneficiario.persona.genero}</TableCell>
+                      <TableCell className="text-right">
                         {canManage && (
-                            <AlertDialog>
+                          <AlertDialog>
                             <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
+                              <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" className="h-8 w-8 p-0">
-                                    <span className="sr-only">Abrir menú</span>
-                                    <MoreHorizontal className="h-4 w-4" />
+                                  <span className="sr-only">Abrir menú</span>
+                                  <MoreHorizontal className="h-4 w-4" />
                                 </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
                                 <DropdownMenuLabel>Acciones</DropdownMenuLabel>
                                 <DropdownMenuItem onClick={() => handleOpenForm(beneficiario)}>
-                                    <Pencil className="mr-2 h-4 w-4" />
-                                    <span>Editar</span>
+                                  <Pencil className="mr-2 h-4 w-4" />
+                                  <span>Editar</span>
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <AlertDialogTrigger asChild>
-                                    <DropdownMenuItem className="text-destructive focus:text-destructive-foreground focus:bg-destructive">
-                                        <Trash2 className="mr-2 h-4 w-4" />
-                                        <span>Eliminar</span>
-                                    </DropdownMenuItem>
+                                  <DropdownMenuItem className="text-destructive focus:text-destructive-foreground focus:bg-destructive">
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    <span>Eliminar</span>
+                                  </DropdownMenuItem>
                                 </AlertDialogTrigger>
-                                </DropdownMenuContent>
+                              </DropdownMenuContent>
                             </DropdownMenu>
                             <AlertDialogContent>
-                                <AlertDialogHeader>
-                                    <AlertDialogTitle>¿Está absolutamente seguro?</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                        Esta acción no se puede deshacer. Esto eliminará la relación de beneficiario, pero no eliminará a la persona del sistema.
-                                    </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                    <AlertDialogAction onClick={() => handleDeleteBeneficiario(beneficiario.id)} className="bg-destructive hover:bg-destructive/90">
-                                        Sí, eliminar
-                                    </AlertDialogAction>
-                                </AlertDialogFooter>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>¿Está absolutamente seguro?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Esta acción no se puede deshacer. Esto eliminará la relación de beneficiario, pero no eliminará a la persona del sistema.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => handleDeleteBeneficiario(beneficiario.id)} className="bg-destructive hover:bg-destructive/90">
+                                  Sí, eliminar
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
                             </AlertDialogContent>
-                            </AlertDialog>
+                          </AlertDialog>
                         )}
-                        </TableCell>
+                      </TableCell>
                     </motion.tr>
-                    ))}
-                  </AnimatePresence>
-                </TableBody>
+                  ))}
+                </AnimatePresence>
+              </TableBody>
             </Table>
           ) : (
-             <div className="flex flex-col items-center justify-center h-64 text-center text-muted-foreground bg-card rounded-md border border-dashed">
-                <Users className="h-12 w-12 mb-4" />
-                <h3 className="text-xl font-semibold">Este titular no tiene beneficiarios</h3>
-                <p className="text-sm">Puede añadir el primer beneficiario usando el botón de arriba.</p>
+            <div className="flex flex-col items-center justify-center h-64 text-center text-muted-foreground bg-card rounded-md border border-dashed">
+              <Users className="h-12 w-12 mb-4" />
+              <h3 className="text-xl font-semibold">Este titular no tiene beneficiarios</h3>
+              <p className="text-sm">Puede añadir el primer beneficiario usando el botón de arriba.</p>
             </div>
           )}
         </CardContent>
@@ -228,10 +196,10 @@ export function BeneficiaryManagement({ titular, initialBeneficiarios }: Benefic
           </DialogHeader>
           {isFormOpen && (
             <BeneficiaryForm
-                beneficiario={selectedBeneficiario}
-                onSubmitted={handleFormSubmitted}
-                onCancel={handleCloseDialog}
-                excludeIds={excludeIds}
+              beneficiario={selectedBeneficiario}
+              onSubmitted={handleFormSubmitted}
+              onCancel={handleCloseDialog}
+              excludeIds={excludeIds}
             />
           )}
         </DialogContent>

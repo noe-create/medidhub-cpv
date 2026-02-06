@@ -121,6 +121,10 @@ const consultationSchema = z.object({
     reposo: z.string().optional(),
     radiologyOrder: z.string().optional(),
     radiologyNotApplicable: z.boolean().optional(),
+    occupationalReferral: z.object({
+        enabled: z.boolean().optional(),
+        observations: z.string().optional(),
+    }).optional(),
 })
     .refine(data => data.enfermedadActualNinguno || (data.enfermedadActual && data.enfermedadActual.length > 0), {
         message: 'La historia de la enfermedad actual es obligatoria.',
@@ -147,39 +151,43 @@ export function ConsultationForm({ patient, onConsultationComplete }: Consultati
     const age = React.useMemo(() => calculateAge(new Date(patient.fechaNacimiento)), [patient.fechaNacimiento]);
     const isFemale = patient.genero === 'Femenino';
     const isPediatric = age < 18;
+    const isReintegroMode = !!patient.isReintegro;
     const storageKey = `consultation-draft-${patient.id}`;
 
     const defaultValues: Partial<z.infer<typeof consultationSchema>> = {
-        motivoConsulta: { sintomas: [], otros: '', ninguno: false },
-        enfermedadActual: '',
-        enfermedadActualNinguno: false,
-        revisionPorSistemas: '',
-        revisionPorSistemasNinguno: false,
+        motivoConsulta: isReintegroMode
+            ? { sintomas: ['Asintomático'], otros: 'Evaluación médica para reintegro laboral post-reposo.', ninguno: true }
+            : { sintomas: [], otros: '', ninguno: false },
+        enfermedadActual: isReintegroMode ? 'Post-Reposo Médico / Reintegro' : '',
+        enfermedadActualNinguno: isReintegroMode,
+        revisionPorSistemas: isReintegroMode ? 'Sin hallazgos' : '',
+        revisionPorSistemasNinguno: isReintegroMode,
         diagnoses: [],
         diagnosticoLibre: '',
         diagnosticoLibreNinguno: false,
-        treatmentPlan: '',
+        treatmentPlan: isReintegroMode ? 'Cumplir con recomendaciones de Salud Ocupacional.' : '',
         treatmentPlanNotApplicable: false,
         treatmentItems: [],
         reposo: '',
-        examenFisicoGeneral: '',
+        examenFisicoGeneral: isReintegroMode ? 'Paciente en buenas condiciones generales, afebril, hidratado, eupneico. Orientado en tiempo, espacio y persona.' : '',
         radiologyOrder: '',
         radiologyNotApplicable: false,
-        antecedentesFamiliares: '',
-        antecedentesFamiliaresNinguno: false,
+        antecedentesFamiliares: isReintegroMode ? 'Sin cambios' : '',
+        antecedentesFamiliaresNinguno: isReintegroMode,
         antecedentesPersonales: {
-            patologicos: [], patologicosOtros: '', patologicosNinguno: false,
-            quirurgicos: [], quirurgicosOtros: '', quirurgicosNinguno: false,
-            alergicos: [], alergicosOtros: '', alergicosNinguno: false,
-            medicamentos: '', medicamentosNinguno: false,
-            habitos: [], habitosOtros: '', habitosNinguno: false,
+            patologicos: [], patologicosOtros: '', patologicosNinguno: isReintegroMode,
+            quirurgicos: [], quirurgicosOtros: '', quirurgicosNinguno: isReintegroMode,
+            alergicos: [], alergicosOtros: '', alergicosNinguno: isReintegroMode,
+            medicamentos: '', medicamentosNinguno: isReintegroMode,
+            habitos: [], habitosOtros: '', habitosNinguno: isReintegroMode,
         },
         antecedentesGinecoObstetricos: {
-            menarquia: undefined, ciclos: '', fum: undefined, g: undefined, p: undefined, a: undefined, c: undefined, metodoAnticonceptivo: '', noAplica: !isFemale,
+            menarquia: undefined, ciclos: '', fum: undefined, g: undefined, p: undefined, a: undefined, c: undefined, metodoAnticonceptivo: '', noAplica: !isFemale || isReintegroMode,
         },
         antecedentesPediatricos: {
             prenatales: '', natales: '', postnatales: '', inmunizaciones: '', desarrolloPsicomotor: '',
         },
+        occupationalReferral: { enabled: isReintegroMode, observations: '' },
         signosVitales: {
             taSistolica: undefined, taDiastolica: undefined, taBrazo: 'izquierdo', taPosicion: 'sentado', fc: undefined,
             fcRitmo: 'regular', fr: undefined, temp: undefined, tempUnidad: 'C', tempSitio: 'oral',
@@ -231,15 +239,21 @@ export function ConsultationForm({ patient, onConsultationComplete }: Consultati
         return () => subscription.unsubscribe();
     }, [form, storageKey, isDraftLoading]);
 
+
     const steps = React.useMemo(() => {
-        const baseSteps = [
+        if (isReintegroMode) {
+            return [
+                { id: 'examen', name: 'Evaluación de Reintegro', fields: ['signosVitales', 'examenFisicoGeneral'] },
+                { id: 'plan', name: 'Plan y Remisión', fields: ['diagnoses', 'diagnosticoLibre', 'treatmentPlan', 'treatmentItems', 'reposo'] },
+            ];
+        }
+        return [
             { id: 'anamnesis', name: 'Anamnesis', fields: ['motivoConsulta', 'enfermedadActual', 'revisionPorSistemas'] },
             { id: 'antecedentes', name: 'Antecedentes', fields: ['antecedentesPersonales', 'antecedentesFamiliares', 'antecedentesGinecoObstetricos', 'antecedentesPediatricos'] },
             { id: 'examen', name: 'Examen Físico', fields: ['signosVitales', 'examenFisicoGeneral'] },
             { id: 'plan', name: 'Diagnóstico y Plan', fields: ['diagnoses', 'diagnosticoLibre', 'diagnosticoLibreNinguno', 'treatmentPlan', 'treatmentItems', 'reposo', 'radiologyOrder'] },
         ];
-        return baseSteps;
-    }, []);
+    }, [isReintegroMode]);
 
     const handleNext = async () => {
         const fields = steps[currentStep].fields;
@@ -273,9 +287,12 @@ export function ConsultationForm({ patient, onConsultationComplete }: Consultati
 
             const radiologyOrderValue = values.radiologyNotApplicable ? 'No aplica' : values.radiologyOrder;
 
-            const finalMotivo = values.motivoConsulta?.ninguno ? { sintomas: ['Asintomático'] } : values.motivoConsulta;
-            const finalEnfermedadActual = values.enfermedadActualNinguno ? 'Ninguno / No Refiere' : values.enfermedadActual;
-            const finalRevisionSistemas = values.revisionPorSistemasNinguno ? 'Ninguno / No Refiere' : values.revisionPorSistemas;
+            const finalMotivo = isReintegroMode
+                ? { sintomas: ['Asintomático'], otros: 'Evaluación médica para reintegro laboral post-reposo.' }
+                : (values.motivoConsulta?.ninguno ? { sintomas: ['Asintomático'] } : values.motivoConsulta);
+
+            const finalEnfermedadActual = isReintegroMode ? 'Post-Reposo Médico / Reintegro' : (values.enfermedadActualNinguno ? 'Ninguno / No Refiere' : values.enfermedadActual);
+            const finalRevisionSistemas = isReintegroMode ? 'Sin hallazgos' : (values.revisionPorSistemasNinguno ? 'Ninguno / No Refiere' : values.revisionPorSistemas);
             const finalTreatmentPlan = values.treatmentPlanNotApplicable ? 'No aplica' : values.treatmentPlan;
 
             const createdConsultation = await createConsultation({
@@ -284,10 +301,24 @@ export function ConsultationForm({ patient, onConsultationComplete }: Consultati
                 motivoConsulta: finalMotivo,
                 enfermedadActual: finalEnfermedadActual,
                 revisionPorSistemas: finalRevisionSistemas,
-                antecedentesPersonales: values.antecedentesPersonales,
-                antecedentesFamiliares: values.antecedentesFamiliares || undefined,
-                antecedentesGinecoObstetricos: isFemale ? values.antecedentesGinecoObstetricos : undefined,
-                antecedentesPediatricos: isPediatric ? values.antecedentesPediatricos : undefined,
+                antecedentesPersonales: isReintegroMode ? {
+                    patologicos: 'Ninguno / Reintegro',
+                    quirurgicos: 'Ninguno / Reintegro',
+                    alergicos: [],
+                    medicamentos: 'Ninguno / Reintegro',
+                    habitos: []
+                } : {
+                    patologicos: values.antecedentesPersonales?.patologicos?.join(', ') || values.antecedentesPersonales?.patologicosOtros,
+                    quirurgicos: values.antecedentesPersonales?.quirurgicos?.join(', ') || values.antecedentesPersonales?.quirurgicosOtros,
+                    alergicos: values.antecedentesPersonales?.alergicos,
+                    alergicosOtros: values.antecedentesPersonales?.alergicosOtros,
+                    medicamentos: values.antecedentesPersonales?.medicamentos,
+                    habitos: values.antecedentesPersonales?.habitos,
+                    habitosOtros: values.antecedentesPersonales?.habitosOtros,
+                },
+                antecedentesFamiliares: isReintegroMode ? 'Ver registros previos' : values.antecedentesFamiliares || undefined,
+                antecedentesGinecoObstetricos: (isFemale && !isReintegroMode) ? values.antecedentesGinecoObstetricos : undefined,
+                antecedentesPediatricos: (isPediatric && !isReintegroMode) ? values.antecedentesPediatricos : undefined,
                 signosVitales: values.signosVitales,
                 examenFisicoGeneral: values.examenFisicoGeneral,
                 diagnoses: finalDiagnoses,
@@ -296,6 +327,8 @@ export function ConsultationForm({ patient, onConsultationComplete }: Consultati
                 radiologyOrder: radiologyOrderValue,
                 reposo: values.reposo,
                 renderedServices: [],
+                isReintegro: isReintegroMode,
+                occupationalReferral: values.occupationalReferral
             });
 
             if (createdConsultation && selectedLabTests.length > 0) {
@@ -364,10 +397,20 @@ export function ConsultationForm({ patient, onConsultationComplete }: Consultati
                         </div>
                     </CardHeader>
                     <CardContent className="space-y-6 min-h-[400px]">
-                        {currentStep === 0 && <StepAnamnesis form={form} />}
-                        {currentStep === 1 && <StepAntecedentes form={form} isFemale={isFemale} isPediatric={isPediatric} />}
-                        {currentStep === 2 && <StepExamenFisico form={form} />}
-                        {currentStep === 3 && <StepDiagnosticoPlan form={form} patient={patient} onLabOrderChange={setSelectedLabTests} />}
+                        {!isReintegroMode && (
+                            <>
+                                {currentStep === 0 && <StepAnamnesis form={form} />}
+                                {currentStep === 1 && <StepAntecedentes form={form} isFemale={isFemale} isPediatric={isPediatric} />}
+                                {currentStep === 2 && <StepExamenFisico form={form} />}
+                                {currentStep === 3 && <StepDiagnosticoPlan form={form} patient={patient} onLabOrderChange={setSelectedLabTests} />}
+                            </>
+                        )}
+                        {isReintegroMode && (
+                            <>
+                                {currentStep === 0 && <StepExamenFisico form={form} />}
+                                {currentStep === 1 && <StepDiagnosticoPlan form={form} patient={patient} onLabOrderChange={setSelectedLabTests} />}
+                            </>
+                        )}
                     </CardContent>
                     <CardFooter className="flex justify-between gap-4">
                         <Button type="button" variant="outline" onClick={handlePrev} disabled={currentStep === 0}>

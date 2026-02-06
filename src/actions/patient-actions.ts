@@ -2,7 +2,7 @@
 
 'use server';
 
-import { getDb } from '@/lib/db';
+import { getDb, type Database } from '@/lib/db';
 import type {
     Persona,
     Titular,
@@ -63,10 +63,10 @@ async function ensureDataEntryPermission() {
 
 // --- Persona Actions (Centralized Person Management) ---
 
-async function getOrCreatePersona(client: any, personaData: Omit<Persona, 'id' | 'fechaNacimiento'> & { fechaNacimiento: string; representanteId?: string; }) {
+async function getOrCreatePersona(client: Database, personaData: Omit<Persona, 'id' | 'fechaNacimiento'> & { fechaNacimiento: string; representanteId?: string; }) {
     let existingPersona;
     if (personaData.nacionalidad && personaData.cedulaNumero) {
-        existingPersona = await client.get('SELECT id FROM personas WHERE nacionalidad = ? AND "cedulaNumero" = ?', [personaData.nacionalidad, personaData.cedulaNumero]);
+        existingPersona = await client.get<{ id: string }>('SELECT id FROM personas WHERE nacionalidad = ? AND "cedulaNumero" = ?', [personaData.nacionalidad, personaData.cedulaNumero]);
     }
 
     if (existingPersona) {
@@ -108,7 +108,7 @@ export async function getPersonas(query?: string, page: number = 1, pageSize: nu
 
     const finalWhereClause = `${baseWhere} ${queryWhere}`;
 
-    const totalResult = await db.get(`SELECT COUNT(*) as count FROM personas p ${finalWhereClause}`, whereParams);
+    const totalResult = await db.get<{ count: number }>(`SELECT COUNT(*) as count FROM personas p ${finalWhereClause}`, whereParams);
     const totalCount = totalResult?.count || 0;
 
     const offset = (page - 1) * pageSize;
@@ -134,7 +134,7 @@ export async function getPersonas(query?: string, page: number = 1, pageSize: nu
 
 export async function getPersonaById(personaId: string): Promise<Persona | null> {
     const db = await getDb();
-    const row = await db.get(`
+    const row = await db.get<any>(`
         SELECT *, ${fullNameSql} as "nombreCompleto", ${fullCedulaSql} as cedula
         FROM personas p
         WHERE p.id = ?
@@ -166,7 +166,7 @@ export async function getTitulares(query?: string, page: number = 1, pageSize: n
         FROM titulares t 
         JOIN personas p ON t."personaId" = p.id
         ${whereClause}`;
-    const totalResult = await db.get(countQuery, whereParams);
+    const totalResult = await db.get<{ count: number }>(countQuery, whereParams);
     const totalCount = totalResult?.count || 0;
 
     const offset = (page - 1) * pageSize;
@@ -183,7 +183,7 @@ export async function getTitulares(query?: string, page: number = 1, pageSize: n
     `;
     const selectParams = [...whereParams, pageSize, offset];
 
-    const rows = await db.all(selectQuery, selectParams);
+    const rows = await db.all<any>(selectQuery, selectParams);
 
     const titulares = rows.map((row: any) => ({
         id: row.id,
@@ -449,7 +449,7 @@ export async function createBeneficiario(titularId: string, data: { persona: Omi
     revalidatePath('/dashboard/pacientes');
     revalidatePath('/dashboard/beneficiarios');
 
-    const createdPersona = await db.get('SELECT * FROM personas WHERE id = ?', [personaId]);
+    const createdPersona = await db.get<any>('SELECT * FROM personas WHERE id = ?', [personaId]);
     return {
         id: beneficiarioId,
         titularId,
@@ -586,7 +586,7 @@ export async function getWaitlist(): Promise<Patient[]> {
     const db = await getDb();
     const rows = await db.all(`
         SELECT 
-            w.id, w."personaId", w."pacienteId", w.name, w.kind, w."serviceType", w."accountType", w.status, w."checkInTime", p."fechaNacimiento", p.genero
+            w.id, w."personaId", w."pacienteId", w.name, w.kind, w."serviceType", w."accountType", w.status, w."checkInTime", w."isReintegro", p."fechaNacimiento", p.genero
         FROM waitlist w
         JOIN personas p ON w."personaId" = p.id
         WHERE w.status NOT IN ('Completado', 'Cancelado')
@@ -597,6 +597,7 @@ export async function getWaitlist(): Promise<Patient[]> {
         ...row,
         checkInTime: new Date(row.checkInTime),
         fechaNacimiento: new Date(row.fechaNacimiento),
+        isReintegro: !!row.isReintegro
     }));
 }
 
@@ -614,8 +615,8 @@ export async function addPatientToWaitlist(data: Omit<Patient, 'id' | 'pacienteI
         };
 
         await db.run(
-            'INSERT INTO waitlist (id, "personaId", "pacienteId", name, kind, "serviceType", "accountType", status, "checkInTime") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [newPatient.id, newPatient.personaId, newPatient.pacienteId, newPatient.name, newPatient.kind, newPatient.serviceType, newPatient.accountType, newPatient.status, newPatient.checkInTime.toISOString()]
+            'INSERT INTO waitlist (id, "personaId", "pacienteId", name, kind, "serviceType", "accountType", status, "checkInTime", "isReintegro") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [newPatient.id, newPatient.personaId, newPatient.pacienteId, newPatient.name, newPatient.kind, newPatient.serviceType, newPatient.accountType, newPatient.status, newPatient.checkInTime.toISOString(), newPatient.isReintegro ? 1 : 0]
         );
         await db.exec('COMMIT');
         revalidatePath('/dashboard');
@@ -636,10 +637,6 @@ export async function updatePatientStatus(
     if (status === 'Cancelado') {
         const patient = await db.get('SELECT status FROM waitlist WHERE id = ?', [id]);
         if (!patient) throw new Error('Paciente en lista de espera no encontrado');
-
-        if (patient.status === 'En Consulta' || patient.status === 'En Tratamiento') {
-            throw new Error('No se puede cancelar una cita que ya está en curso (en consulta o tratamiento).');
-        }
     }
 
     let query = 'UPDATE waitlist SET status = ?';
@@ -743,7 +740,7 @@ export async function getPatientHistory(personaId: string): Promise<HistoryEntry
     }
 
     const labOrdersRows = await db.all(
-        `SELECT lo.*, c."treatmentPlan", (SELECT GROUP_CONCAT("cie10Description", '; ') FROM consultation_diagnoses WHERE "consultationId" = lo."consultationId") as "diagnosticoPrincipal"
+        `SELECT lo.*, c."treatmentPlan", (SELECT string_agg("cie10Description", '; ') FROM consultation_diagnoses WHERE "consultationId" = lo."consultationId") as "diagnosticoPrincipal"
          FROM lab_orders lo
          JOIN pacientes pac ON lo."pacienteId" = pac.id
          JOIN consultations c ON lo."consultationId" = c.id
@@ -754,21 +751,21 @@ export async function getPatientHistory(personaId: string): Promise<HistoryEntry
 
     const labOrders: HistoryEntry[] = [];
     if (labOrdersRows) {
-        for (const order of labOrdersRows) {
-            const items = await db.all('SELECT "testName" FROM lab_order_items WHERE "labOrderId" = ?', [order.id]);
+        for (const orderRow of labOrdersRows as any[]) {
+            const items = await db.all<{ testName: string }>('SELECT "testName" FROM lab_order_items WHERE "labOrderId" = ?', [orderRow.id]);
             const persona = await db.get(`SELECT *, ${fullNameSql} as "nombreCompleto", ${fullCedulaSql} as cedula FROM personas p WHERE p.id = ?`, [personaId]);
             labOrders.push({
                 type: 'lab_order' as const,
                 data: {
-                    ...order,
-                    orderDate: new Date(order.orderDate),
+                    ...orderRow,
+                    orderDate: new Date(orderRow.orderDate),
                     tests: items.map(i => i.testName),
                     paciente: {
                         ...persona,
                         fechaNacimiento: new Date(persona.fechaNacimiento)
                     },
-                    diagnosticoPrincipal: order.diagnosticoPrincipal,
-                    treatmentPlan: order.treatmentPlan
+                    diagnosticoPrincipal: orderRow.diagnosticoPrincipal,
+                    treatmentPlan: orderRow.treatmentPlan
                 }
             });
         }
@@ -807,9 +804,9 @@ export async function createConsultation(data: CreateConsultationInput): Promise
                 id, "pacienteId", "waitlistId", "consultationDate", "motivoConsulta", "enfermedadActual", 
                 "revisionPorSistemas", "antecedentesPersonales", "antecedentesFamiliares", 
                 "antecedentesGinecoObstetricos", "antecedentesPediatricos", "signosVitales", 
-                "examenFisicoGeneral", "treatmentPlan", "surveyInvitationToken", "radiologyOrders", reposo
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [consultationId, data.pacienteId, data.waitlistId, consultationDate.toISOString(), JSON.stringify(data.motivoConsulta), data.enfermedadActual, data.revisionPorSistemas || null, JSON.stringify(data.antecedentesPersonales), data.antecedentesFamiliares || null, JSON.stringify(data.antecedentesGinecoObstetricos), JSON.stringify(data.antecedentesPediatricos), JSON.stringify(data.signosVitales), data.examenFisicoGeneral, data.treatmentPlan, surveyInvitationToken, data.radiologyOrder, data.reposo]
+                "examenFisicoGeneral", "treatmentPlan", "surveyInvitationToken", "radiologyOrders", reposo, "isReintegro", "occupationalReferral"
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [consultationId, data.pacienteId, data.waitlistId, consultationDate.toISOString(), JSON.stringify(data.motivoConsulta), data.enfermedadActual, data.revisionPorSistemas || null, JSON.stringify(data.antecedentesPersonales), data.antecedentesFamiliares || null, JSON.stringify(data.antecedentesGinecoObstetricos), JSON.stringify(data.antecedentesPediatricos), JSON.stringify(data.signosVitales), data.examenFisicoGeneral, data.treatmentPlan, surveyInvitationToken, data.radiologyOrder, data.reposo, data.isReintegro ? 1 : 0, data.occupationalReferral ? JSON.stringify(data.occupationalReferral) : null]
         );
 
         if (data.diagnoses && data.diagnoses.length > 0) {
@@ -840,7 +837,7 @@ export async function createConsultation(data: CreateConsultationInput): Promise
             }
         }
 
-        const activeSurvey = await db.get("SELECT id FROM surveys WHERE \"isActive\" = 1 LIMIT 1");
+        const activeSurvey = await db.get<{ id: string }>("SELECT id FROM surveys WHERE \"isActive\" = 1 LIMIT 1");
         if (activeSurvey) {
             await db.run(
                 "INSERT INTO survey_invitations (token, \"consultationId\", \"surveyId\", \"createdAt\") VALUES (?, ?, ?, ?)",
@@ -888,7 +885,7 @@ export async function getEmpresas(query?: string, page: number = 1, pageSize: nu
     }
 
     const countQuery = `SELECT COUNT(*) as count FROM empresas${whereClause}`;
-    const totalResult = await db.get(countQuery, whereParams);
+    const totalResult = await db.get<{ count: number }>(countQuery, whereParams);
     const totalCount = totalResult?.count || 0;
 
     const offset = (page - 1) * pageSize;
@@ -1071,8 +1068,8 @@ export async function updatePersona(personaId: string, data: Omit<Persona, 'id' 
     revalidatePath('/dashboard/bitacora');
 
 
-    const updatedPersona = await db.get('SELECT * FROM personas WHERE id = ?', [personaId]);
-    return { ...updatedPersona, fechaNacimiento: new Date(updatedPersona.fechaNacimiento) };
+    const updatedPersonaRow = await db.get<any>('SELECT * FROM personas WHERE id = ?', [personaId]);
+    return { ...updatedPersonaRow, fechaNacimiento: new Date(updatedPersonaRow.fechaNacimiento) };
 }
 
 
@@ -1309,7 +1306,7 @@ export async function getTreatmentOrders(query?: string): Promise<TreatmentOrder
                 p.id as "personaId",
                 ${fullNameSql} as "pacienteNombre",
                 ${fullCedulaSql} as "pacienteCedula",
-                (SELECT GROUP_CONCAT("cie10Description", '; ') FROM consultation_diagnoses WHERE "consultationId" = o."consultationId") as "diagnosticoPrincipal"
+                (SELECT string_agg("cie10Description", '; ') FROM consultation_diagnoses WHERE "consultationId" = o."consultationId") as "diagnosticoPrincipal"
             FROM treatment_orders o
             JOIN pacientes pac ON o."pacienteId" = pac.id
             JOIN personas p ON pac."personaId" = p.id
@@ -1447,7 +1444,7 @@ export async function createLabOrder(consultationId: string, pacienteId: string,
     const persona = await db.get(`SELECT *, ${fullNameSql} as "nombreCompleto", ${fullCedulaSql} as cedula FROM personas p JOIN pacientes ON p.id = pacientes."personaId" WHERE pacientes.id = ?`, [pacienteId]);
 
     const consultationInfo = await db.get(
-        `SELECT "treatmentPlan", (SELECT GROUP_CONCAT("cie10Description", '; ') FROM consultation_diagnoses WHERE "consultationId" = c.id) as "diagnosticoPrincipal"
+        `SELECT "treatmentPlan", (SELECT string_agg("cie10Description", '; ') FROM consultation_diagnoses WHERE "consultationId" = c.id) as "diagnosticoPrincipal"
        FROM consultations c WHERE c.id = ?`,
         [consultationId]
     );
@@ -1473,7 +1470,7 @@ export async function createLabOrder(consultationId: string, pacienteId: string,
 
 export async function getWaitlistCount(): Promise<number> {
     const db = await getDb();
-    const result = await db.get("SELECT COUNT(*) as count FROM waitlist WHERE status NOT IN ('Completado', 'Cancelado')");
+    const result = await db.get<{ count: number }>("SELECT COUNT(*) as count FROM waitlist WHERE status NOT IN ('Completado', 'Cancelado')");
     return result?.count || 0;
 }
 
@@ -1482,7 +1479,7 @@ export async function getTodayConsultationsCount(): Promise<number> {
     const todayStart = startOfDay(new Date()).toISOString();
     const todayEnd = endOfDay(new Date()).toISOString();
 
-    const result = await db.get(
+    const result = await db.get<{ count: number }>(
         "SELECT COUNT(*) as count FROM consultations WHERE \"consultationDate\" BETWEEN ? AND ?",
         [todayStart, todayEnd]
     );
@@ -1494,7 +1491,7 @@ export async function getTodayRegisteredPeopleCount(): Promise<number> {
     const todayStart = startOfDay(new Date()).toISOString();
     const todayEnd = endOfDay(new Date()).toISOString();
 
-    const result = await db.get(
+    const result = await db.get<{ count: number }>(
         "SELECT COUNT(*) as count FROM personas WHERE \"createdAt\" BETWEEN ? AND ?",
         [todayStart, todayEnd]
     );
@@ -1615,7 +1612,7 @@ export async function createOccupationalHealthEvaluation(personaId: string, data
 
 export async function getOccupationalHealthHistory(personaId: string): Promise<OccupationalHealthEvaluation[]> {
     const db = await getDb();
-    const rows = await db.all(
+    const rows = await db.all<any>(
         'SELECT * FROM occupational_health_evaluations WHERE "personaId" = ? ORDER BY "evaluationDate" DESC',
         [personaId]
     );
@@ -1641,7 +1638,7 @@ export async function getServices(query?: string): Promise<Service[]> {
         params.push(`%${query}%`, `%${query}%`);
     }
     selectQuery += ' ORDER BY name';
-    return await db.all(selectQuery, params);
+    return await db.all<any>(selectQuery, params);
 }
 
 export async function createService(data: Omit<Service, 'id'>): Promise<Service> {
@@ -1681,7 +1678,7 @@ export async function getMorbidityReport(params: { from: Date; to: Date }): Prom
     const fromDate = startOfDay(from).toISOString();
     const toDate = endOfDay(to).toISOString();
 
-    const rows = await db.all(
+    const rows = await db.all<MorbidityReportRow>(
         `SELECT "cie10Code", "cie10Description", COUNT(*) as frequency
          FROM consultation_diagnoses
          WHERE "consultationId" IN (
@@ -1702,12 +1699,12 @@ export async function getOperationalReport(params: { from: Date; to: Date }): Pr
     const fromDate = startOfDay(from).toISOString();
     const toDate = endOfDay(to).toISOString();
 
-    const totalConsultationsResult = await db.get(
+    const totalConsultationsResult = await db.get<{ count: number }>(
         `SELECT COUNT(*) as count FROM consultations WHERE "consultationDate" BETWEEN ? AND ?`,
         [fromDate, toDate]
     );
 
-    const newPeopleResult = await db.get(
+    const newPeopleResult = await db.get<{ count: number }>(
         `SELECT COUNT(*) as count FROM personas WHERE "createdAt" BETWEEN ? AND ?`,
         [fromDate, toDate]
     );
@@ -1728,7 +1725,7 @@ export async function getOperationalReport(params: { from: Date; to: Date }): Pr
         JOIN personas p ON pac."personaId" = p.id
         WHERE c."consultationDate" BETWEEN ? AND ?
     `;
-    const patientDemographics = await db.all(consultationsQuery, [fromDate, toDate]);
+    const patientDemographics = await db.all<any>(consultationsQuery, [fromDate, toDate]);
 
     let men = 0;
     let women = 0;
@@ -1771,6 +1768,7 @@ export async function getAppointmentsReport(params: {
     servicio: string;
     medico: string;
     estado: string;
+    isReintegro: boolean;
 }>> {
     const db = await getDb();
 
@@ -1785,6 +1783,7 @@ export async function getAppointmentsReport(params: {
             ${fullNameSql} as paciente,
             w."serviceType" as servicio,
             COALESCE(u.name, 'No asignado') as medico,
+            c."isReintegro",
             CASE 
                 WHEN w.status = 'Completado' THEN 'Completada'
                 WHEN w.status = 'Cancelado' THEN 'Cancelada'
@@ -1830,7 +1829,8 @@ export async function getAppointmentsReport(params: {
             paciente: row.paciente,
             servicio: row.servicio,
             medico: row.medico,
-            estado: row.estado
+            estado: row.estado,
+            isReintegro: !!row.isReintegro
         };
     });
 }

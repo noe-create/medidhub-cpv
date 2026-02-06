@@ -43,17 +43,17 @@ export function Cie10Management() {
   const [totalCount, setTotalCount] = React.useState(0);
 
   const refreshCodes = React.useCallback(async (currentSearch: string, page: number) => {
-      setIsLoading(true);
-      try {
-        const { codes: data, totalCount: count } = await getManagedCie10Codes(currentSearch, page, PAGE_SIZE);
-        setCodes(data);
-        setTotalCount(count);
-      } catch (error) {
-        console.error("Error fetching CIE-10 codes:", error);
-        toast({ title: 'Error', description: 'No se pudieron cargar los códigos CIE-10.', variant: 'destructive' });
-      } finally {
-        setIsLoading(false);
-      }
+    setIsLoading(true);
+    try {
+      const { codes: data, totalCount: count } = await getManagedCie10Codes(currentSearch, page, PAGE_SIZE);
+      setCodes(data);
+      setTotalCount(count);
+    } catch (error) {
+      console.error("Error fetching CIE-10 codes:", error);
+      toast({ title: 'Error', description: 'No se pudieron cargar los códigos CIE-10.', variant: 'destructive' });
+    } finally {
+      setIsLoading(false);
+    }
   }, [toast]);
 
   React.useEffect(() => {
@@ -89,79 +89,66 @@ export function Cie10Management() {
       toast({ title: 'Error', description: error.message || 'No se pudo guardar el código.', variant: 'destructive' });
     }
   };
-  
+
   const handleDeleteCode = async (code: string) => {
     try {
-        await deleteCie10Code(code);
-        toast({ title: '¡Código Eliminado!', description: 'El código CIE-10 ha sido eliminado.' });
-        if (codes.length === 1 && currentPage > 1) {
-            setCurrentPage(currentPage - 1);
-        } else {
-            await refreshCodes(debouncedSearch, currentPage);
-        }
+      await deleteCie10Code(code);
+      toast({ title: '¡Código Eliminado!', description: 'El código CIE-10 ha sido eliminado.' });
+      if (codes.length === 1 && currentPage > 1) {
+        setCurrentPage(currentPage - 1);
+      } else {
+        await refreshCodes(debouncedSearch, currentPage);
+      }
     } catch (error: any) {
-        toast({ title: 'Error al Eliminar', description: error.message, variant: 'destructive' });
+      toast({ title: 'Error al Eliminar', description: error.message, variant: 'destructive' });
     }
   }
 
   const columns: ColumnDef<Cie10Code>[] = [
-      {
-        accessorKey: "code",
-        header: "Código",
-        cell: ({ row }) => <div className="font-mono font-semibold">{row.original.code}</div>,
-      },
-      {
-        accessorKey: "description",
-        header: "Descripción",
-      },
-      {
-        id: "actions",
-        cell: ({ row }) => {
-            const code = row.original;
-            return (
-              <div className="text-right">
-                <AlertDialog>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" className="h-8 w-8 p-0">
-                        <span className="sr-only">Abrir menú</span>
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                      <DropdownMenuItem onClick={() => handleOpenForm(code)}>
-                        <Pencil className="mr-2 h-4 w-4" />
-                        <span>Editar</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <AlertDialogTrigger asChild>
-                        <DropdownMenuItem className="text-destructive focus:text-destructive-foreground focus:bg-destructive">
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          <span>Eliminar</span>
-                        </DropdownMenuItem>
-                      </AlertDialogTrigger>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                  <AlertDialogContent>
-                      <AlertDialogHeader>
-                          <AlertDialogTitle>¿Está absolutamente seguro?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                              Esta acción no se puede deshacer. Esto eliminará permanentemente el código CIE-10 del catálogo. No podrá eliminar códigos que estén actualmente en uso.
-                          </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => handleDeleteCode(code.code)} className="bg-destructive hover:bg-destructive/90">
-                              Sí, eliminar
-                          </AlertDialogAction>
-                      </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              </div>
-            )
-        }
+    {
+      accessorKey: "code",
+      header: "Código",
+      cell: ({ row }) => <div className="font-mono font-extrabold text-foreground/90 bg-muted px-3 py-1 rounded-md w-fit text-sm border border-border">{row.original.code}</div>,
+    },
+    {
+      accessorKey: "description",
+      header: "Descripción",
+      cell: ({ row }) => <div className="text-foreground/80 font-medium">{row.original.description}</div>,
+    },
+    {
+      id: "actions",
+      cell: ({ row }) => {
+        const code = row.original;
+        return (
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" size="icon" onClick={() => handleOpenForm(code)} className="h-8 w-8 text-muted-foreground/80 hover:text-primary hover:bg-blue-50 rounded-full">
+              <Pencil className="h-4 w-4" />
+            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground/80 hover:text-red-600 hover:bg-red-50 rounded-full">
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>¿Eliminar Código?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Esta acción eliminará el código <strong>{code.code}</strong> permanentemente.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => handleDeleteCode(code.code)} className="bg-destructive hover:bg-destructive/90">
+                    Sí, eliminar
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        )
       }
+    }
   ];
 
   const handleImportClick = () => {
@@ -175,125 +162,136 @@ export function Cie10Management() {
     setIsUploading(true);
     const reader = new FileReader();
     reader.onload = async (e) => {
-        try {
-            const data = e.target?.result;
-            const workbook = XLSX.read(data, { type: 'binary' });
-            const sheetName = workbook.SheetNames[0];
-            const worksheet = workbook.Sheets[sheetName];
-            const json: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-            
-            const codesToImport: Cie10Code[] = json
-                .filter(row => row && row.length >= 2 && row[0] && row[1])
-                .map(row => ({ code: String(row[0]).trim(), description: String(row[1]).trim() }));
+      try {
+        const data = e.target?.result;
+        const workbook = XLSX.read(data, { type: 'binary' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const json: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
-            if (codesToImport.length === 0) {
-                toast({ title: 'Archivo Vacío o Inválido', description: 'No se encontraron filas con datos para importar.', variant: 'destructive' });
-                return;
-            }
+        const codesToImport: Cie10Code[] = json
+          .filter(row => row && row.length >= 2 && row[0] && row[1])
+          .map(row => ({ code: String(row[0]).trim(), description: String(row[1]).trim() }));
 
-            const result = await bulkCreateCie10Codes(codesToImport);
-            toast({
-                title: 'Importación Completada',
-                description: `${result.imported} códigos nuevos importados. ${result.skipped} códigos duplicados fueron omitidos.`,
-                variant: 'success',
-            });
-            await refreshCodes(debouncedSearch, 1);
-        } catch (error: any) {
-            toast({ title: 'Error de Importación', description: error.message || 'No se pudo procesar el archivo.', variant: 'destructive' });
-        } finally {
-            setIsUploading(false);
-            if (fileInputRef.current) {
-                fileInputRef.current.value = '';
-            }
+        if (codesToImport.length === 0) {
+          toast({ title: 'Archivo Vacío o Inválido', description: 'No se encontraron filas con datos para importar.', variant: 'destructive' });
+          return;
         }
+
+        const result = await bulkCreateCie10Codes(codesToImport);
+        toast({
+          title: 'Importación Completada',
+          description: `${result.imported} códigos nuevos importados. ${result.skipped} códigos duplicados fueron omitidos.`,
+          variant: 'success',
+        });
+        await refreshCodes(debouncedSearch, 1);
+      } catch (error: any) {
+        toast({ title: 'Error de Importación', description: error.message || 'No se pudo procesar el archivo.', variant: 'destructive' });
+      } finally {
+        setIsUploading(false);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+      }
     };
     reader.readAsBinaryString(file);
   };
-  
+
   const handleExport = async () => {
     try {
-        const { codes: allCodes } = await getManagedCie10Codes();
-        const dataToExport = allCodes.map(c => ({ Codigo: c.code, Descripcion: c.description }));
+      const { codes: allCodes } = await getManagedCie10Codes();
+      const dataToExport = allCodes.map(c => ({ Codigo: c.code, Descripcion: c.description }));
 
-        const worksheet = XLSX.utils.json_to_sheet(dataToExport);
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "CIE-10");
-        const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
-        const data = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8' });
-        saveAs(data, "catalogo_cie10.xlsx");
+      const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "CIE-10");
+      const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+      const data = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8' });
+      saveAs(data, "catalogo_cie10.xlsx");
     } catch (error) {
-        toast({ title: 'Error al Exportar', description: 'No se pudieron obtener los datos para la exportación.', variant: 'destructive' });
+      toast({ title: 'Error al Exportar', description: 'No se pudieron obtener los datos para la exportación.', variant: 'destructive' });
     }
   };
 
   return (
     <>
-      <Card>
-        <CardHeader>
-          <CardTitle>Códigos CIE-10</CardTitle>
-          <CardDescription>
-            Busque, añada y gestione el catálogo de códigos de diagnóstico.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex justify-between items-center mb-4">
-            <Input
-              placeholder="Buscar por código o descripción..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="max-w-sm"
-            />
-            <div className="flex gap-2">
-                <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleFileChange}
-                    accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
-                    className="hidden"
-                />
-                
-                <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                        <Button variant="outline" disabled={isUploading}>
-                            {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
-                            Importar
-                        </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                        <AlertDialogHeader>
-                            <AlertDialogTitle>Formato para Importación CSV/Excel</AlertDialogTitle>
-                            <AlertDialogDescription asChild>
-                               <div className="text-left space-y-3 pt-2">
-                                <p>Para asegurar una importación exitosa, su archivo debe tener la siguiente estructura:</p>
-                                <ul className="list-disc list-inside text-sm bg-muted/50 p-4 rounded-md space-y-1 border">
-                                    <li>Debe contener exactamente <strong>dos columnas</strong>.</li>
-                                    <li><strong>Columna 1:</strong> El Código CIE-10 (ej. J00).</li>
-                                    <li><strong>Columna 2:</strong> La Descripción completa del código.</li>
-                                    <li>No incluya una fila de encabezado (títulos de columna).</li>
-                                </ul>
-                                <p>El sistema ignorará automáticamente cualquier código que ya exista en la base de datos para evitar duplicados.</p>
-                               </div>
-                            </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                            <AlertDialogAction onClick={handleImportClick}>
-                                Continuar e Importar
-                            </AlertDialogAction>
-                        </AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialog>
+      <div className="bg-card rounded-3xl shadow-sm p-8 border border-border/50 min-h-[calc(100vh-10rem)]">
+        {/* Header */}
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6 mb-8 border-b border-border/50 pb-6">
+          <div>
+            <h2 className="text-2xl font-extrabold text-foreground flex items-center gap-2">
+              <Code2 className="h-7 w-7 text-primary" />
+              Códigos CIE-10
+            </h2>
+            <p className="text-muted-foreground mt-1">Catálogo internacional de enfermedades y problemas relacionados con la salud.</p>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-3 items-center">
+            <div className="relative w-full sm:w-auto">
+              <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/80">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-search"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>
+              </div>
+              <Input
+                placeholder="Buscar CIE-10..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9 w-full sm:w-64 rounded-full border-border bg-muted/50 focus:bg-card transition-all"
+              />
+            </div>
 
-                <Button variant="outline" onClick={handleExport}>
-                    <Download className="mr-2 h-4 w-4" />
-                    Exportar
-                </Button>
-                <Button onClick={() => handleOpenForm(null)}>
-                    <PlusCircle className="mr-2 h-4 w-4" />
-                    Añadir Código
-                </Button>
+            <div className="flex gap-2 w-full sm:w-auto flex-wrap sm:flex-nowrap">
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
+                className="hidden"
+              />
+
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" disabled={isUploading} className="rounded-full border-border text-foreground/80 hover:text-blue-700 hover:bg-blue-50 hover:border-blue-200">
+                    {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                    Importar
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Formato para Importación CSV/Excel</AlertDialogTitle>
+                    <AlertDialogDescription asChild>
+                      <div className="text-left space-y-3 pt-2">
+                        <p>Para asegurar una importación exitosa, su archivo debe tener la siguiente estructura:</p>
+                        <ul className="list-disc list-inside text-sm bg-muted/50 p-4 rounded-md space-y-1 border border-border/50 text-foreground/90">
+                          <li>Debe contener exactamente <strong>dos columnas</strong>.</li>
+                          <li><strong>Columna 1:</strong> El Código CIE-10 (ej. J00).</li>
+                          <li><strong>Columna 2:</strong> La Descripción completa del código.</li>
+                          <li>No incluya una fila de encabezado (títulos de columna).</li>
+                        </ul>
+                        <p className="text-sm text-muted-foreground">El sistema ignorará automáticamente cualquier código que ya exista en la base de datos para evitar duplicados.</p>
+                      </div>
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleImportClick} className="bg-primary hover:bg-primary/90">
+                      Continuar e Importar
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+
+              <Button variant="outline" onClick={handleExport} className="rounded-full border-border text-foreground/80 hover:text-blue-700 hover:bg-blue-50 hover:border-blue-200">
+                <Download className="mr-2 h-4 w-4" />
+                Exportar
+              </Button>
+              <Button onClick={() => handleOpenForm(null)} className="rounded-full bg-primary hover:bg-primary/90 text-white shadow-md shadow-primary/20 px-6">
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Añadir Código
+              </Button>
             </div>
           </div>
+        </div>
+
+        <div className="rounded-2xl border border-border overflow-hidden">
           <DataTable
             columns={columns}
             data={codes}
@@ -303,27 +301,27 @@ export function Cie10Management() {
             onPageChange={setCurrentPage}
             emptyState={{
               icon: Code2,
-              title: "No se encontraron códigos CIE-10",
-              description: "Puede añadir el primer código manualmente o importar un catálogo.",
+              title: "No se encontraron códigos",
+              description: "Puede importar un catálogo o crear códigos manualmente.",
             }}
           />
-        </CardContent>
-      </Card>
-      
-       <Dialog open={isFormOpen} onOpenChange={handleCloseDialog}>
-            <DialogContent className="sm:max-w-xl">
-                <DialogHeader>
-                    <DialogTitle>{selectedCode ? 'Editar Código CIE-10' : 'Crear Nuevo Código CIE-10'}</DialogTitle>
-                </DialogHeader>
-                {isFormOpen && (
-                    <Cie10Form
-                        cie10Code={selectedCode}
-                        onSubmitted={handleFormSubmitted}
-                        onCancel={handleCloseDialog}
-                     />
-                )}
-            </DialogContent>
-        </Dialog>
+        </div>
+      </div>
+
+      <Dialog open={isFormOpen} onOpenChange={handleCloseDialog}>
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>{selectedCode ? 'Editar Código CIE-10' : 'Crear Nuevo Código CIE-10'}</DialogTitle>
+          </DialogHeader>
+          {isFormOpen && (
+            <Cie10Form
+              cie10Code={selectedCode}
+              onSubmitted={handleFormSubmitted}
+              onCancel={handleCloseDialog}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

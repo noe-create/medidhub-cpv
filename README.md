@@ -1,51 +1,99 @@
-# MediHub - Sistema de Gestión Clínica
+# MediHub - Sistema de Gestión Clínica Integral
 
-Bienvenido a MediHub, un Sistema de Gestión Clínica integral diseñado para digitalizar y optimizar las operaciones de un centro de salud.
+Bienvenido a **MediHub**, la solución moderna para la gestión clínica diseñada para optimizar el flujo de trabajo en centros de salud. Este sistema centraliza la administración de pacientes, consultas médicas, y procesos administrativos, potenciado ahora por **Inteligencia Artificial** y una base de datos robusta en **PostgreSQL**.
 
-## ¿De qué se trata este sistema?
+## 🚀 Características Principales
 
-MediHub es una aplicación web moderna construida para manejar el ciclo de vida completo de la atención al paciente, desde el registro inicial hasta el seguimiento post-consulta. Su propósito es centralizar la información, mejorar la eficiencia del personal médico y administrativo, y garantizar la privacidad y seguridad de los datos.
+### Gestión Clínica y Administrativa
+*   **Admisión de Pacientes**: Registro detallado de Titulares y Beneficiarios.
+*   **Sala de Espera Virtual**: Monitoreo en tiempo real del flujo de pacientes.
+*   **Historia Clínica Electrónica (HCE)**: Documentación completa de consultas, diagnósticos (CIE-10), y antecedentes.
+*   **Bitácora de Tratamiento**: Gestión de órdenes médicas para enfermería.
+*   **Seguridad RBAC**: Control de acceso basado en roles para proteger la data sensible.
 
-### Flujo de Trabajo Principal
+### ✨ Nuevas Funcionalidades de IA (Powered by Google Genkit)
+MediHub integra inteligencia artificial para asistir al personal médico:
+*   **Generación de Recetas**: Creación automática de recetas basadas en el diagnóstico y tratamiento.
+*   **Consentimientos Informados**: Sugerencia inteligente de formularios de consentimiento según el procedimiento.
+*   **Resumen de Historia Clínica**: Generación de resúmenes concisos del historial del paciente para una revisión rápida.
 
-1.  **Admisión y Gestión de Pacientes**: El personal registra a los pacientes, diferenciando entre **Titulares** (afiliados principales) y **Beneficiarios** (sus dependientes). El sistema mantiene un repositorio central de todas las personas.
-2.  **Sala de Espera Virtual**: Los pacientes registrados para una consulta entran en una cola de espera digital, permitiendo al personal monitorear en tiempo real quién espera, por cuánto tiempo y para qué servicio.
-3.  **Consulta Médica Digital (HCE)**: El médico atiende al paciente, documentando toda la interacción en la **Historia Clínica Electrónica (HCE)**. Esto incluye:
-    *   Anamnesis (motivo de consulta, enfermedad actual).
-    *   Antecedentes personales, familiares y gineco-obstétricos.
-    *   Examen físico y signos vitales.
-    *   Diagnósticos basados en el catálogo internacional **CIE-10**.
-    *   Plan de tratamiento, incluyendo recetas médicas y órdenes de laboratorio o imagenología.
-4.  **Bitácora de Tratamiento**: Las órdenes que requieren ejecución (como curas, inyecciones, etc.) se listan en una bitácora para que el personal de enfermería las administre y documente.
-5.  **Administración y Reportes**: El sistema cuenta con módulos para que los administradores gestionen empresas, servicios, catálogos (CIE-10) y, lo más importante, la seguridad de los usuarios y sus roles. También permite generar reportes clave, como estadísticas de morbilidad.
+---
 
-## Estado Actual del Sistema
+## 🛠️ Pila Tecnológica
 
-El sistema se encuentra en un estado funcional y estable. Las características principales descritas anteriormente están implementadas y operativas. El problema de autenticación ha sido resuelto, sentando una base sólida para futuras expansiones.
+*   **Frontend**: Next.js 15 (App Router), React 18, Tailwind CSS, ShadCN UI.
+*   **Backend**: Next.js Server Actions.
+*   **Base de Datos**: **PostgreSQL** (Migrado de SQLite para mayor escalabilidad y concurrencia).
+*   **Inteligencia Artificial**: Google Genkit + Gemini API.
+*   **Escritorio**: Electron (para la versión instalable en Windows).
+*   **Autenticación**: Iron Session.
 
-Se puede considerar que está en una fase **"Beta"**: listo para ser utilizado, probado en un entorno real para recopilar feedback, y para comenzar a construir nuevas funcionalidades sobre él.
+---
 
-## Modelo de Seguridad y Privacidad
+## ⚙️ Configuración y Requisitos
 
-La seguridad y la privacidad son los pilares fundamentales de MediHub. El sistema implementa un robusto modelo de **Control de Acceso Basado en Roles (RBAC)** que garantiza la confidencialidad de la información.
+### Prerrequisitos
+1.  **Node.js** (v18 o superior).
+2.  **PostgreSQL**: Debe tener una instancia de PostgreSQL corriendo localmente o en la nube.
 
-### ¿Cómo funciona?
+### Variables de Entorno
+Cree un archivo `.env` en la raíz del proyecto con las siguientes claves:
 
-1.  **Permisos**: Cada acción crítica dentro del sistema (ej. `users.manage` para "Gestionar Usuarios" o `hce.view` para "Ver Historia Clínica") está definida como un **permiso**.
-2.  **Roles**: Los permisos se agrupan en **Roles** lógicos que reflejan las funciones del personal de la clínica (ej. "Doctor", "Enfermera", "Recepcionista", "Administrador").
-3.  **Usuarios**: A cada usuario se le asigna un único rol.
+```env
+# Base de Datos (PostgreSQL)
+POSTGRES_URL="postgresql://usuario:password@localhost:5432/medihub_db"
 
-Cuando un usuario intenta realizar una acción, el sistema verifica si el rol de ese usuario tiene el permiso requerido. Si no lo tiene, la acción se bloquea de forma segura.
+# Inteligencia Artificial (Google Gemini)
+GEMINI_API_KEY="su_api_key_de_google_aqui"
 
-Por ejemplo, un usuario con el rol "Doctor" tendrá permiso para realizar consultas (`consultation.perform`), pero no para gestionar usuarios (`users.manage`). El rol "Superusuario" está diseñado para tener acceso total a todas las funcionalidades, ideal para la administración y configuración inicial del sistema.
+# Seguridad (Cadena aleatoria de 32+ caracteres)
+SESSION_PASSWORD="cookie_password_invulnerable_y_larga_de_al_menos_32_caracteres"
+```
 
-Este modelo asegura el principio de **"mínimo privilegio"**: cada usuario solo tiene acceso a la información y a las funciones estrictamente necesarias para cumplir con su trabajo, protegiendo así la integridad y privacidad de los datos de los pacientes.
+---
 
-## Pila Tecnológica
+## 🚀 Guía de Inicio Rápido
 
-*   **Framework**: Next.js con App Router
-*   **Lenguaje**: TypeScript
-*   **UI**: React, ShadCN UI, Tailwind CSS
-*   **Base de Datos**: SQLite
-*   **Autenticación y Sesiones**: Iron Session
-*   **Funcionalidades de IA**: Genkit
+### Desarrollo
+Para iniciar el servidor de desarrollo:
+
+```bash
+npm install
+npm run dev
+# El sistema estará disponible en http://localhost:3000
+```
+
+### Producción
+Para construir e iniciar la versión optimizada:
+
+```bash
+npm run build
+npm run start
+```
+
+### Versión de Escritorio (Electron)
+Para probar la aplicación de escritorio:
+
+```bash
+npm run electron:dev
+```
+
+Para construir el instalador (.exe):
+```bash
+npm run electron:build
+```
+
+---
+
+## 👥 Roles del Sistema
+
+El sistema viene preconfigurado con los siguientes roles y permisos clave:
+
+*   **Superusuario**: Acceso total al sistema.
+*   **Admin**: Gestión de usuarios, configuraciones y empresas.
+*   **Doctores (Pediatra/Familiar)**: Realización de consultas, visión de HCE, gestión de recetas.
+*   **Enfermera**: Gestión de bitácora de tratamientos y administración de medicamentos.
+*   **Recepcionista/Secretaria**: Gestión de sala de espera, registro de pacientes y admisión.
+
+---
+**Nota**: Este proyecto está en constante evolución. Si encuentra algún problema, por favor repórtelo al equipo de desarrollo.

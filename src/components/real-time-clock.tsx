@@ -28,19 +28,19 @@ export function RealTimeClock({ className }: RealTimeClockProps) {
   }, []); // Empty dependency array ensures this runs once on mount.
 
   if (currentTime === null) {
-      // Render a placeholder on the server and during the initial client render
-      return (
-         <div className={cn("flex flex-col sm:flex-row items-baseline sm:items-center gap-x-6 gap-y-1 font-mono mt-2", className)}>
-            <div className="flex items-center gap-2 text-lg text-muted-foreground">
-                <Calendar className="h-5 w-5"/>
-                <span className="capitalize">Cargando fecha...</span>
-            </div>
-            <div className="flex items-center gap-2.5 text-muted-foreground">
-                <Clock className="h-7 w-7"/>
-                <span className="text-4xl font-bold tracking-wider">--:--:-- --</span>
-            </div>
+    // Render a placeholder on the server and during the initial client render
+    return (
+      <div className={cn("flex flex-col sm:flex-row items-baseline sm:items-center gap-x-6 gap-y-1 font-mono mt-2", className)}>
+        <div className="flex items-center gap-2 text-lg text-muted-foreground">
+          <Calendar className="h-5 w-5" />
+          <span className="capitalize">Cargando fecha...</span>
         </div>
-      )
+        <div className="flex items-center gap-2.5 text-muted-foreground">
+          <Clock className="h-7 w-7" />
+          <span className="text-4xl font-bold tracking-wider">--:--:-- --</span>
+        </div>
+      </div>
+    )
   }
 
   // e.g., "sábado, 25 de mayo de 2024"
@@ -49,15 +49,15 @@ export function RealTimeClock({ className }: RealTimeClockProps) {
   const formattedTime = format(currentTime, "hh:mm:ss a", { locale: es });
 
   return (
-    <div className={cn("flex flex-col sm:flex-row items-baseline sm:items-center gap-x-6 gap-y-1 font-mono mt-2", className)}>
-        <div className="flex items-center gap-2 text-lg text-muted-foreground">
-            <Calendar className="h-5 w-5"/>
-            <span className="capitalize">{formattedDate}</span>
-        </div>
-        <div className="flex items-center gap-2.5 text-primary">
-            <Clock className="h-7 w-7"/>
-            <span className="text-4xl font-bold tracking-wider">{formattedTime}</span>
-        </div>
+    <div className={cn("flex flex-col sm:flex-row items-baseline sm:items-center gap-x-6 gap-y-1 mt-2", className)}>
+      <div className="flex items-center gap-2 text-lg text-white/80 font-medium">
+        <Calendar className="h-5 w-5 opacity-80" />
+        <span className="capitalize">{formattedDate}</span>
+      </div>
+      <div className="flex items-center gap-2.5 text-white">
+        <Clock className="h-6 w-6 opacity-80" />
+        <span className="text-5xl font-bold tracking-tight font-sans">{formattedTime}</span>
+      </div>
     </div>
   );
 }

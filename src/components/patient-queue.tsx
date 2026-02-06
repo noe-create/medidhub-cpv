@@ -29,11 +29,27 @@ import { calculateAge } from '@/lib/utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { RescheduleForm } from './reschedule-form';
 import { useRouter } from 'next/navigation';
+import { cn } from '@/lib/utils';
 
-const serviceInfo: Record<ServiceType, { icon: React.ReactNode, title: string }> = {
-  'medicina familiar': { icon: <HeartPulse className="h-5 w-5 text-rose-500 fill-rose-100" />, title: 'Medicina Familiar' },
-  'consulta pediatrica': { icon: <Baby className="h-5 w-5 text-sky-500 fill-sky-100" />, title: 'Consulta Pediátrica' },
-  'servicio de enfermeria': { icon: <Stethoscope className="h-5 w-5 text-blue-500 fill-blue-100" />, title: 'Servicio de Enfermería' },
+const serviceInfo: Record<ServiceType, { icon: React.ReactNode, title: string, colorClass: string, gradientClass: string }> = {
+  'medicina familiar': {
+    icon: <HeartPulse className="h-5 w-5 text-rose-500 dark:text-neon-rose fill-rose-100 dark:fill-rose-500/20" />,
+    title: 'Medicina Familiar',
+    colorClass: 'text-rose-500 dark:text-rose-400',
+    gradientClass: 'from-rose-500 to-rose-600'
+  },
+  'consulta pediatrica': {
+    icon: <Baby className="h-5 w-5 text-sky-500 dark:text-neon-blue fill-sky-100 dark:fill-sky-500/20" />,
+    title: 'Consulta Pediátrica',
+    colorClass: 'text-sky-500 dark:text-sky-400',
+    gradientClass: 'from-sky-500 to-sky-600'
+  },
+  'servicio de enfermeria': {
+    icon: <Stethoscope className="h-5 w-5 text-emerald-500 dark:text-neon-emerald fill-emerald-100 dark:fill-emerald-500/20" />,
+    title: 'Servicio de Enfermería',
+    colorClass: 'text-emerald-500 dark:text-emerald-400',
+    gradientClass: 'from-emerald-500 to-emerald-600'
+  },
 };
 
 const statusInfo: Record<PatientStatus, { label: string; color: string; badgeVariant: 'default' | 'secondary' | 'outline' | 'destructive' }> = {
@@ -184,10 +200,10 @@ export function PatientQueue({ user, patients, onListRefresh }: PatientQueueProp
     const allServices = Object.keys(serviceInfo) as ServiceType[];
 
     if (user.role.id === 'doctor' && user.specialty) {
-      if (user.specialty === 'medico familiar') {
+      if ((user.specialty as unknown as string) === 'medico familiar') {
         return allServices.filter(s => s === 'medicina familiar');
       }
-      if (user.specialty === 'medico pediatra') {
+      if ((user.specialty as unknown as string) === 'medico pediatra') {
         return allServices.filter(s => s === 'consulta pediatrica');
       }
     }
@@ -233,130 +249,164 @@ export function PatientQueue({ user, patients, onListRefresh }: PatientQueueProp
     <>
       <div className={`grid grid-cols-1 ${gridColsClass} gap-6`}>
         {(visibleServices || []).map((service) => (
-          <Card key={service} className="flex flex-col bg-card border shadow-lg overflow-hidden group">
-            {/* Gradient Header Lne */}
-            <div className="h-1 w-full bg-gradient-to-r from-blue-400 to-purple-400 opacity-80" />
-
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3 pt-4 px-5 border-b bg-secondary/20">
-              <CardTitle className="text-lg font-bold capitalize flex items-center gap-2.5 text-foreground">
-                <div className="p-1.5 bg-background rounded-md shadow-sm">
+          <div key={service} className="flex flex-col bg-muted/30 rounded-3xl border border-border/50 overflow-hidden h-[calc(100vh-22rem)] min-h-[500px]">
+            {/* Premium Header with Gradient */}
+            <div className={cn(
+              "flex flex-row items-center justify-between pb-4 pt-5 px-6 dark:bg-gradient-to-b dark:from-white/5 dark:to-transparent",
+              "border-b border-border/10 mb-2"
+            )}>
+              <h3 className="text-lg font-extrabold capitalize flex items-center gap-3 text-foreground/90">
+                <div className={cn(
+                  "p-2.5 rounded-xl shadow-lg border border-border/50 bg-card transition-transform group-hover:scale-110",
+                  "dark:bg-muted/50 dark:backdrop-blur-sm"
+                )}>
                   {serviceInfo[service].icon}
                 </div>
-                {serviceInfo[service].title}
-              </CardTitle>
-              <Badge variant="outline" className="text-sm font-semibold px-2.5 py-0.5 bg-background">{groupedPatients[service]?.length || 0}</Badge>
-            </CardHeader>
-            <CardContent className="flex-1 p-0 bg-secondary/5">
-              <ScrollArea className="h-96 w-full p-4">
-                <div className="space-y-3">
-                  {(!groupedPatients[service] || groupedPatients[service].length === 0) ? (
-                    <div className="flex flex-col items-center justify-center h-full text-sm text-muted-foreground pt-14 space-y-2 opacity-60">
-                      <ClockIcon className="h-8 w-8 mb-1" />
-                      <p>No hay pacientes.</p>
-                    </div>
-                  ) : (
-                    groupedPatients[service].map((patient) => {
-                      const age = calculateAge(new Date(patient.fechaNacimiento));
-                      const statusData = statusInfo[patient.status];
-                      return (
-                        <div key={patient.id} className={`flex flex-col gap-2 p-3.5 rounded-xl border-l-[5px] ${statusData.color} bg-background shadow hover:shadow-md transition-shadow duration-200`}>
-                          <div className="flex justify-between items-start">
-                            <div className='flex-1 overflow-hidden pr-2'>
-                              <div className="flex items-center gap-2 mb-1">
-                                <p className="font-bold text-base truncate leading-tight text-foreground">{patient.name}</p>
-                              </div>
-                              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                                {patient.accountType} &bull; {patient.kind === 'titular' ? 'Titular' : 'Beneficiario'}
-                              </p>
-                            </div>
-                            <Badge variant={statusData.badgeVariant} className="capitalize shrink-0 shadow-sm">
-                              {statusData.label}
-                            </Badge>
-                          </div>
+                <span className="tracking-tight">{serviceInfo[service].title}</span>
+              </h3>
+              <Badge variant="secondary" className={cn(
+                "text-sm font-black px-3.5 py-1 rounded-full shadow-sm border-border/50",
+                "bg-card text-muted-foreground dark:bg-primary/10 dark:text-primary dark:border-primary/20"
+              )}>
+                {groupedPatients[service]?.length || 0}
+              </Badge>
+            </div>
 
-                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
-                            <Baby className="h-3.5 w-3.5" />
+            <ScrollArea className="flex-1 w-full px-4 pb-4">
+              <div className="space-y-3 pb-2">
+                {(!groupedPatients[service] || groupedPatients[service].length === 0) ? (
+                  <div className="flex flex-col items-center justify-center h-full text-sm text-muted-foreground pt-20 space-y-3 opacity-80">
+                    <div className="bg-card p-3 rounded-full shadow-sm">
+                      <ClockIcon className="h-6 w-6 text-muted-foreground/50" />
+                    </div>
+                    <p className="font-medium">No hay pacientes</p>
+                  </div>
+                ) : (
+                  groupedPatients[service].map((patient) => {
+                    const age = calculateAge(new Date(patient.fechaNacimiento));
+                    const statusData = statusInfo[patient.status];
+                    return (
+                      <div key={patient.id} className="group relative flex flex-col gap-3 p-5 rounded-2xl bg-card shadow-md border border-border/50 hover:shadow-xl hover:border-primary/40 dark:hover:bg-muted/30 transition-all duration-300">
+                        {/* Status Accent Bar for dark mode */}
+                        <div className={`absolute left-0 top-4 bottom-4 w-1 rounded-r-full bg-gradient-to-b ${statusInfo[patient.status].color.includes('yellow') ? 'from-amber-400 to-amber-600' : statusInfo[patient.status].color.includes('blue') ? 'from-blue-400 to-blue-600' : 'from-slate-400 to-slate-600'} opacity-0 group-hover:opacity-100 transition-opacity`}></div>
+
+                        <div className="flex justify-between items-start gap-3 pl-2">
+                          <div className='flex-1 overflow-hidden'>
+                            <p className="font-black text-xl truncate leading-tight text-foreground tracking-tight group-hover:text-primary transition-colors">{patient.name}</p>
+                            <div className="flex items-center gap-2 text-[10px] font-black text-muted-foreground uppercase tracking-widest mt-1.5">
+                              <span className={cn(
+                                "px-2 py-0.5 rounded bg-muted/50",
+                                patient.kind === 'titular' ? 'text-primary' : 'text-muted-foreground'
+                              )}>{patient.kind}</span>
+                              <span className="text-muted/30">•</span>
+                              <span className="px-2 py-0.5 rounded bg-muted/50">{patient.accountType}</span>
+                              {patient.isReintegro && (
+                                <>
+                                  <span className="text-muted/30">•</span>
+                                  <span className="px-2 py-0.5 rounded bg-blue-500 text-white font-black animate-pulse shadow-[0_0_10px_rgba(59,130,246,0.5)]">REINTEGRO</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                          <Badge variant={statusData.badgeVariant} className={cn(
+                            "capitalize shrink-0 font-bold px-3 py-1.5 rounded-lg border-2",
+                            patient.status === 'En Consulta' && "bg-blue-500/10 text-blue-500 border-blue-500/20 drop-shadow-[0_0_8px_rgba(59,130,246,0.3)]",
+                            patient.status === 'Esperando' && "bg-amber-500/10 text-amber-500 border-amber-500/20 drop-shadow-[0_0_8px_rgba(245,158,11,0.3)]",
+                            patient.status === 'En Tratamiento' && "bg-purple-500/10 text-purple-500 border-purple-500/20 drop-shadow-[0_0_8px_rgba(168,85,247,0.3)]"
+                          )}>
+                            {statusData.label}
+                          </Badge>
+                        </div>
+
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground font-medium bg-muted/30 p-2 rounded-lg">
+                          <div className="flex items-center gap-1.5">
+                            <Baby className="h-3.5 w-3.5 text-muted-foreground/60" />
                             <span>{age} años</span>
-                            <span className="mx-1 text-border">|</span>
-                            <ClockIcon className="h-3.5 w-3.5" />
+                          </div>
+                          <div className="w-px h-3 bg-border"></div>
+                          <div className="flex items-center gap-1.5">
+                            <ClockIcon className="h-3.5 w-3.5 text-muted-foreground/60" />
                             <span>{new Date(patient.checkInTime).toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' })}</span>
                           </div>
-                          <div className="mt-1">
-                            <WaitTimeStopwatch startTime={new Date(patient.checkInTime)} />
-                          </div>
-
-                          <div className="flex items-center justify-between pt-2 mt-1 border-t border-border/50">
-                            <div className="flex-1">
-                              {(user?.role.id === 'superuser' || user?.role.id === 'doctor') &&
-                                (patient.status === 'Esperando' || patient.status === 'En Consulta' || patient.status === 'Reevaluacion') && (
-                                  <Button
-                                    onClick={() => handleStartOrContinueConsultation(patient)}
-                                    size="sm"
-                                    className="w-full h-8 text-xs font-semibold shadow-sm"
-                                    variant={patient.status === 'En Consulta' ? 'secondary' : 'default'}
-                                  >
-                                    {patient.status === 'En Consulta' ? (
-                                      <><FilePenLine className="mr-1.5 h-3.5 w-3.5" /> Continuar</>
-                                    ) : (
-                                      <><PlayCircle className="mr-1.5 h-3.5 w-3.5" /> Atender</>
-                                    )}
-                                  </Button>
-                                )}
-                            </div>
-                            {canManageStatus && (
-                              <div className="ml-2">
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-muted">
-                                      <MoreHorizontal className="h-4 w-4" />
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end" className="w-48">
-                                    <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                                    <DropdownMenuSeparator />
-                                    {statusOptionsForRole.filter(s => s !== patient.status).map(status => (
-                                      <DropdownMenuItem
-                                        key={status}
-                                        onSelect={() => {
-                                          if (status === 'Pospuesto') {
-                                            handleOpenRescheduleDialog(patient);
-                                          } else {
-                                            handleChangeStatus(patient.id, status as PatientStatus);
-                                          }
-                                        }}
-                                      >
-                                        {statusInfo[status as PatientStatus].label}
-                                      </DropdownMenuItem>
-                                    ))}
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem
-                                      className="text-destructive focus:text-destructive"
-                                      onSelect={() => handleChangeStatus(patient.id, 'Cancelado')}
-                                    >
-                                      <XCircle className="mr-2 h-4 w-4" />
-                                      <span>Cancelar Cita</span>
-                                    </DropdownMenuItem>
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              </div>
-                            )}
-                          </div>
                         </div>
-                      )
-                    })
-                  )}
-                </div>
-              </ScrollArea>
-            </CardContent>
-          </Card>
+
+                        <div className="mt-1">
+                          <WaitTimeStopwatch startTime={new Date(patient.checkInTime)} />
+                        </div>
+
+                        <div className="flex items-center gap-2 pt-2">
+                          <div className="flex-1">
+                            {(user?.role.id === 'superuser' || user?.role.id === 'doctor') &&
+                              (patient.status === 'Esperando' || patient.status === 'En Consulta' || patient.status === 'Reevaluacion') && (
+                                <Button
+                                  onClick={() => handleStartOrContinueConsultation(patient)}
+                                  size="sm"
+                                  className={`w-full h-10 rounded-xl font-bold shadow-sm transition-all ${patient.status === 'En Consulta'
+                                    ? 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-emerald-200'
+                                    : 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-200'
+                                    }`}
+                                >
+                                  {patient.status === 'En Consulta' ? (
+                                    <><FilePenLine className="mr-2 h-4 w-4" /> Continuar</>
+                                  ) : (
+                                    <><PlayCircle className="mr-2 h-4 w-4" /> Atender</>
+                                  )}
+                                </Button>
+                              )}
+                          </div>
+                          {canManageStatus && (
+                            <div className="">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-10 w-10 rounded-xl hover:bg-muted text-muted-foreground">
+                                    <MoreHorizontal className="h-5 w-5" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-52 rounded-xl p-2 bg-card border-border">
+                                  <DropdownMenuLabel className="ml-2 text-xs text-muted-foreground uppercase tracking-widest">Acciones</DropdownMenuLabel>
+                                  {statusOptionsForRole.filter(s => s !== patient.status).map(status => (
+                                    <DropdownMenuItem
+                                      key={status}
+                                      className="rounded-lg p-2.5 cursor-pointer"
+                                      onSelect={() => {
+                                        if (status === 'Pospuesto') {
+                                          handleOpenRescheduleDialog(patient);
+                                        } else {
+                                          handleChangeStatus(patient.id, status as PatientStatus);
+                                        }
+                                      }}
+                                    >
+                                      {statusInfo[status as PatientStatus].label}
+                                    </DropdownMenuItem>
+                                  ))}
+                                  <DropdownMenuSeparator className="my-1" />
+                                  <DropdownMenuItem
+                                    className="text-destructive focus:text-destructive rounded-lg p-2.5 cursor-pointer bg-red-50 focus:bg-red-100"
+                                    onSelect={() => handleChangeStatus(patient.id, 'Cancelado')}
+                                  >
+                                    <XCircle className="mr-2 h-4 w-4" />
+                                    <span>Cancelar Cita</span>
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })
+                )}
+              </div>
+            </ScrollArea>
+          </div>
         ))}
         {totalPatientsInQueue === 0 && (
-          <div className={`col-span-1 ${gridColsClass} flex flex-col items-center justify-center h-96 text-center text-muted-foreground bg-card/50 rounded-xl border-2 border-dashed`}>
-            <div className="bg-background p-4 rounded-full shadow-sm mb-4">
-              <ClipboardCheck className="h-10 w-10 text-muted-foreground/50" />
+          <div className={`col-span-1 ${gridColsClass} flex flex-col items-center justify-center min-h-[400px] text-center text-muted-foreground bg-muted/10 rounded-3xl border-2 border-dashed border-border`}>
+            <div className="bg-card p-6 rounded-full shadow-sm mb-4">
+              <ClipboardCheck className="h-12 w-12 text-primary/20" />
             </div>
-            <h3 className="text-xl font-semibold">Sala de Espera Despejada</h3>
-            <p className="text-sm mt-1 max-w-xs mx-auto">No hay pacientes esperando atención en este momento.</p>
+            <h3 className="text-xl font-extrabold text-foreground">Sala de Espera Despejada</h3>
+            <p className="text-sm mt-2 max-w-xs mx-auto text-muted-foreground">No hay pacientes esperando atención en este momento. Puede registrar un nuevo paciente arriba.</p>
           </div>
         )}
       </div>

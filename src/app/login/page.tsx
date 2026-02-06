@@ -117,7 +117,7 @@ export default function LoginPage() {
                 name="username"
                 placeholder="su.usuario"
                 required
-                className="bg-slate-50 border-slate-700 rounded-lg text-gray-800 placeholder:text-gray-500 focus:border-blue-400"
+                className="bg-muted/50 border-slate-700 rounded-lg text-gray-800 placeholder:text-gray-500 focus:border-blue-400"
               />
             </div>
             <div className="grid gap-2">
@@ -127,7 +127,7 @@ export default function LoginPage() {
                 name="password" 
                 type="password" 
                 required 
-                className="bg-slate-50 border-slate-700 rounded-lg text-gray-800 placeholder:text-gray-500 focus:border-blue-400"
+                className="bg-muted/50 border-slate-700 rounded-lg text-gray-800 placeholder:text-gray-500 focus:border-blue-400"
               />
             </div>
             {state?.error && (

@@ -96,96 +96,115 @@ export function RoleManagement() {
 
   return (
     <>
-      <Card>
-        <CardHeader>
-          <CardTitle>Roles de Seguridad</CardTitle>
-          <CardDescription>Cree y gestione los grupos de permisos para los usuarios del sistema.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex justify-end items-center mb-4">
-            <Button onClick={() => handleOpenForm(null)}>
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Añadir Rol
-            </Button>
+      <div className="bg-card rounded-3xl shadow-sm p-8 border border-border/50 min-h-[calc(100vh-10rem)]">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8 border-b border-border/50 pb-6">
+          <div>
+            <h2 className="text-2xl font-extrabold text-foreground flex items-center gap-2">
+              <Shield className="h-7 w-7 text-primary" />
+              Roles de Seguridad
+            </h2>
+            <p className="text-muted-foreground mt-1">Defina los niveles de autorización y capacidades para los usuarios.</p>
           </div>
-          {isLoading ? (
-            <div className="flex justify-center items-center h-64">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-          ) : roles.length > 0 ? (
+          <Button onClick={() => handleOpenForm(null)} className="rounded-full bg-primary hover:bg-primary/90 text-white shadow-md shadow-primary/20 px-6">
+            <PlusCircle className="mr-2 h-4 w-4" />
+            Añadir Rol
+          </Button>
+        </div>
+
+        {isLoading ? (
+          <div className="flex justify-center items-center h-64">
+            <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
+          </div>
+        ) : roles.length > 0 ? (
+          <div className="rounded-2xl border border-border overflow-hidden">
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead>Nombre del Rol</TableHead>
-                  <TableHead>Descripción</TableHead>
-                  <TableHead className="text-right w-[100px]">Acciones</TableHead>
+                <TableRow className="bg-muted/30 hover:bg-transparent">
+                  <TableHead className="font-extrabold text-foreground/90 pl-6 h-12">Rol</TableHead>
+                  <TableHead className="font-extrabold text-foreground/90 h-12">Descripción / Alcance</TableHead>
+                  <TableHead className="text-right w-[120px] font-extrabold text-foreground/90 pr-6 h-12">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 <AnimatePresence>
                   {roles.map((role) => (
-                      <motion.tr 
-                        key={role.id}
-                        layout
-                        initial={{ opacity: 0, y: -10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -10, transition: { duration: 0.2 } }}
-                      >
-                        <TableCell className="font-medium">{role.name}</TableCell>
-                        <TableCell>{role.description}</TableCell>
-                        <TableCell className="text-right">
-                          <AlertDialog>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" className="h-8 w-8 p-0" disabled={role.name === 'Superusuario'}>
-                                  <span className="sr-only">Abrir menú</span>
-                                  <MoreHorizontal className="h-4 w-4" />
+                    <motion.tr
+                      key={role.id}
+                      layout
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10, transition: { duration: 0.2 } }}
+                      className="hover:bg-blue-50/30 border-border/50"
+                    >
+                      <TableCell className="font-semibold text-foreground/90 pl-6 align-top py-4">
+                        <div className="flex items-center gap-2">
+                          <div className="h-2 w-2 rounded-full bg-blue-400"></div>
+                          {role.name}
+                        </div>
+                      </TableCell>
+                      <TableCell className="align-top py-4">
+                        <p className="text-sm text-muted-foreground mb-2">{role.description}</p>
+                        {/* Simulated Permissions Chips - In a real app, map role.permissions here */}
+                        <div className="flex flex-wrap gap-1.5">
+                          {['Ver', 'Editar', 'Exportar'].map(p => (
+                            <span key={p} className="px-2 py-0.5 rounded-md border border-border bg-muted/50 text-[10px] text-muted-foreground font-medium uppercase tracking-wide">
+                              {p}
+                            </span>
+                          ))}
+                          {role.name === 'Superusuario' && (
+                            <span className="px-2 py-0.5 rounded-md border border-violet-200 bg-violet-50 text-[10px] text-violet-600 font-medium uppercase tracking-wide">
+                              Control Total
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right pr-6 align-top py-4">
+                        <div className="flex justify-end gap-1">
+                          <Button variant="ghost" size="icon" onClick={() => handleOpenForm(role)} className="h-8 w-8 text-muted-foreground/80 hover:text-primary hover:bg-blue-50 rounded-full">
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          {role.name !== 'Superusuario' && (
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground/80 hover:text-red-600 hover:bg-red-50 rounded-full">
+                                  <Trash2 className="h-4 w-4" />
                                 </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                                <DropdownMenuItem onClick={() => handleOpenForm(role)}>
-                                  <Pencil className="mr-2 h-4 w-4" />
-                                  <span>Editar</span>
-                                </DropdownMenuItem>
-                                <AlertDialogTrigger asChild>
-                                  <DropdownMenuItem className="text-destructive focus:text-destructive-foreground focus:bg-destructive">
-                                    <Trash2 className="mr-2 h-4 w-4" />
-                                    <span>Eliminar</span>
-                                  </DropdownMenuItem>
-                                </AlertDialogTrigger>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>¿Está absolutamente seguro?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Esta acción no se puede deshacer. Se eliminará permanentemente el rol. No podrá eliminar roles que estén actualmente en uso.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => handleDeleteRole(role.id)} className="bg-destructive hover:bg-destructive/90">
-                                  Sí, eliminar
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </TableCell>
-                      </motion.tr>
-                    ))}
-                  </AnimatePresence>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>¿Eliminar Rol?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Esta acción no se puede deshacer.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                  <AlertDialogAction onClick={() => handleDeleteRole(role.id)} className="bg-destructive hover:bg-destructive/90">
+                                    Sí, eliminar
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          )}
+                        </div>
+                      </TableCell>
+                    </motion.tr>
+                  ))}
+                </AnimatePresence>
               </TableBody>
             </Table>
-          ) : (
-            <div className="flex flex-col items-center justify-center h-64 text-center text-muted-foreground bg-card rounded-md border border-dashed">
-                <Shield className="h-12 w-12 mb-4" />
-                <h3 className="text-xl font-semibold">No se han encontrado roles</h3>
-                <p className="text-sm">Puede crear el primer rol de seguridad usando el botón de arriba.</p>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center h-64 text-center text-muted-foreground bg-muted/50 rounded-2xl border border-border/50">
+            <div className="bg-card p-4 rounded-full shadow-sm mb-4">
+              <Shield className="h-8 w-8 text-muted-foreground/60" />
             </div>
-          )}
-        </CardContent>
-      </Card>
+            <h3 className="text-lg font-semibold text-foreground/90">No se han encontrado roles</h3>
+            <p className="text-sm text-muted-foreground">Añada un nuevo rol para comenzar.</p>
+          </div>
+        )}
+      </div>
 
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
         <DialogContent className="sm:max-w-4xl">

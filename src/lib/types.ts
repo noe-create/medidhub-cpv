@@ -134,6 +134,7 @@ export interface Patient {
   checkInTime: Date;
   fechaNacimiento: Date;
   genero: Genero;
+  isReintegro: boolean;
 }
 
 
@@ -284,6 +285,8 @@ export interface Consultation {
   surveyInvitationToken?: string;
   invoice?: Invoice;
   radiologyOrders?: string;
+  isReintegro?: boolean;
+  occupationalReferral?: any;
 }
 
 export interface CreateConsultationInput extends Omit<Consultation, 'id' | 'consultationDate' | 'diagnoses' | 'documents' | 'treatmentOrder' | 'surveyInvitationToken' | 'invoice'> {
@@ -293,6 +296,8 @@ export interface CreateConsultationInput extends Omit<Consultation, 'id' | 'cons
   renderedServices?: Service[];
   radiologyOrder?: string;
   reposo?: string;
+  isReintegro?: boolean;
+  occupationalReferral?: any;
 }
 
 export interface PacienteConInfo extends Persona {

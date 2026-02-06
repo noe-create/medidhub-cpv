@@ -4,7 +4,40 @@ import { Pool, PoolClient, QueryResult } from 'pg';
 import bcrypt from 'bcryptjs';
 import { ALL_PERMISSIONS } from './permissions';
 
-let pool: Pool | null = null;
+// Use globalThis to persist the pool across hot-reloads in development
+const globalForDb = globalThis as unknown as {
+    pool: Pool | undefined;
+    tablesCreated: boolean | undefined;
+};
+
+export async function getDb(): Promise<Database> {
+    if (!globalForDb.pool) {
+        if (!process.env.POSTGRES_URL) {
+            throw new Error('POSTGRES_URL environment variable is not defined');
+        }
+
+        const isLocalhost = process.env.POSTGRES_URL?.includes('localhost') || process.env.POSTGRES_URL?.includes('127.0.0.1');
+
+        globalForDb.pool = new Pool({
+            connectionString: process.env.POSTGRES_URL,
+            ssl: !isLocalhost && process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+        });
+    }
+
+    // Ensure tables and migrations are run at least once per server session/reload
+    if (!globalForDb.tablesCreated) {
+        const client = await globalForDb.pool.connect();
+        try {
+            await createTables(client);
+            await seedDb(client);
+            globalForDb.tablesCreated = true;
+        } finally {
+            client.release();
+        }
+    }
+
+    return new PostgresWrapper(globalForDb.pool);
+}
 
 // Wrapper interface to match existing SQLite usage
 export interface Database {
@@ -56,37 +89,7 @@ class PostgresWrapper implements Database {
     }
 }
 
-async function initializeDb() {
-    if (!process.env.POSTGRES_URL) {
-        throw new Error('POSTGRES_URL environment variable is not defined');
-    }
 
-    const isLocalhost = process.env.POSTGRES_URL?.includes('localhost') || process.env.POSTGRES_URL?.includes('127.0.0.1');
-
-    const newPool = new Pool({
-        connectionString: process.env.POSTGRES_URL,
-        // Disable SSL for localhost, enable for remote production databases
-        ssl: !isLocalhost && process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
-    });
-
-    // Test connection
-    const client = await newPool.connect();
-    try {
-        await createTables(client);
-        await seedDb(client);
-    } finally {
-        client.release();
-    }
-
-    return newPool;
-}
-
-export async function getDb(): Promise<Database> {
-    if (!pool) {
-        pool = await initializeDb();
-    }
-    return new PostgresWrapper(pool);
-}
 
 
 async function createTables(client: PoolClient): Promise<void> {
@@ -218,10 +221,21 @@ async function createTables(client: PoolClient): Promise<void> {
             status TEXT NOT NULL,
             "checkInTime" TEXT NOT NULL,
             "appointmentid" TEXT, 
+            "isReintegro" INTEGER DEFAULT 0,
             FOREIGN KEY ("personaId") REFERENCES personas(id) ON DELETE CASCADE,
             FOREIGN KEY ("pacienteId") REFERENCES pacientes(id) ON DELETE CASCADE
         );
     `);
+
+    // Migration for waitlist table: add isReintegro
+    const checkWaitlistReintegro = await client.query(`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name='waitlist' AND column_name='isReintegro'
+    `);
+    if (checkWaitlistReintegro.rows.length === 0) {
+        await client.query('ALTER TABLE waitlist ADD COLUMN "isReintegro" INTEGER DEFAULT 0');
+    }
 
     await client.query(`
         CREATE TABLE IF NOT EXISTS consultations (
@@ -242,9 +256,30 @@ async function createTables(client: PoolClient): Promise<void> {
             "radiologyOrders" TEXT,
             "surveyInvitationToken" TEXT,
             reposo TEXT,
+            "isReintegro" INTEGER DEFAULT 0,
+            "occupationalReferral" TEXT,
             FOREIGN KEY ("pacienteId") REFERENCES pacientes(id) ON DELETE CASCADE
         );
     `);
+
+    // Migration for consultations table: add isReintegro and occupationalReferral
+    const checkConsultationsReintegro = await client.query(`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name='consultations' AND column_name='isReintegro'
+    `);
+    if (checkConsultationsReintegro.rows.length === 0) {
+        await client.query('ALTER TABLE consultations ADD COLUMN "isReintegro" INTEGER DEFAULT 0');
+    }
+
+    const checkConsultationsReferral = await client.query(`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name='consultations' AND column_name='occupationalReferral'
+    `);
+    if (checkConsultationsReferral.rows.length === 0) {
+        await client.query('ALTER TABLE consultations ADD COLUMN "occupationalReferral" TEXT');
+    }
 
     await client.query(`
         CREATE TABLE IF NOT EXISTS consultation_diagnoses (
@@ -413,17 +448,48 @@ async function createTables(client: PoolClient): Promise<void> {
         );
     `);
 
+
+    await client.query(`
+        CREATE TABLE IF NOT EXISTS job_positions (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            description TEXT,
+            "riskLevel" TEXT,
+            risks TEXT
+        );
+    `);
+
+    await client.query(`
+        CREATE TABLE IF NOT EXISTS occupational_incidents (
+            id TEXT PRIMARY KEY,
+            "personaId" TEXT NOT NULL,
+            "companyId" TEXT NOT NULL,
+            "incidentDate" TEXT NOT NULL,
+            "incidentType" TEXT NOT NULL,
+            description TEXT NOT NULL,
+            "severity" TEXT NOT NULL,
+            "witnesses" TEXT,
+            "actionsTaken" TEXT,
+            "reportedBy" TEXT NOT NULL,
+            "createdAt" TEXT NOT NULL,
+            FOREIGN KEY ("personaId") REFERENCES personas(id) ON DELETE CASCADE,
+            FOREIGN KEY ("companyId") REFERENCES empresas(id) ON DELETE CASCADE
+        );
+    `);
+
     await client.query(`
         CREATE TABLE IF NOT EXISTS occupational_health_evaluations (
             id TEXT PRIMARY KEY,
             "personaId" TEXT NOT NULL,
+            "pacienteId" TEXT,
+            "jobPositionId" TEXT,
             "companyId" TEXT,
             "companyName" TEXT,
             "evaluationDate" TEXT NOT NULL,
             "patientType" TEXT NOT NULL,
             "consultationPurpose" TEXT NOT NULL,
-            "jobPosition" TEXT NOT NULL,
-            "jobDescription" TEXT NOT NULL,
+            "jobPosition" TEXT, -- Legacy, prioritize jobPositionId
+            "jobDescription" TEXT, -- Legacy
             "occupationalRisks" TEXT NOT NULL,
             "riskDetails" TEXT NOT NULL,
             "personalHistory" TEXT NOT NULL,
@@ -440,6 +506,8 @@ async function createTables(client: PoolClient): Promise<void> {
             interconsultation TEXT,
             "nextFollowUp" TEXT,
             FOREIGN KEY ("personaId") REFERENCES personas(id) ON DELETE CASCADE,
+            FOREIGN KEY ("pacienteId") REFERENCES pacientes(id) ON DELETE SET NULL,
+            FOREIGN KEY ("jobPositionId") REFERENCES job_positions(id) ON DELETE SET NULL,
             FOREIGN KEY ("companyId") REFERENCES empresas(id) ON DELETE SET NULL
         );
     `);
