@@ -266,6 +266,7 @@ export interface CreateTreatmentItemInput extends Omit<TreatmentOrderItem, 'id' 
 export interface Consultation {
   id: string;
   pacienteId: string;
+  paciente?: Persona & { nombreCompleto?: string };
   waitlistId?: string;
   consultationDate: Date;
   motivoConsulta?: MotivoConsulta;

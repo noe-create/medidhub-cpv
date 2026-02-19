@@ -7,13 +7,13 @@
  * - PatientSummaryOutput - The return type for the function.
  */
 
-import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import { ai } from '@/ai/genkit';
+import { z } from 'genkit';
 
 const PatientHistoryInputSchema = z.object({
   history: z.string().describe('El historial médico completo del paciente, compuesto por múltiples entradas de consulta.'),
 });
-export type {PatientHistoryInput} from 'genkit';
+export type PatientHistoryInput = z.infer<typeof PatientHistoryInputSchema>;
 
 const PatientSummaryOutputSchema = z.object({
   knownAllergies: z.array(z.string()).describe('Una lista de alergias conocidas extraídas del historial. Incluir alergias a medicamentos, alimentos, etc. Si no se mencionan alergias, devolver un array vacío.'),
@@ -28,8 +28,8 @@ export async function summarizePatientHistory(input: z.infer<typeof PatientHisto
 
 const prompt = ai.definePrompt({
   name: 'summarizePatientHistoryPrompt',
-  input: {schema: PatientHistoryInputSchema},
-  output: {schema: PatientSummaryOutputSchema},
+  input: { schema: PatientHistoryInputSchema },
+  output: { schema: PatientSummaryOutputSchema },
   prompt: `Eres un asistente médico experto en analizar historiales clínicos. Tu tarea es leer el siguiente historial y extraer información clave de manera estructurada.
 
 **Historial Clínico del Paciente:**
@@ -53,13 +53,13 @@ const summarizePatientHistoryFlow = ai.defineFlow(
   },
   async input => {
     if (!input || !input.history || input.history.trim() === '') {
-        return {
-            knownAllergies: [],
-            chronicOrImportantDiagnoses: [],
-            currentMedications: [],
-        };
+      return {
+        knownAllergies: [],
+        chronicOrImportantDiagnoses: [],
+        currentMedications: [],
+      };
     }
-    const {output} = await prompt(input);
+    const { output } = await prompt(input);
     return output!;
   }
 );

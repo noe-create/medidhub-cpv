@@ -88,7 +88,7 @@ export function TreatmentLogManagement() {
 
   const handleChangeStatus = async (orderId: string, status: TreatmentOrder['status']) => {
     try {
-      await updateTreatmentOrderStatus(orderId, status);
+      await updateTreatmentOrderStatus(orderId, status as any);
       toast({ title: 'Estado Actualizado', description: `La orden ha sido marcada como ${status.toLowerCase()}.` });
       await refreshOrders(search);
     } catch (error: any) {

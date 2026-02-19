@@ -218,7 +218,7 @@ export async function createUser(data: UserCreationData) {
             throw new Error('La contraseña debe tener al menos 6 caracteres.');
         }
         const hashedPassword = await bcrypt.hash(data.password, 10);
-        const userId = `usr - ${uuidv4()} `;
+        const userId = `usr-${uuidv4()}`;
         await db.run(
             'INSERT INTO users (id, username, password, "roleId", "specialtyId", name) VALUES (?, ?, ?, ?, ?, ?)',
             [userId, data.username, hashedPassword, data.roleId, data.specialtyId || null, data.name || null]

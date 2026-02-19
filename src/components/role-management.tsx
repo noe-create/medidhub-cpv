@@ -33,7 +33,7 @@ export function RoleManagement() {
   const [isLoading, setIsLoading] = React.useState(true);
   const [roles, setRoles] = React.useState<Role[]>([]);
   const [permissions, setPermissions] = React.useState<Permission[]>([]);
-  const [selectedRole, setSelectedRole] = React.useState<Role & { permissions?: string[] } | null>(null);
+  const [selectedRole, setSelectedRole] = React.useState<(Omit<Role, 'permissions'> & { permissions?: string[] }) | null>(null);
   const [isFormOpen, setIsFormOpen] = React.useState(false);
 
   const refreshData = React.useCallback(async () => {

@@ -216,58 +216,66 @@ export function OccupationalHealthManagement() {
   return (
     <div className="space-y-6">
       {!isFormVisible && !evaluationData ? (
-        <Card className="mx-auto max-w-4xl shadow-md rounded-3xl border-t-4 border-blue-500 py-12 px-6 animate-in fade-in zoom-in-95 duration-500 mt-8">
-          <div className="flex flex-col items-center text-center space-y-6">
-            <div className="bg-blue-50 p-6 rounded-full shadow-inner ring-8 ring-blue-50/50">
-              <BriefcaseMedical className="h-16 w-16 text-primary" />
-            </div>
-            <div className="space-y-2">
-              <h1 className="text-3xl font-extrabold text-foreground tracking-tight">Evaluación de Salud Ocupacional</h1>
-              <p className="text-muted-foreground max-w-lg mx-auto text-lg">
+        <div className="space-y-8 animate-in fade-in zoom-in-95 duration-500">
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 bg-gradient-to-r from-blue-700 to-indigo-600 p-10 rounded-3xl shadow-xl relative overflow-hidden">
+            <div className="relative z-10 text-white">
+              <h2 className="text-3xl md:text-5xl font-extrabold tracking-tight flex items-center gap-4">
+                <BriefcaseMedical className="h-10 w-10 text-blue-200" />
+                Salud Ocupacional
+              </h2>
+              <p className="text-blue-100 mt-4 font-medium text-xl max-w-2xl">
                 Gestione evaluaciones médicas, historias laborales y reportes de incidentes para el personal de la empresa.
               </p>
             </div>
-
-            <div className="w-full max-w-2xl mx-auto pt-4 space-y-6">
-              <div className="relative">
-                <HceSearch onPersonaSelect={setSelectedPersona} className="h-16 text-lg pl-6 shadow-md border-border rounded-2xl" />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Button variant="outline" className="h-auto py-6 flex flex-col items-center gap-3 bg-gradient-to-br from-blue-500 to-blue-700 text-white border-none hover:from-blue-600 hover:to-blue-800 transition-all rounded-3xl shadow-lg shadow-blue-500/20 group" onClick={handleStartConsultation}>
-                  <div className="p-3 bg-white/20 rounded-2xl group-hover:scale-110 transition-transform">
-                    <ClipboardPlus className="h-7 w-7 text-white" />
-                  </div>
-                  <span className="font-extrabold text-lg">Nueva Evaluación</span>
-                </Button>
-                <Button variant="outline" className="h-auto py-6 flex flex-col items-center gap-3 bg-gradient-to-br from-indigo-500 to-indigo-700 text-white border-none hover:from-indigo-600 hover:to-indigo-800 transition-all rounded-3xl shadow-lg shadow-indigo-500/20 group" onClick={() => {
-                  if (empresas.length > 0) {
-                    handleFetchHistory(empresas[0].id);
-                  } else {
-                    toast({ title: 'No hay empresas', description: 'No se encontraron empresas registradas.', variant: 'info' });
-                  }
-                }}>
-                  <div className="p-3 bg-white/20 rounded-2xl group-hover:scale-110 transition-transform">
-                    <FileText className="h-7 w-7 text-white" />
-                  </div>
-                  <span className="font-extrabold text-lg">Historial de Empresa</span>
-                </Button>
-                <Button variant="outline" className="h-auto py-6 flex flex-col items-center gap-3 bg-gradient-to-br from-amber-500 to-rose-600 text-white border-none hover:from-amber-600 hover:to-rose-700 transition-all rounded-3xl shadow-lg shadow-amber-500/20 group" onClick={() => {
-                  if (selectedPersona) {
-                    setCurrentView('incident');
-                  } else {
-                    toast({ title: 'Seleccione un paciente', description: 'Debe buscar un paciente para reportar un incidente.', variant: 'info' });
-                  }
-                }}>
-                  <div className="p-3 bg-white/20 rounded-2xl group-hover:scale-110 transition-transform">
-                    <AlertTriangle className="h-7 w-7 text-white" />
-                  </div>
-                  <span className="font-extrabold text-lg">Reportar Incidente</span>
-                </Button>
-              </div>
+            <div className="relative z-10">
+              <HceSearch onPersonaSelect={setSelectedPersona} className="h-14 text-lg pl-6 shadow-2xl border-0 bg-white/10 text-white placeholder:text-white/60 focus:bg-white/20 rounded-2xl w-full md:w-96 transition-all" />
             </div>
           </div>
-        </Card>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <Button variant="outline" className="h-auto py-10 flex flex-col items-center gap-4 bg-white dark:bg-slate-900 border-2 border-blue-100 dark:border-blue-900/30 hover:border-blue-500 hover:bg-blue-50/50 transition-all rounded-[2.5rem] shadow-sm group" onClick={handleStartConsultation}>
+              <div className="p-5 bg-blue-100 dark:bg-blue-900/50 rounded-3xl group-hover:scale-110 group-hover:bg-blue-500 group-hover:text-white transition-all duration-300">
+                <ClipboardPlus className="h-10 w-10 text-blue-600 dark:text-blue-400 group-hover:text-white" />
+              </div>
+              <div className="text-center">
+                <span className="block font-black text-xl text-slate-900 dark:text-white">Nueva Evaluación</span>
+                <span className="text-slate-500 dark:text-slate-400 font-medium">Iniciar chequeo médico</span>
+              </div>
+            </Button>
+
+            <Button variant="outline" className="h-auto py-10 flex flex-col items-center gap-4 bg-white dark:bg-slate-900 border-2 border-indigo-100 dark:border-indigo-900/30 hover:border-indigo-500 hover:bg-indigo-50/50 transition-all rounded-[2.5rem] shadow-sm group" onClick={() => {
+              if (empresas.length > 0) {
+                handleFetchHistory(empresas[0].id);
+              } else {
+                toast({ title: 'No hay empresas', description: 'No se encontraron empresas registradas.', variant: 'info' });
+              }
+            }}>
+              <div className="p-5 bg-indigo-100 dark:bg-indigo-900/50 rounded-3xl group-hover:scale-110 group-hover:bg-indigo-500 group-hover:text-white transition-all duration-300">
+                <FileText className="h-10 w-10 text-indigo-600 dark:text-indigo-400 group-hover:text-white" />
+              </div>
+              <div className="text-center">
+                <span className="block font-black text-xl text-slate-900 dark:text-white">Historial de Empresa</span>
+                <span className="text-slate-500 dark:text-slate-400 font-medium">Ver reportes acumulados</span>
+              </div>
+            </Button>
+
+            <Button variant="outline" className="h-auto py-10 flex flex-col items-center gap-4 bg-white dark:bg-slate-900 border-2 border-rose-100 dark:border-rose-900/30 hover:border-rose-500 hover:bg-rose-50/50 transition-all rounded-[2.5rem] shadow-sm group" onClick={() => {
+              if (selectedPersona) {
+                setCurrentView('incident');
+              } else {
+                toast({ title: 'Seleccione un paciente', description: 'Debe buscar un paciente para reportar un incidente.', variant: 'info' });
+              }
+            }}>
+              <div className="p-5 bg-rose-100 dark:bg-rose-900/50 rounded-3xl group-hover:scale-110 group-hover:bg-rose-500 group-hover:text-white transition-all duration-300">
+                <AlertTriangle className="h-10 w-10 text-rose-600 dark:text-rose-400 group-hover:text-white" />
+              </div>
+              <div className="text-center">
+                <span className="block font-black text-xl text-slate-900 dark:text-white">Reportar Incidente</span>
+                <span className="text-slate-500 dark:text-slate-400 font-medium">Notificar accidente laboral</span>
+              </div>
+            </Button>
+          </div>
+        </div>
       ) : currentView === 'history' ? (
         <Card className="mx-auto max-w-6xl shadow-xl rounded-3xl overflow-hidden border-none animate-in fade-in slide-in-from-bottom-4 duration-500">
           <CardHeader className="bg-gradient-to-r from-indigo-600 to-violet-700 text-white p-8">
@@ -365,7 +373,7 @@ export function OccupationalHealthManagement() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {companyIncidents.length > 0 ? companyIncidents.map((inc) => (
+                    {companyIncidents.length > 0 ? companyIncidents.map((inc: any) => (
                       <TableRow key={inc.id} className="hover:bg-rose-50/30">
                         <TableCell className="font-medium">{new Date(inc.incidentDate).toLocaleDateString()}</TableCell>
                         <TableCell>{inc.primerNombre} {inc.primerApellido}</TableCell>

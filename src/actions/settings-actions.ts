@@ -8,8 +8,8 @@ import { revalidatePath } from 'next/cache';
 
 export async function getSettings(): Promise<Setting[]> {
   const db = await getDb();
-  const settings = await db.all('SELECT key, value FROM settings');
-  return settings;
+  const settings = await db.all<any>('SELECT key, value FROM settings');
+  return settings as any[];
 }
 
 export async function updateSettings(settingsToUpdate: Setting[]): Promise<{ success: boolean }> {

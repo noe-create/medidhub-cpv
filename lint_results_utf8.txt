@@ -1,0 +1,7 @@
+﻿
+> medihub@1.0.0 lint
+> next lint
+
+? How would you like to configure ESLint? https://nextjs.org/docs/app/api-reference/config/eslint
+[?25lÔØ»  Strict (recommended)
+   Base

@@ -216,7 +216,7 @@ export async function getTitulares(query?: string, page: number = 1, pageSize: n
 
 export async function getTitularById(id: string): Promise<Titular | null> {
     const db = await getDb();
-    const row = await db.get(`
+    const row = await db.get<any>(`
         SELECT 
             t.id, t."personaId", t."unidadServicio", t."numeroFicha",
             ${fullNameSql} as "nombreCompleto", ${fullCedulaSql} as cedula, p.nacionalidad, p."cedulaNumero", p."fechaNacimiento", p.genero, p.telefono1, p.telefono2, p.email, p."primerNombre", p."segundoNombre", p."primerApellido", p."segundoApellido", p.direccion, p."representanteId"
@@ -327,7 +327,7 @@ export async function deleteTitular(id: string): Promise<{ success: boolean }> {
     await ensureDataEntryPermission();
     const db = await getDb();
 
-    const beneficiaryCountResult = await db.get('SELECT COUNT(*) as count FROM beneficiarios WHERE "titularId" = ?', [id]);
+    const beneficiaryCountResult = await db.get<any>('SELECT COUNT(*) as count FROM beneficiarios WHERE "titularId" = ?', [id]);
     if (beneficiaryCountResult && beneficiaryCountResult.count > 0) {
         throw new Error('Este titular tiene beneficiarios asociados. Por favor, gestione los beneficiarios primero.');
     }
@@ -465,8 +465,8 @@ export async function updateBeneficiario(beneficiarioId: string, personaId: stri
 
     await updatePersona(personaId, data as any);
 
-    const updatedRow = await db.get(`SELECT *, ${fullNameSql} as "nombreCompleto", ${fullCedulaSql} as cedula FROM personas p WHERE id = ?`, [personaId]);
-    const beneficiarioRow = await db.get('SELECT "titularId" FROM beneficiarios WHERE id = ?', [beneficiarioId]);
+    const updatedRow = await db.get<any>(`SELECT *, ${fullNameSql} as "nombreCompleto", ${fullCedulaSql} as cedula FROM personas p WHERE id = ?`, [personaId]);
+    const beneficiarioRow = await db.get<any>('SELECT "titularId" FROM beneficiarios WHERE id = ?', [beneficiarioId]);
 
     if (!beneficiarioRow) {
         throw new Error("No se pudo encontrar el beneficiario para actualizar la ruta.");
@@ -487,7 +487,7 @@ export async function deleteBeneficiario(id: string): Promise<{ success: boolean
     await ensureDataEntryPermission();
     const db = await getDb();
 
-    const beneficiario = await db.get('SELECT "titularId" FROM beneficiarios WHERE id = ?', [id]);
+    const beneficiario = await db.get<any>('SELECT "titularId" FROM beneficiarios WHERE id = ?', [id]);
     if (!beneficiario) {
         throw new Error('Beneficiario no encontrado para eliminar');
     }
@@ -518,18 +518,18 @@ export async function searchPeopleForCheckin(query: string): Promise<SearchResul
         LIMIT 50
     `;
     const personasParams = hasQuery ? [searchQuery, searchQuery] : [];
-    const personas = await db.all(personasQuery, personasParams);
+    const personas = await db.all<any>(personasQuery, personasParams);
 
     if (personas.length === 0) return [];
 
-    const personaIds = personas.map(p => p.id);
+    const personaIds = personas.map((p: any) => p.id);
 
     const placeholders = personaIds.map(() => '?').join(',');
-    const titularesInfo = await db.all(`
+    const titularesInfo = await db.all<any>(`
         SELECT "personaId", id, "unidadServicio" FROM titulares WHERE "personaId" IN (${placeholders})
     `, personaIds);
 
-    const beneficiariosInfo = await db.all(`
+    const beneficiariosInfo = await db.all<any>(`
         SELECT b."personaId", b."titularId", ${titularNameSql} as "titularNombre"
         FROM beneficiarios b
         JOIN titulares t ON b."titularId" = t.id
@@ -537,21 +537,21 @@ export async function searchPeopleForCheckin(query: string): Promise<SearchResul
         WHERE b."personaId" IN (${placeholders})
     `, personaIds);
 
-    const titularesMap = new Map(titularesInfo.map(t => [t.personaId, t]));
+    const titularesMap = new Map(titularesInfo.map((t: any) => [t.personaId, t]));
     const beneficiariosMap = new Map<string, any[]>();
-    beneficiariosInfo.forEach(b => {
+    beneficiariosInfo.forEach((b: any) => {
         if (!beneficiariosMap.has(b.personaId)) {
             beneficiariosMap.set(b.personaId, []);
         }
         beneficiariosMap.get(b.personaId)!.push({ titularId: b.titularId, titularNombre: b.titularNombre });
     });
 
-    const results: SearchResult[] = personas.map(p => ({
+    const results: SearchResult[] = personas.map((p: any) => ({
         persona: {
             ...p,
             fechaNacimiento: new Date(p.fechaNacimiento),
         },
-        titularInfo: titularesMap.get(p.id) ? { id: titularesMap.get(p.id).id, unidadServicio: titularesMap.get(p.id).unidadServicio } : undefined,
+        titularInfo: titularesMap.get(p.id) ? { id: (titularesMap.get(p.id) as any).id, unidadServicio: (titularesMap.get(p.id) as any).unidadServicio } : undefined,
         beneficiarioDe: beneficiariosMap.get(p.id) || []
     }));
 
@@ -560,7 +560,7 @@ export async function searchPeopleForCheckin(query: string): Promise<SearchResul
 
 export async function getAccountTypeByTitularId(titularId: string): Promise<string | null> {
     const db = await getDb();
-    const row = await db.get('SELECT "unidadServicio" FROM titulares WHERE id = ?', [titularId]);
+    const row = await db.get<any>('SELECT "unidadServicio" FROM titulares WHERE id = ?', [titularId]);
     if (row?.unidadServicio) {
         if (["Gerencia General", "Recursos Humanos", "Junta Directiva"].includes(row.unidadServicio)) {
             return 'Empleado';
@@ -753,7 +753,7 @@ export async function getPatientHistory(personaId: string): Promise<HistoryEntry
     if (labOrdersRows) {
         for (const orderRow of labOrdersRows as any[]) {
             const items = await db.all<{ testName: string }>('SELECT "testName" FROM lab_order_items WHERE "labOrderId" = ?', [orderRow.id]);
-            const persona = await db.get(`SELECT *, ${fullNameSql} as "nombreCompleto", ${fullCedulaSql} as cedula FROM personas p WHERE p.id = ?`, [personaId]);
+            const persona = await db.get<any>(`SELECT *, ${fullNameSql} as "nombreCompleto", ${fullCedulaSql} as cedula FROM personas p WHERE p.id = ?`, [personaId]);
             labOrders.push({
                 type: 'lab_order' as const,
                 data: {
@@ -763,10 +763,10 @@ export async function getPatientHistory(personaId: string): Promise<HistoryEntry
                     paciente: {
                         ...persona,
                         fechaNacimiento: new Date(persona.fechaNacimiento)
-                    },
+                    } as any,
                     diagnosticoPrincipal: orderRow.diagnosticoPrincipal,
                     treatmentPlan: orderRow.treatmentPlan
-                }
+                } as any
             });
         }
     }
@@ -892,7 +892,7 @@ export async function getEmpresas(query?: string, page: number = 1, pageSize: nu
     let selectQuery = `SELECT * FROM empresas${whereClause} ORDER BY name LIMIT ? OFFSET ?`;
     const selectParams = [...whereParams, pageSize, offset];
 
-    const empresas = await db.all(selectQuery, selectParams);
+    const empresas = await db.all<any>(selectQuery, selectParams);
 
     return { empresas, totalCount };
 }
@@ -1077,10 +1077,10 @@ export async function deletePersona(personaId: string): Promise<{ success: boole
     await ensureDataEntryPermission();
     const db = await getDb();
 
-    const titular = await db.get('SELECT id FROM titulares WHERE "personaId" = ?', [personaId]);
+    const titular = await db.get<any>('SELECT id FROM titulares WHERE "personaId" = ?', [personaId]);
     if (titular) {
-        const beneficiaryCount = await db.get('SELECT COUNT(*) as count FROM beneficiarios WHERE "titularId" = ?', [titular.id]);
-        if (beneficiaryCount.count > 0) {
+        const beneficiaryCount = await db.get<any>('SELECT COUNT(*) as count FROM beneficiarios WHERE "titularId" = ?', [titular.id]);
+        if (beneficiaryCount && beneficiaryCount.count > 0) {
             throw new Error('No se puede eliminar esta persona porque es un titular con beneficiarios asociados. Por favor, gestione los beneficiarios primero desde el módulo de Titulares.');
         }
     }
@@ -1119,7 +1119,7 @@ export async function getManagedCie10Codes(
     }
 
     const countQuery = `SELECT COUNT(*) as count FROM cie10_codes${whereClause}`;
-    const totalResult = await db.get(countQuery, whereParams);
+    const totalResult = await db.get<any>(countQuery, whereParams);
     const totalCount = totalResult?.count || 0;
 
     let selectQuery = `SELECT * FROM cie10_codes${whereClause} ORDER BY code`;
@@ -1131,7 +1131,7 @@ export async function getManagedCie10Codes(
         selectParams.push(pageSize, offset);
     }
 
-    const codes = await db.all(selectQuery, selectParams);
+    const codes = await db.all<any>(selectQuery, selectParams);
 
     return { codes, totalCount };
 }
@@ -1169,8 +1169,8 @@ export async function updateCie10Code(code: string, data: { description: string 
 export async function deleteCie10Code(code: string): Promise<{ success: boolean }> {
     await ensureAdminPermission();
     const db = await getDb();
-    const usage = await db.get('SELECT COUNT(*) as count FROM consultation_diagnoses WHERE "cie10Code" = ?', [code]);
-    if (usage.count > 0) {
+    const usage = await db.get<any>('SELECT COUNT(*) as count FROM consultation_diagnoses WHERE "cie10Code" = ?', [code]);
+    if (usage && usage.count > 0) {
         throw new Error('Este código CIE-10 está en uso y no puede ser eliminado.');
     }
 
@@ -1268,7 +1268,7 @@ export async function getListaPacientes(query?: string): Promise<PacienteConInfo
 
 export async function getPacienteByPersonaId(personaId: string): Promise<{ id: string } | null> {
     const db = await getDb();
-    const paciente = await db.get('SELECT id FROM pacientes WHERE "personaId" = ?', [personaId]);
+    const paciente = await db.get<any>('SELECT id FROM pacientes WHERE "personaId" = ?', [personaId]);
     return paciente;
 }
 
@@ -1300,7 +1300,7 @@ export async function getTreatmentOrders(query?: string): Promise<TreatmentOrder
 
     const orders: TreatmentOrder[] = [];
     for (const orderId of orderIds) {
-        const row = await db.get(`
+        const row = await db.get<any>(`
             SELECT
                 o.id, o."pacienteId", o."consultationId", o.status, o."createdAt",
                 p.id as "personaId",
@@ -1381,21 +1381,21 @@ export async function updateTreatmentOrderStatus(orderId: string, status: 'En Pr
     const db = await getDb();
 
     if (status === 'Completado') {
-        const executions = await db.get(
+        const executions = await db.get<any>(
             `SELECT COUNT(*) as count FROM treatment_executions te
              JOIN treatment_order_items toi ON te."treatmentOrderItemId" = toi.id
              WHERE toi."treatmentOrderId" = ?`,
             [orderId]
         );
-        if (executions.count === 0) {
+        if (executions && executions.count === 0) {
             throw new Error('No se puede completar una orden de tratamiento sin haber registrado al menos una ejecución.');
         }
 
-        const pendingItems = await db.get(
+        const pendingItems = await db.get<any>(
             `SELECT COUNT(*) as count FROM treatment_order_items WHERE "treatmentOrderId" = ? AND status = 'Pendiente'`,
             [orderId]
         );
-        if (pendingItems.count > 0) {
+        if (pendingItems && pendingItems.count > 0) {
             throw new Error('No se puede completar la orden. Aún hay ítems pendientes de administrar.');
         }
     }
@@ -1441,7 +1441,7 @@ export async function createLabOrder(consultationId: string, pacienteId: string,
 
     revalidatePath('/dashboard/hce');
 
-    const persona = await db.get(`SELECT *, ${fullNameSql} as "nombreCompleto", ${fullCedulaSql} as cedula FROM personas p JOIN pacientes ON p.id = pacientes."personaId" WHERE pacientes.id = ?`, [pacienteId]);
+    const persona = await db.get<any>(`SELECT *, ${fullNameSql} as "nombreCompleto", ${fullCedulaSql} as cedula FROM personas p JOIN pacientes ON p.id = pacientes."personaId" WHERE pacientes.id = ?`, [pacienteId]);
 
     const consultationInfo = await db.get(
         `SELECT "treatmentPlan", (SELECT string_agg("cie10Description", '; ') FROM consultation_diagnoses WHERE "consultationId" = c.id) as "diagnosticoPrincipal"
@@ -1459,9 +1459,9 @@ export async function createLabOrder(consultationId: string, pacienteId: string,
         paciente: {
             ...persona,
             fechaNacimiento: new Date(persona.fechaNacimiento),
-        },
-        diagnosticoPrincipal: consultationInfo?.diagnosticoPrincipal,
-        treatmentPlan: consultationInfo?.treatmentPlan,
+        } as any,
+        diagnosticoPrincipal: (consultationInfo as any)?.diagnosticoPrincipal,
+        treatmentPlan: (consultationInfo as any)?.treatmentPlan,
     };
 }
 

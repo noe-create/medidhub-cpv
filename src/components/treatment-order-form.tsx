@@ -100,18 +100,18 @@ export function TreatmentOrderForm({ onSubmitted, onCancel }: TreatmentOrderForm
         <div className="space-y-2">
           <FormLabel>Paciente</FormLabel>
           <HceSearch onPersonaSelect={setSelectedPersona} />
-           <FormField
-              control={form.control}
-              name="pacienteId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormControl>
-                    <Input type="hidden" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+          <FormField
+            control={form.control}
+            name="pacienteId"
+            render={({ field }) => (
+              <FormItem>
+                <FormControl>
+                  <Input type="hidden" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
         </div>
 
         <FormField
@@ -141,54 +141,54 @@ export function TreatmentOrderForm({ onSubmitted, onCancel }: TreatmentOrderForm
             </FormItem>
           )}
         />
-        
+
         <Controller
-            control={form.control}
-            name="dateRange"
-            render={({ field, fieldState }) => (
-              <FormItem className="flex flex-col">
-                <FormLabel>Vigencia del Tratamiento</FormLabel>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <FormControl>
-                      <Button
-                        variant={'outline'}
-                        className={cn(
-                          'w-full justify-start text-left font-normal',
-                          !field.value.from && 'text-muted-foreground'
-                        )}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {field.value.from ? (
-                          field.value.to ? (
-                            <>
-                              {format(field.value.from, 'LLL dd, y', { locale: es })} -{' '}
-                              {format(field.value.to, 'LLL dd, y', { locale: es })}
-                            </>
-                          ) : (
-                            format(field.value.from, 'LLL dd, y', { locale: es })
-                          )
+          control={form.control}
+          name="dateRange"
+          render={({ field, fieldState }) => (
+            <FormItem className="flex flex-col">
+              <FormLabel>Vigencia del Tratamiento</FormLabel>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <FormControl>
+                    <Button
+                      variant={'outline'}
+                      className={cn(
+                        'w-full justify-start text-left font-normal',
+                        !field.value.from && 'text-muted-foreground'
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {field.value.from ? (
+                        field.value.to ? (
+                          <>
+                            {format(field.value.from, 'LLL dd, y', { locale: es })} -{' '}
+                            {format(field.value.to, 'LLL dd, y', { locale: es })}
+                          </>
                         ) : (
-                          <span>Seleccione un rango de fechas</span>
-                        )}
-                      </Button>
-                    </FormControl>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      initialFocus
-                      mode="range"
-                      defaultMonth={field.value.from}
-                      selected={{ from: field.value.from, to: field.value.to }}
-                      onSelect={(range) => field.onChange({ from: range?.from, to: range?.to })}
-                      numberOfMonths={2}
-                      locale={es}
-                    />
-                  </PopoverContent>
-                </Popover>
-                <FormMessage>{fieldState.error?.from?.message || fieldState.error?.to?.message}</FormMessage>
-              </FormItem>
-            )}
+                          format(field.value.from, 'LLL dd, y', { locale: es })
+                        )
+                      ) : (
+                        <span>Seleccione un rango de fechas</span>
+                      )}
+                    </Button>
+                  </FormControl>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    initialFocus
+                    mode="range"
+                    defaultMonth={field.value.from}
+                    selected={{ from: field.value.from, to: field.value.to }}
+                    onSelect={(range) => field.onChange({ from: range?.from, to: range?.to })}
+                    numberOfMonths={2}
+                    locale={es}
+                  />
+                </PopoverContent>
+              </Popover>
+              <FormMessage>{(fieldState.error as any)?.from?.message || (fieldState.error as any)?.to?.message}</FormMessage>
+            </FormItem>
+          )}
         />
 
         <FormField

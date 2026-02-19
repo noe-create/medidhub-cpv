@@ -8,12 +8,12 @@
  * - GeneratePrescriptionOutput - The return type for the function.
  */
 
-import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import { ai } from '@/ai/genkit';
+import { z } from 'genkit';
 
 const DiagnosisSchema = z.object({
-    cie10Code: z.string(),
-    cie10Description: z.string(),
+  cie10Code: z.string(),
+  cie10Description: z.string(),
 });
 
 const GeneratePrescriptionInputSchema = z.object({
@@ -21,7 +21,7 @@ const GeneratePrescriptionInputSchema = z.object({
   diagnoses: z.array(DiagnosisSchema).describe('La lista de diagnósticos para el paciente.'),
   treatmentPlan: z.string().describe('El plan de tratamiento detallado, incluyendo indicaciones y medicamentos.'),
 });
-export type {GeneratePrescriptionInput} from 'genkit';
+export type GeneratePrescriptionInput = z.infer<typeof GeneratePrescriptionInputSchema>;
 
 const GeneratePrescriptionOutputSchema = z.object({
   doctorName: z.string().describe('El nombre del médico que emite la receta.'),
@@ -38,8 +38,8 @@ export async function generatePrescription(input: z.infer<typeof GeneratePrescri
 
 const prompt = ai.definePrompt({
   name: 'generatePrescriptionPrompt',
-  input: {schema: GeneratePrescriptionInputSchema},
-  output: {schema: GeneratePrescriptionOutputSchema},
+  input: { schema: GeneratePrescriptionInputSchema },
+  output: { schema: GeneratePrescriptionOutputSchema },
   prompt: `Eres un asistente médico experto encargado de generar récipes médicos formales.
   
   **Información del Paciente:**
@@ -81,7 +81,7 @@ const generatePrescriptionFlow = ai.defineFlow(
     outputSchema: GeneratePrescriptionOutputSchema,
   },
   async input => {
-    const {output} = await prompt(input);
+    const { output } = await prompt(input);
     return output!;
   }
 );

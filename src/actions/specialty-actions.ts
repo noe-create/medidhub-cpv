@@ -9,7 +9,7 @@ import { authorize } from '@/lib/auth';
 export async function getSpecialties(query?: string): Promise<Specialty[]> {
   await authorize('specialties.manage');
   const db = await getDb();
-  
+
   let selectQuery = `SELECT * FROM specialties`;
   const params: any[] = [];
   if (query && query.trim().length > 0) {
@@ -18,8 +18,8 @@ export async function getSpecialties(query?: string): Promise<Specialty[]> {
   }
   selectQuery += ' ORDER BY name';
 
-  const specialties = await db.all(selectQuery, params);
-  return specialties;
+  const specialties = await db.all<any>(selectQuery, params);
+  return specialties as any[];
 }
 
 export async function createSpecialty(data: { name: string }): Promise<Specialty> {
@@ -63,8 +63,8 @@ export async function updateSpecialty(id: string, data: { name: string }): Promi
 export async function deleteSpecialty(id: string): Promise<{ success: boolean }> {
   await authorize('specialties.manage');
   const db = await getDb();
-  
-  const userCount = await db.get('SELECT COUNT(*) as count FROM users WHERE "specialtyId" = ?', [id]);
+
+  const userCount = await db.get<any>('SELECT COUNT(*) as count FROM users WHERE "specialtyId" = ?', [id]);
   if (userCount.count > 0) {
     throw new Error('No se puede eliminar la especialidad porque está asignada a uno o más usuarios.');
   }

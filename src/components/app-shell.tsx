@@ -61,6 +61,7 @@ const allMenuOptions: MenuItem[] = [
   { href: '/dashboard/cie10', icon: 'solar:notebook-bold-duotone', title: 'Catálogo CIE-10', permission: 'cie10.manage', group: 'Parametrización' },
   { href: '/dashboard/doctores', icon: 'solar:diploma-bold-duotone', title: 'Doctores', permission: 'specialties.manage', group: 'Parametrización' },
   { href: '/dashboard/apariencia', icon: 'solar:palette-bold-duotone', title: 'Apariencia', permission: 'settings.manage', group: 'Parametrización' },
+  { href: '/dashboard/inventario', icon: 'solar:box-bold-duotone', title: 'Inventario IT', permission: '*', group: 'Parametrización' },
 
 
   { href: '/dashboard/reportes', icon: 'solar:chart-2-bold-duotone', title: 'Reportes', permission: 'reports.view', group: 'Analítica' },

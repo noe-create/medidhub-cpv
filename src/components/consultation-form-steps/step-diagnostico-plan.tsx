@@ -137,7 +137,7 @@ const TreatmentOrderBuilder = ({ form }: { form: any }) => {
     };
 
     const handleEditItem = (index: number) => {
-        setCurrentItem(fields[index] as CreateTreatmentItemInput);
+        setCurrentItem(fields[index] as unknown as CreateTreatmentItemInput);
         setEditingIndex(index);
     };
 
@@ -270,7 +270,7 @@ export const StepDiagnosticoPlan = ({ form, patient, onLabOrderChange }: { form:
 
     const removeRadiologyStudy = (studyToRemove: string) => {
         const currentOrders = radiologyOrder?.split('\n').filter(Boolean) || [];
-        const updatedOrders = currentOrders.filter(study => study !== studyToRemove).join('\n');
+        const updatedOrders = currentOrders.filter((study: string) => study !== studyToRemove).join('\n');
         setValue('radiologyOrder', updatedOrders, { shouldValidate: true });
     };
 

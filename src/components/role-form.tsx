@@ -13,17 +13,17 @@ import { Textarea } from '@/components/ui/textarea';
 import { Loader2, GripVertical } from 'lucide-react';
 import type { Role, Permission } from '@/lib/types';
 import {
-    DndContext,
-    closestCenter,
-    KeyboardSensor,
-    PointerSensor,
-    useSensor,
-    useSensors,
-    type DragEndEvent,
-    DragOverlay,
-    type DragStartEvent,
-    useDroppable,
-    rectIntersection,
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  DragOverlay,
+  type DragStartEvent,
+  useDroppable,
+  rectIntersection,
 } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -41,7 +41,7 @@ const roleSchema = z.object({
 type RoleFormValues = z.infer<typeof roleSchema>;
 
 interface RoleFormProps {
-  role: (Role & { permissions?: string[] }) | null;
+  role: (Omit<Role, 'permissions'> & { permissions?: string[] }) | null;
   allPermissions: Permission[];
   onSubmitted: (values: RoleFormValues) => Promise<void>;
   onCancel: () => void;
@@ -117,7 +117,7 @@ export function RoleForm({ role, allPermissions, onSubmitted, onCancel }: RoleFo
     const available = allPermissions.filter(p => !assignedIds.has(p.id));
     setContainers({ available, assigned });
   }, [role, allPermissions]);
-  
+
   const form = useForm<RoleFormValues>({
     resolver: zodResolver(roleSchema),
     defaultValues: {
@@ -162,9 +162,9 @@ export function RoleForm({ role, allPermissions, onSubmitted, onCancel }: RoleFo
 
     const activeContainer = findContainer(activeId);
     const overContainer = findContainer(overId);
-    
+
     if (!activeContainer || !overContainer) {
-        return;
+      return;
     }
 
     if (activeContainer !== overContainer) {
@@ -175,12 +175,12 @@ export function RoleForm({ role, allPermissions, onSubmitted, onCancel }: RoleFo
         const overIndex = overItems.findIndex((item) => item.id === overId);
 
         let newIndex: number;
-        if(overId in prev) {
-            newIndex = overItems.length;
+        if (overId in prev) {
+          newIndex = overItems.length;
         } else {
-            newIndex = overIndex >= 0 ? overIndex : overItems.length;
+          newIndex = overIndex >= 0 ? overIndex : overItems.length;
         }
-        
+
         return {
           ...prev,
           [activeContainer]: activeItems.filter((item) => item.id !== activeId),
@@ -240,58 +240,58 @@ export function RoleForm({ role, allPermissions, onSubmitted, onCancel }: RoleFo
               </FormItem>
             )}
           />
-           <FormField
+          <FormField
             control={form.control}
             name="hasSpecialty"
             render={({ field }) => (
-                <FormItem className="flex flex-row items-center space-x-2 space-y-0 rounded-md border p-3 shadow-sm">
+              <FormItem className="flex flex-row items-center space-x-2 space-y-0 rounded-md border p-3 shadow-sm">
                 <FormControl>
-                    <Checkbox
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                    />
+                  <Checkbox
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
                 </FormControl>
                 <div className="space-y-1 leading-none">
-                    <FormLabel>
+                  <FormLabel>
                     Puede tener especialidades
-                    </FormLabel>
-                    <FormDescription>
+                  </FormLabel>
+                  <FormDescription>
                     Marque esta casilla si los usuarios con este rol pueden tener una especialidad médica asignada.
-                    </FormDescription>
+                  </FormDescription>
                 </div>
-                </FormItem>
+              </FormItem>
             )}
-           />
+          />
           <FormItem>
-             <FormLabel>Permisos</FormLabel>
-             <FormDescription>Arrastre los permisos desde la columna "Disponibles" a "Asignados".</FormDescription>
-             <DndContext 
-                sensors={sensors} 
-                collisionDetection={rectIntersection} 
-                onDragStart={handleDragStart} 
-                onDragEnd={handleDragEnd}
-             >
-                <div className="flex gap-4 mt-2">
-                    <PermissionColumn id="available" title="Disponibles" permissions={containers.available} />
-                    <PermissionColumn id="assigned" title="Asignados" permissions={containers.assigned} />
-                </div>
-                <DragOverlay>
-                  {activePermission ? (
-                    <div className="rounded-lg border bg-card text-card-foreground shadow-sm p-3">
-                        <div className="flex items-start gap-2">
-                        <div className="p-1 cursor-grabbing">
-                            <GripVertical className="h-5 w-5 text-muted-foreground" />
-                        </div>
-                        <div className="flex-1">
-                            <p className="font-semibold text-sm">{activePermission.name}</p>
-                            <p className="text-xs text-muted-foreground">{activePermission.description}</p>
-                        </div>
-                        </div>
+            <FormLabel>Permisos</FormLabel>
+            <FormDescription>Arrastre los permisos desde la columna "Disponibles" a "Asignados".</FormDescription>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={rectIntersection}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
+            >
+              <div className="flex gap-4 mt-2">
+                <PermissionColumn id="available" title="Disponibles" permissions={containers.available} />
+                <PermissionColumn id="assigned" title="Asignados" permissions={containers.assigned} />
+              </div>
+              <DragOverlay>
+                {activePermission ? (
+                  <div className="rounded-lg border bg-card text-card-foreground shadow-sm p-3">
+                    <div className="flex items-start gap-2">
+                      <div className="p-1 cursor-grabbing">
+                        <GripVertical className="h-5 w-5 text-muted-foreground" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-semibold text-sm">{activePermission.name}</p>
+                        <p className="text-xs text-muted-foreground">{activePermission.description}</p>
+                      </div>
                     </div>
-                  ) : null}
-                </DragOverlay>
-             </DndContext>
-             <FormField control={form.control} name="permissions" render={() => <FormMessage />} />
+                  </div>
+                ) : null}
+              </DragOverlay>
+            </DndContext>
+            <FormField control={form.control} name="permissions" render={() => <FormMessage />} />
           </FormItem>
         </div>
         <div className="flex justify-end gap-2 pt-4 border-t">

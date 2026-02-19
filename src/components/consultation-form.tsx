@@ -293,7 +293,7 @@ export function ConsultationForm({ patient, onConsultationComplete }: Consultati
 
             const finalEnfermedadActual = isReintegroMode ? 'Post-Reposo Médico / Reintegro' : (values.enfermedadActualNinguno ? 'Ninguno / No Refiere' : values.enfermedadActual);
             const finalRevisionSistemas = isReintegroMode ? 'Sin hallazgos' : (values.revisionPorSistemasNinguno ? 'Ninguno / No Refiere' : values.revisionPorSistemas);
-            const finalTreatmentPlan = values.treatmentPlanNotApplicable ? 'No aplica' : values.treatmentPlan;
+            const finalTreatmentPlan = values.treatmentPlanNotApplicable ? 'No aplica' : (values.treatmentPlan || '');
 
             const createdConsultation = await createConsultation({
                 waitlistId: patient.id,
