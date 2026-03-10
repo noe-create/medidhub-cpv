@@ -10,7 +10,7 @@ import { Form } from '@/components/ui/form';
 import { Button } from './ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, ArrowLeft, ArrowRight, Save } from 'lucide-react';
-import type { Patient, Service, Consultation } from '@/lib/types';
+import type { Patient, Service, Consultation, Diagnosis } from '@/lib/types';
 import { createConsultation, createLabOrder } from '@/actions/patient-actions';
 import { calculateAge, cn } from '@/lib/utils';
 import { StepAnamnesis } from './consultation-form-steps/step-anamnesis';
@@ -106,7 +106,7 @@ const consultationSchema = z.object({
         satO2Flujo: z.coerce.number().optional(),
         dolor: z.coerce.number().min(0).max(10).optional(),
     }).optional(),
-    examenFisicoGeneral: z.string().min(1, 'El examen físico es obligatorio.'),
+    examenFisicoGeneral: z.string().optional(),
 
     // Step 4: Diagnóstico y Plan
     diagnoses: z.array(z.object({
@@ -276,11 +276,11 @@ export function ConsultationForm({ patient, onConsultationComplete }: Consultati
         setIsSubmitting(true);
 
         try {
-            // Combine diagnoses from structured and free-text fields
-            const finalDiagnoses = values.diagnoses || [];
-            if (values.diagnosticoLibre && values.diagnosticoLibre.trim() && !values.diagnosticoLibreNinguno) {
+            // Combine diagnoses from free-text field
+            const finalDiagnoses: Diagnosis[] = [];
+            if (values.diagnosticoLibre && values.diagnosticoLibre.trim()) {
                 finalDiagnoses.push({
-                    cie10Code: 'N/A', // Or another placeholder
+                    cie10Code: 'GENERAL',
                     cie10Description: values.diagnosticoLibre.trim(),
                 });
             }

@@ -303,7 +303,7 @@ export function PatientQueue({ user, patients, onListRefresh }: PatientQueueProp
                               {patient.isReintegro && (
                                 <>
                                   <span className="text-muted/30">•</span>
-                                  <span className="px-2 py-0.5 rounded bg-blue-500 text-white font-black animate-pulse shadow-[0_0_10px_rgba(59,130,246,0.5)]">REINTEGRO</span>
+                                  <span className="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-[9px] font-black border border-indigo-200">REINTEGRO</span>
                                 </>
                               )}
                             </div>

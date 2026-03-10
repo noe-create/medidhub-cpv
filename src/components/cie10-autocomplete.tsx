@@ -108,7 +108,7 @@ export function Cie10Autocomplete({ selected, onChange }: Cie10AutocompleteProps
           </Badge>
         ))}
       </div>
-      <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
+      <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen} modal={true}>
         <PopoverTrigger asChild>
           <Button
             variant="outline"
@@ -136,7 +136,7 @@ export function Cie10Autocomplete({ selected, onChange }: Cie10AutocompleteProps
               {results.map((result) => (
                 <CommandItem
                   key={result.code}
-                  value={result.description}
+                  value={`${result.description} ${result.code}`}
                   onSelect={() => handleSelect(result)}
                   className="cursor-pointer"
                 >

@@ -121,7 +121,7 @@ function CompanySelector({ field, empresas }: { field: any, empresas: Empresa[] 
   const [open, setOpen] = React.useState(false);
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={setOpen} modal={false}>
       <PopoverTrigger asChild>
         <FormControl>
           <Button

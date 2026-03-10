@@ -25,6 +25,17 @@ export function HceSearch({ onPersonaSelect, className }: HceSearchProps) {
 
   // ... effects ...
   React.useEffect(() => {
+    if (query.trim().length < 2 && !isPopoverOpen) {
+      setResults([]);
+      return;
+    }
+
+    // Si el popover está abierto pero no hay búsqueda de al menos 2 letras, no buscamos nada
+    if (query.trim().length < 2) {
+      setResults([]);
+      return;
+    }
+
     const timer = setTimeout(async () => {
       setIsLoading(true);
       try {
@@ -39,25 +50,9 @@ export function HceSearch({ onPersonaSelect, className }: HceSearchProps) {
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [query]);
+  }, [query, isPopoverOpen]);
 
-  // Fetch all people when the popover opens for the first time
-  React.useEffect(() => {
-    if (isPopoverOpen && results.length === 0 && query === '') {
-      const fetchInitialData = async () => {
-        setIsLoading(true);
-        try {
-          const data = await searchPeopleForCheckin('');
-          setResults(data);
-        } catch (e) {
-          console.error(e);
-        } finally {
-          setIsLoading(false);
-        }
-      };
-      fetchInitialData();
-    }
-  }, [isPopoverOpen, results.length, query]);
+  // Removed initial fetch logic to prevent listing all patients when opening the dropdown without a query.
 
   const handleSelect = (result: SearchResult | null) => {
     const persona = result ? result.persona : null;
@@ -75,7 +70,7 @@ export function HceSearch({ onPersonaSelect, className }: HceSearchProps) {
   }
 
   return (
-    <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
+    <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen} modal={true}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -107,12 +102,12 @@ export function HceSearch({ onPersonaSelect, className }: HceSearchProps) {
           <CommandList>
             {isLoading && <CommandItem disabled>Buscando...</CommandItem>}
             <CommandEmpty>No se encontraron resultados.</CommandEmpty>
-            {results.length > 0 && !isLoading && (
+            {results.length > 0 && !isLoading && query.trim().length >= 2 && (
               <CommandGroup>
                 {results.map((result) => (
                   <CommandItem
                     key={result.persona.id}
-                    value={result.persona.nombreCompleto}
+                    value={`${result.persona.nombreCompleto} ${result.persona.id}`}
                     onSelect={() => handleSelect(result)}
                     className="cursor-pointer"
                   >

@@ -272,13 +272,14 @@ export async function createTitular(data: {
     try {
         if ('personaId' in data) {
             personaId = data.personaId;
-            const existingTitular = await db.get('SELECT id FROM titulares WHERE "personaId" = ?', [personaId]);
-            if (existingTitular) {
-                throw new Error('Esta persona ya tiene el rol de titular.');
-            }
         } else {
             const personaData = { ...data.persona, fechaNacimiento: data.persona.fechaNacimiento.toISOString() };
             personaId = await getOrCreatePersona(db, personaData as any);
+        }
+
+        const existingTitular = await db.get('SELECT id FROM titulares WHERE "personaId" = ?', [personaId]);
+        if (existingTitular) {
+            throw new Error('Esta persona ya tiene el rol de titular.');
         }
 
         const titularId = generateId('t');
@@ -685,7 +686,7 @@ async function parseConsultation(db: any, row: any): Promise<Consultation | null
     }
 
     const pacienteRow = await db.get(
-        `SELECT p.*, w."serviceType", w."accountType", w.kind, w.name, ${fullNameSql} as "nombreCompleto", ${fullCedulaSql} as cedula
+        `SELECT p.*, w."serviceType", w."accountType", w."accountType" as departamento, w.kind, w.name, ${fullNameSql} as "nombreCompleto", ${fullCedulaSql} as cedula
          FROM pacientes pac
          JOIN personas p ON pac."personaId" = p.id
          JOIN waitlist w ON pac.id = w."pacienteId"
@@ -753,7 +754,15 @@ export async function getPatientHistory(personaId: string): Promise<HistoryEntry
     if (labOrdersRows) {
         for (const orderRow of labOrdersRows as any[]) {
             const items = await db.all<{ testName: string }>('SELECT "testName" FROM lab_order_items WHERE "labOrderId" = ?', [orderRow.id]);
-            const persona = await db.get<any>(`SELECT *, ${fullNameSql} as "nombreCompleto", ${fullCedulaSql} as cedula FROM personas p WHERE p.id = ?`, [personaId]);
+            const persona = await db.get<any>(`
+                SELECT p.*, ${fullNameSql} as "nombreCompleto", ${fullCedulaSql} as cedula,
+                COALESCE(w."accountType", 'Privado') as departamento,
+                COALESCE(w."accountType", 'Privado') as "accountType"
+                FROM personas p
+                LEFT JOIN waitlist w ON p.id = w."personaId" AND w.status = 'Completado'
+                WHERE p.id = ?
+                ORDER BY w."checkInTime" DESC LIMIT 1
+            `, [personaId]);
             labOrders.push({
                 type: 'lab_order' as const,
                 data: {
@@ -1769,6 +1778,7 @@ export async function getAppointmentsReport(params: {
     medico: string;
     estado: string;
     isReintegro: boolean;
+    departamento: string;
 }>> {
     const db = await getDb();
 
@@ -1782,6 +1792,7 @@ export async function getAppointmentsReport(params: {
             ${fullCedulaSql} as cedula,
             ${fullNameSql} as paciente,
             w."serviceType" as servicio,
+            w."accountType" as departamento,
             COALESCE(u.name, 'No asignado') as medico,
             c."isReintegro",
             CASE 
@@ -1830,7 +1841,43 @@ export async function getAppointmentsReport(params: {
             servicio: row.servicio,
             medico: row.medico,
             estado: row.estado,
-            isReintegro: !!row.isReintegro
+            isReintegro: !!row.isReintegro,
+            departamento: row.departamento || 'Privado',
         };
     });
+}
+
+export async function searchClinicEmployees(query: string): Promise<SearchResult[]> {
+    const db = await getDb();
+    const searchQuery = `%${query.trim()}%`;
+    const hasQuery = query && query.trim().length > 0;
+
+    // Filter people who are in the 'titulares' table and belong to specific units (Employees)
+    // We exclude 'Afiliado Corporativo' (other companies) and beneficiaries.
+    const personasQuery = `
+        SELECT p.*, ${fullNameSql} as "nombreCompleto", ${fullCedulaSql} as cedula,
+               t.id as titular_id, t."unidadServicio", t."numeroFicha"
+        FROM personas p
+        JOIN titulares t ON p.id = t."personaId"
+        WHERE t."unidadServicio" <> 'Afiliado Corporativo'
+        ${hasQuery ? `AND (${fullNameSql} LIKE ? OR ${fullCedulaSearchSql} LIKE ?)` : ''}
+        ORDER BY "primerNombre", "primerApellido"
+        LIMIT 50
+    `;
+
+    const personasParams = hasQuery ? [searchQuery, searchQuery] : [];
+    const rows = await db.all<any>(personasQuery, personasParams);
+
+    return rows.map((row: any) => ({
+        persona: {
+            ...row,
+            id: row.id,
+            fechaNacimiento: new Date(row.fechaNacimiento),
+        },
+        titularInfo: {
+            id: row.titular_id,
+            unidadServicio: row.unidadServicio,
+            numeroFicha: row.numeroFicha
+        }
+    }));
 }

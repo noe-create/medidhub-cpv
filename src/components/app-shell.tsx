@@ -49,6 +49,7 @@ const allMenuOptions: MenuItem[] = [
   { href: '/dashboard/consulta', icon: 'solar:stethoscope-bold-duotone', title: 'Consulta', permission: 'consultation.perform', group: 'Atención' },
   { href: '/dashboard/hce', icon: 'solar:heart-pulse-bold-duotone', title: 'Historia Clínica', permission: 'hce.view', group: 'Atención' },
   { href: '/dashboard/bitacora', icon: 'solar:syringe-bold-duotone', title: 'Bitácora Tratamiento', permission: 'treatmentlog.manage', group: 'Atención' },
+  { href: '/dashboard/reintegros', icon: 'solar:document-medicine-bold-duotone', title: 'Evaluación Médica (Reintegro)', permission: 'consultation.perform', group: 'Atención' },
   { href: '/dashboard/salud-ocupacional', icon: 'solar:mask-h-bold-duotone', title: 'Medicina Ocupacional', permission: 'consultation.perform', group: 'Atención' },
 
   { href: '/dashboard/personas', icon: 'solar:user-bold-duotone', title: 'Personas', permission: 'people.manage', group: 'Admisión' },
@@ -61,7 +62,6 @@ const allMenuOptions: MenuItem[] = [
   { href: '/dashboard/cie10', icon: 'solar:notebook-bold-duotone', title: 'Catálogo CIE-10', permission: 'cie10.manage', group: 'Parametrización' },
   { href: '/dashboard/doctores', icon: 'solar:diploma-bold-duotone', title: 'Doctores', permission: 'specialties.manage', group: 'Parametrización' },
   { href: '/dashboard/apariencia', icon: 'solar:palette-bold-duotone', title: 'Apariencia', permission: 'settings.manage', group: 'Parametrización' },
-  { href: '/dashboard/inventario', icon: 'solar:box-bold-duotone', title: 'Inventario IT', permission: '*', group: 'Parametrización' },
 
 
   { href: '/dashboard/reportes', icon: 'solar:chart-2-bold-duotone', title: 'Reportes', permission: 'reports.view', group: 'Analítica' },
@@ -70,9 +70,11 @@ const allMenuOptions: MenuItem[] = [
   { href: '/dashboard/usuarios', icon: 'solar:user-rounded-bold-duotone', title: 'Usuarios', permission: 'users.manage', group: 'Seguridad' },
   { href: '/dashboard/seguridad/roles', icon: 'solar:key-minimalistic-bold-duotone', title: 'Roles', permission: 'roles.manage', group: 'Seguridad' },
   { href: '/dashboard/db-explorer', icon: 'solar:database-bold-duotone', title: 'Explorador DB', permission: 'database.view', group: 'Seguridad' },
+
+  { href: '/dashboard/informacion', icon: 'solar:info-circle-bold-duotone', title: 'Información', permission: '*', group: 'Ayuda' },
 ];
 
-const menuGroups = ['Inicio', 'Atención', 'Admisión', 'Parametrización', 'Analítica', 'Seguridad'];
+const menuGroups = ['Inicio', 'Atención', 'Admisión', 'Parametrización', 'Analítica', 'Seguridad', 'Ayuda'];
 
 // Helper to get theme colors based on group for Dark Mode "Neon" look
 const getGroupTheme = (group: string | undefined) => {
@@ -124,6 +126,14 @@ const getGroupTheme = (group: string | undefined) => {
       darkText: 'dark:text-red-300 dark:font-black',
       darkIcon: 'text-red-100 dark:text-neon-rose drop-shadow-rose',
       darkIconBg: 'dark:bg-red-500/20'
+    };
+    case 'Ayuda': return {
+      gradient: 'from-amber-400 via-orange-500 to-red-600',
+      darkActiveBg: 'dark:data-[active=true]:bg-amber-500/10 dark:data-[active=true]:border-amber-400/30 dark:data-[active=true]:shadow-[0_0_20px_rgba(245,158,11,0.15)]',
+      darkHoverBg: 'dark:hover:bg-amber-500/5',
+      darkText: 'dark:text-amber-300 dark:font-black',
+      darkIcon: 'text-amber-100 dark:text-amber-400 drop-shadow-glow',
+      darkIconBg: 'dark:bg-amber-500/20'
     };
     default: return {
       gradient: 'from-slate-400 to-slate-700',
@@ -240,7 +250,7 @@ export function AppShell({ children, user, permissions }: { children: React.Reac
         </Sidebar>
 
         <main className="min-h-svh flex-1 flex-col bg-background peer-data-[variant=inset]:min-h-[calc(100svh-theme(spacing.4))] md:peer-data-[variant=inset]:m-2 md:peer-data-[variant=inset]:ml-0 md:peer-data-[variant=inset]:rounded-xl md:peer-data-[variant=inset]:shadow-sm transition-all duration-300 ease-in-out">
-          <header className="sticky top-0 z-10 flex h-14 items-center gap-4 bg-transparent px-4 sm:px-6 pt-4">
+          <header className="relative z-10 flex h-14 items-center gap-4 bg-transparent px-4 sm:px-6 pt-4">
             <SidebarTrigger />
             <div className="flex-1">
             </div>

@@ -69,3 +69,29 @@ export async function getConsultationVolume(params: { from: Date; to: Date }): P
         count: parseInt(r.count)
     }));
 }
+
+export async function getWeeklyConsultationVolume(params: { from: Date; to: Date }): Promise<{ week: string; count: number }[]> {
+    const db = await getDb();
+    const { from, to } = params;
+    const fromDate = startOfDay(from).toISOString();
+    const toDate = endOfDay(to).toISOString();
+
+    // Grouping by ISO week for better trend analysis
+    // We use to_char(dt::timestamp, 'IYYY-IW') for ISO week grouping in PostgreSQL
+    const rows = await db.all<any>(
+        `SELECT to_char(dt::timestamp, 'IYYY-IW') as week_str, MIN(dt) as first_day, COUNT(*) as count 
+         FROM (
+             SELECT "consultationDate" as dt FROM consultations WHERE "consultationDate" BETWEEN ? AND ?
+             UNION ALL
+             SELECT "evaluationDate" as dt FROM occupational_health_evaluations WHERE "evaluationDate" BETWEEN ? AND ?
+         ) combined_dates
+         GROUP BY week_str
+         ORDER BY week_str ASC`,
+        [fromDate, toDate, fromDate, toDate]
+    );
+
+    return rows.map(r => ({
+        week: r.first_day, // We use the first day of the week for display purposes
+        count: parseInt(r.count)
+    }));
+}

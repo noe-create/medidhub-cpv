@@ -83,7 +83,8 @@ export function MedicalReportDisplay({ consultation }: MedicalReportDisplayProps
             <p><strong>Sexo:</strong> {paciente.genero}</p>
             <p><strong>Cédula:</strong> {paciente.cedula}</p>
             <p><strong>Edad:</strong> {ageString || 'Calculando...'}</p>
-            <p className="col-span-2"><strong>Nombre:</strong> {paciente?.nombreCompleto}</p>
+            <p><strong>Nombre:</strong> {paciente?.nombreCompleto}</p>
+            <p><strong>Área / Departamento:</strong> {(paciente as any).departamento || 'N/A'}</p>
           </div>
         </section>
 

@@ -4,7 +4,7 @@
 
 import * as React from 'react';
 import type { TreatmentOrder, TreatmentOrderItem } from '@/lib/types';
-import { PlusCircle, MoreHorizontal, Loader2, CheckCircle, XCircle, ClipboardCheck, Syringe, Search, ClipboardList } from 'lucide-react';
+import { PlusCircle, MoreHorizontal, Loader2, CheckCircle, XCircle, ClipboardCheck, Syringe, Search, ClipboardList, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -26,6 +26,7 @@ import { es } from 'date-fns/locale';
 import { useUser } from './app-shell';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './ui/accordion';
 import { useDebounce } from '@/hooks/use-debounce';
+import * as XLSX from 'xlsx';
 
 const statusColors: Record<TreatmentOrder['status'], string> = {
   Pendiente: 'bg-yellow-500/20 text-yellow-700 border-yellow-500/30 dark:text-yellow-300',
@@ -96,6 +97,54 @@ export function TreatmentLogManagement() {
     }
   }
 
+  const handleExportExcel = () => {
+    try {
+      if (orders.length === 0) {
+        toast({ title: 'No hay datos', description: 'No hay tratamientos para exportar.', variant: 'destructive' });
+        return;
+      }
+
+      const dataToExport = orders.flatMap(order =>
+        order.items.map(item => ({
+          'Paciente': order.paciente?.nombreCompleto,
+          'Cédula': order.paciente?.cedula,
+          'Diagnóstico': order.diagnosticoPrincipal || 'N/A',
+          'Fecha de Orden': format(new Date(order.createdAt), 'dd/MM/yyyy HH:mm'),
+          'Estado de Orden': order.status,
+          'Tratamiento': item.medicamentoProcedimiento,
+          'Dosis': item.dosis || '',
+          'Vía': item.via || '',
+          'Frecuencia': item.frecuencia || '',
+          'Estado del Ítem': item.status
+        }))
+      );
+
+      const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Bitácora');
+
+      const wscols = [
+        { wch: 30 }, // Paciente
+        { wch: 15 }, // Cédula
+        { wch: 25 }, // Diagnóstico
+        { wch: 20 }, // Fecha
+        { wch: 15 }, // Estado Orden
+        { wch: 30 }, // Tratamiento
+        { wch: 15 }, // Dosis
+        { wch: 12 }, // Vía
+        { wch: 15 }, // Frecuencia
+        { wch: 15 }  // Estado Ítem
+      ];
+      worksheet['!cols'] = wscols;
+
+      XLSX.writeFile(workbook, `bitacora_tratamientos_${format(new Date(), 'yyyyMMdd_HHmm')}.xlsx`);
+      toast({ title: 'Éxito', description: 'La bitácora de tratamientos ha sido exportada.' });
+    } catch (error) {
+      console.error('Error al exportar Excel:', error);
+      toast({ title: 'Error', description: 'No se pudo generar el archivo Excel.', variant: 'destructive' });
+    }
+  };
+
   return (
     <>
       <div className="bg-card rounded-3xl shadow-sm p-8 border border-border/50 min-h-[calc(100vh-10rem)]">
@@ -108,14 +157,20 @@ export function TreatmentLogManagement() {
             </h2>
             <p className="text-muted-foreground mt-1">Registro y administración de procedimientos.</p>
           </div>
-          <div className="relative w-full md:w-96">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/80" />
-            <Input
-              placeholder="Buscar por paciente o cédula..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-10 h-11 rounded-full bg-muted/50 border-border focus:bg-card focus:ring-blue-100 transition-all"
-            />
+          <div className="flex flex-col sm:flex-row gap-3 items-center w-full md:w-auto">
+            <div className="relative w-full sm:w-80">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/80" />
+              <Input
+                placeholder="Buscar por paciente o cédula..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-10 h-11 rounded-full bg-muted/50 border-border focus:bg-card focus:ring-blue-100 transition-all"
+              />
+            </div>
+            <Button variant="outline" onClick={handleExportExcel} disabled={isLoading} className="rounded-xl border-border w-full sm:w-auto">
+              <Download className="mr-2 h-4 w-4" />
+              Exportar
+            </Button>
           </div>
         </div>
 

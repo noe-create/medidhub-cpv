@@ -8,7 +8,7 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
 import { getPersonas, createPersona, updatePersona, deletePersona, bulkCreatePersonas } from '@/actions/patient-actions';
-import { MoreHorizontal, Pencil, PlusCircle, Trash2, Upload, Contact } from 'lucide-react';
+import { MoreHorizontal, Pencil, PlusCircle, Trash2, Upload, Contact, Download } from 'lucide-react';
 import { Button } from './ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from './ui/alert-dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from './ui/dropdown-menu';
@@ -171,6 +171,49 @@ export function PeopleList() {
         fileInputRef.current?.click();
     };
 
+    const handleExportExcel = () => {
+        try {
+            if (personas.length === 0) {
+                toast({ title: 'No hay datos', description: 'No hay personas para exportar.', variant: 'destructive' });
+                return;
+            }
+
+            const dataToExport = personas.map(p => ({
+                'Nombre Completo': p.nombreCompleto,
+                'Cédula': p.cedula,
+                'Fecha de Nacimiento': format(new Date(p.fechaNacimiento), 'dd/MM/yyyy'),
+                'Género': p.genero,
+                'Email': p.email || 'N/A',
+                'Teléfono 1': p.telefono1 || '',
+                'Teléfono 2': p.telefono2 || '',
+                'Dirección': p.direccion || ''
+            }));
+
+            const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, 'Personas');
+
+            // Set column widths
+            const wscols = [
+                { wch: 30 }, // Nombre
+                { wch: 15 }, // Cédula
+                { wch: 20 }, // Fecha Nac
+                { wch: 12 }, // Género
+                { wch: 25 }, // Email
+                { wch: 15 }, // Tel 1
+                { wch: 15 }, // Tel 2
+                { wch: 40 }  // Dirección
+            ];
+            worksheet['!cols'] = wscols;
+
+            XLSX.writeFile(workbook, `reporte_personas_${format(new Date(), 'yyyyMMdd_HHmm')}.xlsx`);
+            toast({ title: 'Éxito', description: 'El reporte de personas ha sido exportado.' });
+        } catch (error) {
+            console.error('Error al exportar Excel:', error);
+            toast({ title: 'Error', description: 'No se pudo generar el archivo Excel.', variant: 'destructive' });
+        }
+    };
+
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         //...
     };
@@ -250,6 +293,10 @@ export function PeopleList() {
                                     </AlertDialogFooter>
                                 </AlertDialogContent>
                             </AlertDialog>
+                            <Button variant="outline" onClick={handleExportExcel} className="rounded-xl border-border">
+                                <Download className="mr-2 h-4 w-4" />
+                                Exportar
+                            </Button>
                             <Button onClick={() => handleOpenForm(null)} className="rounded-xl bg-primary hover:bg-primary/90 shadow-md shadow-primary/20">
                                 <PlusCircle className="mr-2 h-4 w-4" />
                                 Crear Persona

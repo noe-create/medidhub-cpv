@@ -14,7 +14,10 @@ const data = [
     { name: "Dom", total: 80 },
 ]
 
-export function DashboardHero() {
+export function DashboardHero({ stats }: { stats?: any }) {
+    const patientCount = stats?.patients?.toLocaleString() || '0';
+    const todayConsultations = stats?.todayConsultations?.toLocaleString() || '0';
+
     return (
         <Card className="col-span-1 md:col-span-2 lg:col-span-3 mesh-gradient border-none text-white shadow-2xl dark:shadow-none overflow-hidden relative rounded-[3rem] p-4 md:p-8">
             {/* Decorative circles - enhanced with glow */}
@@ -38,15 +41,12 @@ export function DashboardHero() {
                     <div className="flex flex-col group">
                         <span className="text-blue-100/60 text-sm font-semibold uppercase tracking-wider mb-1">Pacientes Atendidos</span>
                         <div className="flex items-baseline gap-3">
-                            <span className="text-5xl font-black tracking-tighter">1,234</span>
-                            <span className="text-sm bg-emerald-400/20 text-emerald-300 px-2.5 py-1 rounded-full flex items-center gap-1 font-bold border border-emerald-400/30">
-                                <Icon icon="solar:graph-up-bold-duotone" className="h-3.5 w-3.5" /> +12%
-                            </span>
+                            <span className="text-5xl font-black tracking-tighter">{patientCount}</span>
                         </div>
                     </div>
                     <div className="flex flex-col">
                         <span className="text-blue-100/60 text-sm font-semibold uppercase tracking-wider mb-1">Consultas Hoy</span>
-                        <span className="text-5xl font-black tracking-tighter">42</span>
+                        <span className="text-5xl font-black tracking-tighter">{todayConsultations}</span>
                     </div>
                     <div className="flex flex-col">
                         <span className="text-blue-100/60 text-sm font-semibold uppercase tracking-wider mb-1">Tiempo Promedio</span>

@@ -4,7 +4,7 @@
 
 import * as React from 'react';
 import type { Titular } from '@/lib/types';
-import { PlusCircle, MoreHorizontal, Pencil, Users, Trash2 } from 'lucide-react';
+import { PlusCircle, MoreHorizontal, Pencil, Users, Trash2, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -19,6 +19,8 @@ import { useUser } from './app-shell';
 import dynamic from 'next/dynamic';
 import { Skeleton } from './ui/skeleton';
 import { DataTable, type ColumnDef } from '@/components/ui/data-table';
+import * as XLSX from 'xlsx';
+import { format } from 'date-fns';
 
 const PatientForm = dynamic(() => import('./patient-form').then(mod => mod.PatientForm), {
   loading: () => <div className="p-8"><Skeleton className="h-48 w-full" /></div>,
@@ -101,6 +103,50 @@ export function PatientManagement() {
       toast({ title: 'Error', description: 'No se pudo eliminar el rol de titular.', variant: 'destructive' });
     }
   }
+
+  const handleExportExcel = () => {
+    try {
+      if (titulares.length === 0) {
+        toast({ title: 'No hay datos', description: 'No hay titulares para exportar.', variant: 'destructive' });
+        return;
+      }
+
+      const dataToExport = titulares.map(t => ({
+        'Nombre Completo': t.persona.nombreCompleto,
+        'Cédula': t.persona.cedula,
+        'Email': t.persona.email || 'N/A',
+        'Unidad/Servicio': t.unidadServicio,
+        'Beneficiarios': t.beneficiariosCount,
+        'Fecha de Nacimiento': format(t.persona.fechaNacimiento, 'dd/MM/yyyy'),
+        'Género': t.persona.genero,
+        'Teléfono 1': t.persona.telefono1 || '',
+        'Dirección': t.persona.direccion || ''
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Titulares');
+
+      const wscols = [
+        { wch: 30 }, // Nombre
+        { wch: 15 }, // Cédula
+        { wch: 25 }, // Email
+        { wch: 20 }, // Unidad
+        { wch: 12 }, // Benef
+        { wch: 18 }, // Fecha Nac
+        { wch: 12 }, // Género
+        { wch: 15 }, // Tel 1
+        { wch: 40 }  // Dirección
+      ];
+      worksheet['!cols'] = wscols;
+
+      XLSX.writeFile(workbook, `reporte_titulares_${format(new Date(), 'yyyyMMdd_HHmm')}.xlsx`);
+      toast({ title: 'Éxito', description: 'El listado de titulares ha sido exportado.' });
+    } catch (error) {
+      console.error('Error al exportar Excel:', error);
+      toast({ title: 'Error', description: 'No se pudo generar el archivo Excel.', variant: 'destructive' });
+    }
+  };
 
   const handleCloseDialog = () => {
     setIsFormOpen(false);
@@ -207,10 +253,16 @@ export function PatientManagement() {
               />
             </div>
             {canManage && (
-              <Button onClick={() => handleOpenForm(null)} className="rounded-xl bg-primary hover:bg-primary/90 text-white shadow-md shadow-primary/20 flex-1 sm:flex-none">
-                <PlusCircle className="mr-2 h-4 w-4" />
-                Añadir Titular
-              </Button>
+              <div className="flex gap-2 w-full sm:w-auto">
+                <Button variant="outline" onClick={handleExportExcel} className="rounded-xl border-border flex-1 sm:flex-none">
+                  <Download className="mr-2 h-4 w-4" />
+                  Exportar
+                </Button>
+                <Button onClick={() => handleOpenForm(null)} className="rounded-xl bg-primary hover:bg-primary/90 text-white shadow-md shadow-primary/20 flex-1 sm:flex-none">
+                  <PlusCircle className="mr-2 h-4 w-4" />
+                  Añadir Titular
+                </Button>
+              </div>
             )}
           </div>
         </div>

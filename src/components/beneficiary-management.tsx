@@ -3,7 +3,7 @@
 
 import * as React from 'react';
 import type { Beneficiario, Titular } from '@/lib/types';
-import { PlusCircle, MoreHorizontal, Loader2, Pencil, Trash2, Users } from 'lucide-react';
+import { PlusCircle, MoreHorizontal, Loader2, Pencil, Trash2, Users, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -25,6 +25,7 @@ import { useUser } from './app-shell';
 import { motion, AnimatePresence } from 'framer-motion';
 import dynamic from 'next/dynamic';
 import { Skeleton } from './ui/skeleton';
+import * as XLSX from 'xlsx';
 
 const BeneficiaryForm = dynamic(() => import('./beneficiary-form').then(mod => mod.BeneficiaryForm), {
   loading: () => <div className="p-8"><Skeleton className="h-48 w-full" /></div>,
@@ -89,6 +90,45 @@ export function BeneficiaryManagement({ titular, initialBeneficiarios }: Benefic
     }
   };
 
+  const handleExportExcel = () => {
+    try {
+      if (beneficiarios.length === 0) {
+        toast({ title: 'No hay datos', description: 'No hay beneficiarios para exportar.', variant: 'destructive' });
+        return;
+      }
+
+      const dataToExport = beneficiarios.map(b => ({
+        'Nombre Completo': b.persona.nombreCompleto,
+        'Cédula': b.persona.cedula,
+        'Fecha de Nacimiento': format(new Date(b.persona.fechaNacimiento), 'dd/MM/yyyy'),
+        'Género': b.persona.genero,
+        'Titular': titular.persona.nombreCompleto,
+        'Cédula Titular': titular.persona.cedula
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Beneficiarios');
+
+      const wscols = [
+        { wch: 30 }, // Nombre
+        { wch: 15 }, // Cédula
+        { wch: 15 }, // Parentesco
+        { wch: 20 }, // Fecha Nac
+        { wch: 12 }, // Género
+        { wch: 30 }, // Titular
+        { wch: 15 }  // Cédula Titular
+      ];
+      worksheet['!cols'] = wscols;
+
+      XLSX.writeFile(workbook, `beneficiarios_${titular.persona.cedula}_${format(new Date(), 'yyyyMMdd_HHmm')}.xlsx`);
+      toast({ title: 'Éxito', description: 'El listado de beneficiarios ha sido exportado.' });
+    } catch (error) {
+      console.error('Error al exportar Excel:', error);
+      toast({ title: 'Error', description: 'No se pudo generar el archivo Excel.', variant: 'destructive' });
+    }
+  };
+
   const excludeIds = [titular.personaId, ...beneficiarios.map(b => b.personaId)];
 
   return (
@@ -99,7 +139,11 @@ export function BeneficiaryManagement({ titular, initialBeneficiarios }: Benefic
           <CardDescription>Añada y gestione los beneficiarios asociados a este titular.</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex justify-end items-center mb-4">
+          <div className="flex justify-end items-center mb-4 gap-2">
+            <Button variant="outline" onClick={handleExportExcel}>
+              <Download className="mr-2 h-4 w-4" />
+              Exportar
+            </Button>
             {canManage && (
               <Button onClick={() => handleOpenForm(null)}>
                 <PlusCircle className="mr-2 h-4 w-4" />

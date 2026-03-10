@@ -26,6 +26,8 @@ export async function getDashboardStats() {
             db.get<{ count: number }>(`SELECT COUNT(*) as count FROM beneficiarios`),
             // Titulars
             db.get<{ count: number }>(`SELECT COUNT(*) as count FROM titulares`),
+            // Consultations Today
+            db.get<{ count: number }>(`SELECT COUNT(*) as count FROM consultations WHERE date("consultationDate") = date('now', 'localtime')`),
         ]);
 
         return {
@@ -37,6 +39,7 @@ export async function getDashboardStats() {
             users: results[5]?.count || 0,
             beneficiaries: results[6]?.count || 0,
             titulars: results[7]?.count || 0,
+            todayConsultations: results[8]?.count || 0,
         };
     } catch (error) {
         console.error("Error fetching dashboard stats:", error);

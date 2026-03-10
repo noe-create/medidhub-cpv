@@ -19,10 +19,13 @@ import { useToast } from '@/hooks/use-toast';
 import { addPatientToWaitlist, getAccountTypeByTitularId, getWaitlist } from '@/actions/patient-actions';
 import { useUser } from '@/components/app-shell';
 import { RealTimeClock } from '@/components/real-time-clock';
+import { ReintegroSearchModal } from '@/components/reintegro-search-modal';
+import { UserCheck } from 'lucide-react';
 
 
 export default function SalaDeEsperaPage() {
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
+  const [isReintegroModalOpen, setIsReintegroModalOpen] = React.useState(false);
   const [patientQueue, setPatientQueue] = React.useState<Patient[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const { toast } = useToast();
@@ -113,6 +116,24 @@ export default function SalaDeEsperaPage() {
           <Button variant="ghost" size="icon" onClick={fetchData} disabled={isLoading} className="text-white hover:bg-card/20 rounded-xl h-12 w-12">
             <RefreshCw className={`h-5 w-5 ${isLoading ? 'animate-spin' : ''}`} />
           </Button>
+
+          {/* Reintegro Flow Button and Modal */}
+          <ReintegroSearchModal
+            isOpen={isReintegroModalOpen}
+            onOpenChange={setIsReintegroModalOpen}
+            onSuccess={fetchData}
+          />
+
+          <Button
+            variant="outline"
+            size="lg"
+            onClick={() => setIsReintegroModalOpen(true)}
+            className="bg-transparent text-white border-2 border-white/50 hover:bg-white hover:text-blue-600 font-extrabold rounded-xl h-12 px-6 transition-all"
+          >
+            <UserCheck className="mr-2 h-5 w-5" />
+            Procesar Reintegro
+          </Button>
+
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button size="lg" className="bg-card text-primary hover:bg-card/90 font-extrabold rounded-xl h-12 px-6 shadow-sm border-0">

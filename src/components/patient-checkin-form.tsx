@@ -211,7 +211,7 @@ function PatientSearch({ selectedResult, onResultSelect }: { selectedResult: Sea
   return (
     <div className="space-y-2">
       <Label>Persona</Label>
-      <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
+      <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen} modal={false}>
         <PopoverTrigger asChild>
           <Button
             variant="outline"
@@ -231,7 +231,11 @@ function PatientSearch({ selectedResult, onResultSelect }: { selectedResult: Sea
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="p-0 w-[--radix-popover-trigger-width]" align="start">
+        <PopoverContent
+          className="p-0 w-[--radix-popover-trigger-width]"
+          align="start"
+          onPointerDown={(e) => e.stopPropagation()}
+        >
           <Command shouldFilter={false}>
             <CommandInput
               placeholder="Buscar persona..."
@@ -247,7 +251,7 @@ function PatientSearch({ selectedResult, onResultSelect }: { selectedResult: Sea
                   {results.map((result) => (
                     <CommandItem
                       key={result.persona.id}
-                      value={result.persona.nombreCompleto}
+                      value={result.persona.id}
                       onSelect={() => handleSelect(result)}
                       className="cursor-pointer"
                     >

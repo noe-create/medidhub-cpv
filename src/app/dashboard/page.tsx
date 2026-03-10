@@ -268,7 +268,7 @@ export default function DashboardPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {/* Hero Section */}
-        <DashboardHero />
+        <DashboardHero stats={stats} />
 
         {/* Dynamic Bento Grid Items */}
         {visibleMenuOptions.map((option) => (

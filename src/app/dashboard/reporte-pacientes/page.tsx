@@ -13,6 +13,9 @@ import type { DateRange } from 'react-day-picker';
 import { useToast } from '@/hooks/use-toast';
 import { getAppointmentsReport } from '@/actions/patient-actions';
 import { cn } from '@/lib/utils';
+import * as XLSX from 'xlsx';
+import { Document, Packer, Paragraph, TextRun, Table as DocxTable, TableRow as DocxTableRow, TableCell as DocxTableCell, WidthType, AlignmentType, BorderStyle } from 'docx';
+import { saveAs } from 'file-saver';
 import {
     Table,
     TableBody,
@@ -41,6 +44,7 @@ type AppointmentRow = {
     medico: string;
     estado: string;
     isReintegro: boolean;
+    departamento: string;
 };
 
 export default function ReportePacientesPage() {
@@ -143,6 +147,130 @@ export default function ReportePacientesPage() {
         }, 500);
     };
 
+    const handleExportExcel = () => {
+        try {
+            if (appointmentsData.length === 0) {
+                toast({ title: 'No hay datos', description: 'No hay pacientes para exportar.', variant: 'destructive' });
+                return;
+            }
+
+            const dataToExport = appointmentsData.map(row => ({
+                'Fecha': row.fecha,
+                'Hora': row.hora,
+                'Cédula': row.cedula || 'N/A',
+                'Paciente': row.paciente,
+                'Servicio': row.servicio,
+                'Médico': row.medico,
+                'Estado': row.estado,
+                'Departamento': row.departamento,
+                'Reintegro': row.isReintegro ? 'SÍ' : 'NO'
+            }));
+
+            const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, 'Reporte de Pacientes');
+
+            // Set column widths
+            const wscols = [
+                { wch: 15 }, // Fecha
+                { wch: 10 }, // Hora
+                { wch: 15 }, // Cédula
+                { wch: 30 }, // Paciente
+                { wch: 20 }, // Servicio
+                { wch: 25 }, // Médico
+                { wch: 12 }, // Estado
+                { wch: 20 }, // Departamento
+                { wch: 10 }  // Reintegro
+            ];
+            worksheet['!cols'] = wscols;
+
+            XLSX.writeFile(workbook, `reporte_pacientes_${format(new Date(), 'yyyyMMdd_HHmm')}.xlsx`);
+            toast({ title: 'Éxito', description: 'El reporte de pacientes ha sido exportado a Excel.' });
+        } catch (error) {
+            console.error('Error al exportar Excel:', error);
+            toast({ title: 'Error', description: 'No se pudo generar el archivo Excel.', variant: 'destructive' });
+        }
+    };
+
+    const handleExportWord = async () => {
+        try {
+            if (appointmentsData.length === 0) {
+                toast({ title: 'No hay datos', description: 'No hay pacientes para exportar.', variant: 'destructive' });
+                return;
+            }
+
+            const doc = new Document({
+                sections: [{
+                    properties: {},
+                    children: [
+                        new Paragraph({
+                            alignment: AlignmentType.CENTER,
+                            children: [
+                                new TextRun({
+                                    text: "Reporte de Citas y Consultas",
+                                    bold: true,
+                                    size: 32,
+                                }),
+                            ],
+                        }),
+                        new Paragraph({
+                            alignment: AlignmentType.CENTER,
+                            children: [
+                                new TextRun({
+                                    text: `Período: ${date?.from ? format(date.from, 'dd/MM/yyyy') : ''} - ${date?.to ? format(date.to, 'dd/MM/yyyy') : ''}`,
+                                    size: 24,
+                                }),
+                            ],
+                        }),
+                        new Paragraph({ text: "" }), // Spacing
+                        new DocxTable({
+                            width: {
+                                size: 100,
+                                type: WidthType.PERCENTAGE,
+                            },
+                            rows: [
+                                new DocxTableRow({
+                                    children: [
+                                        "Fecha", "Hora", "Cédula", "Paciente", "Servicio", "Médico", "Estado"
+                                    ].map(text => new DocxTableCell({
+                                        children: [new Paragraph({ children: [new TextRun({ text, bold: true })] })],
+                                        shading: { fill: "F3F4F6" }
+                                    }))
+                                }),
+                                ...appointmentsData.map(row => new DocxTableRow({
+                                    children: [
+                                        row.fecha,
+                                        row.hora,
+                                        row.cedula || 'N/A',
+                                        row.paciente,
+                                        row.servicio,
+                                        row.medico,
+                                        row.estado
+                                    ].map(text => new DocxTableCell({
+                                        children: [new Paragraph(text)]
+                                    }))
+                                }))
+                            ]
+                        }),
+                        new Paragraph({ text: "" }),
+                        new Paragraph({
+                            children: [
+                                new TextRun({ text: `Total de registros: ${appointmentsData.length}`, bold: true })
+                            ]
+                        })
+                    ],
+                }],
+            });
+
+            const blob = await Packer.toBlob(doc);
+            saveAs(blob, `reporte_pacientes_${format(new Date(), 'yyyyMMdd_HHmm')}.docx`);
+            toast({ title: 'Éxito', description: 'El reporte de pacientes ha sido exportado a Word.' });
+        } catch (error) {
+            console.error('Error al exportar Word:', error);
+            toast({ title: 'Error', description: 'No se pudo generar el archivo Word.', variant: 'destructive' });
+        }
+    };
+
     const ReportToPrint = () => {
         return (
             <div className="bg-card p-4 text-black">
@@ -172,6 +300,7 @@ export default function ReportePacientesPage() {
                             <th className="border border-black p-1 text-left">Servicio</th>
                             <th className="border border-black p-1 text-left">Médico</th>
                             <th className="border border-black p-1 text-left">Estado</th>
+                            <th className="border border-black p-1 text-left">Departamento</th>
                             <th className="border border-black p-1 text-left">Reintegro</th>
                         </tr>
                     </thead>
@@ -185,6 +314,7 @@ export default function ReportePacientesPage() {
                                 <td className="border border-black p-1">{row.servicio}</td>
                                 <td className="border border-black p-1">{row.medico}</td>
                                 <td className="border border-black p-1">{row.estado}</td>
+                                <td className="border border-black p-1">{row.departamento}</td>
                                 <td className="border border-black p-1 text-center">{row.isReintegro ? 'SÍ' : 'NO'}</td>
                             </tr>
                         ))}
@@ -300,12 +430,21 @@ export default function ReportePacientesPage() {
                         </Button>
                         <Button
                             variant="outline"
-                            onClick={() => toast({ description: "Funcionalidad de Excel en desarrollo", duration: 2000 })}
-                            disabled={isLoading || appointmentsData.length === 0}
+                            onClick={handleExportExcel}
+                            disabled={isLoading}
                             className="flex-1 xl:flex-none rounded-xl border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 hover:border-emerald-300"
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-sheet mr-2"><rect width="18" height="18" x="3" y="3" rx="2" ry="2" /><line x1="3" x2="21" y1="9" y2="9" /><line x1="3" x2="21" y1="15" y2="15" /><line x1="9" x2="9" y1="9" y2="21" /><line x1="15" x2="15" y1="9" y2="21" /></svg>
                             Excel
+                        </Button>
+                        <Button
+                            variant="outline"
+                            onClick={handleExportWord}
+                            disabled={isLoading}
+                            className="flex-1 xl:flex-none rounded-xl border-blue-200 text-blue-700 hover:bg-blue-50 hover:text-blue-800 hover:border-blue-300"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-file-text mr-2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" /><polyline points="14 2 14 8 20 8" /></svg>
+                            Word
                         </Button>
                     </div>
                 </div>
@@ -336,6 +475,7 @@ export default function ReportePacientesPage() {
                                         <TableHead className="font-extrabold text-foreground/90">Servicio</TableHead>
                                         <TableHead className="font-extrabold text-foreground/90">Médico</TableHead>
                                         <TableHead className="font-extrabold text-foreground/90">Estado</TableHead>
+                                        <TableHead className="font-extrabold text-foreground/90">Departamento</TableHead>
                                         <TableHead className="font-extrabold text-foreground/90 text-center">Reintegro</TableHead>
                                     </TableRow>
                                 </TableHeader>
@@ -357,6 +497,9 @@ export default function ReportePacientesPage() {
                                                 )}>
                                                     {row.estado}
                                                 </span>
+                                            </TableCell>
+                                            <TableCell className="text-foreground/80 text-xs">
+                                                {row.departamento}
                                             </TableCell>
                                             <TableCell className="text-center">
                                                 {row.isReintegro ? (
