@@ -10,7 +10,7 @@ import { es } from 'date-fns/locale';
 import { DocumentHeader } from './document-header';
 
 interface LabOrderDisplayProps {
-  order: LabOrder;
+  order?: any;
 }
 
 export function LabOrderDisplay({ order }: LabOrderDisplayProps) {
@@ -18,10 +18,12 @@ export function LabOrderDisplay({ order }: LabOrderDisplayProps) {
 
   React.useEffect(() => {
     // Calculate age on the client-side to avoid hydration mismatch
-    setAge(calculateAge(order.paciente.fechaNacimiento));
-  }, [order.paciente.fechaNacimiento]);
+    if (order?.paciente?.fechaNacimiento) {
+      setAge(calculateAge(order.paciente.fechaNacimiento));
+    }
+  }, [order?.paciente?.fechaNacimiento]);
 
-  const ageString = age !== null ? `${age} Año(s)` : 'Calculando...';
+  const ageString = age !== null ? `${age} Año(s)` : '          ';
 
   return (
     <div className="h-full text-sm">
@@ -53,42 +55,55 @@ export function LabOrderDisplay({ order }: LabOrderDisplayProps) {
         <section className="border-y border-black py-2">
           <h3 className="font-bold text-center mb-2">Datos del Paciente:</h3>
           <div className="grid grid-cols-2 gap-x-4">
-            <p><strong>Historia:</strong> {order.pacienteId.replace(/\D/g, '').slice(-6) || 'N/A'}</p>
-            <p><strong>Fecha Orden:</strong> {format(order.orderDate, 'dd/MM/yyyy')}</p>
-            <p><strong>Ingreso:</strong> {order.consultationId?.slice(-6) || 'N/A'}</p>
-            <p><strong>Sexo:</strong> {order.paciente.genero}</p>
-            <p><strong>Cédula:</strong> {order.paciente.cedula}</p>
+            <p><strong>Historia:</strong> {order?.pacienteId?.replace(/\D/g, '').slice(-6) || '____________________'}</p>
+            <p><strong>Fecha Orden:</strong> {order?.orderDate ? format(order.orderDate, 'dd/MM/yyyy') : '____________________'}</p>
+            <p><strong>Ingreso:</strong> {order?.consultationId?.slice(-6) || '____________________'}</p>
+            <p><strong>Sexo:</strong> {order?.paciente?.genero || '__________'}</p>
+            <p><strong>Cédula:</strong> {order?.paciente?.cedula || '____________________'}</p>
             <p><strong>Edad:</strong> {ageString}</p>
-            <p><strong>Nombre:</strong> {order.paciente.nombreCompleto}</p>
-            <p><strong>Área / Departamento:</strong> {(order.paciente as any).departamento || 'N/A'}</p>
+            <p><strong>Nombre:</strong> {order?.paciente?.nombreCompleto || '________________________________________________'}</p>
+            <p><strong>Área / Departamento:</strong> {(order?.paciente as any)?.departamento || '____________________'}</p>
           </div>
         </section>
 
         <div className="flex-grow text-sm mt-4">
-          {(order.diagnosticoPrincipal || order.treatmentPlan) && (
-            <section>
-              <h4 className="font-bold underline">IMPRESIÓN DIAGNÓSTISCA Y PLAN</h4>
-              {order.diagnosticoPrincipal && <p><strong>Diagnóstico:</strong> {order.diagnosticoPrincipal}</p>}
-              {order.treatmentPlan && <p><strong>Plan:</strong> {order.treatmentPlan}</p>}
-            </section>
-          )}
+          <section>
+            <h4 className="font-bold underline">IMPRESIÓN DIAGNÓSTICA Y PLAN</h4>
+            <p><strong>Diagnóstico:</strong> {order?.diagnosticoPrincipal || ''}</p>
+            <p><strong>Plan:</strong> {order?.treatmentPlan || ''}</p>
+            {!order && <div className="h-12 border-b border-dashed border-slate-300 mt-4 mb-2"></div>}
+            {!order && <div className="h-12 border-b border-dashed border-slate-300 mb-2"></div>}
+          </section>
 
           <div className="border-t border-black my-4"></div>
 
           <div>
             <h4 className="font-bold underline">EXÁMENES SOLICITADOS</h4>
-            <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground columns-3 mt-2">
-              {order.tests.map((test, index) => (
-                <li key={index}>{test}</li>
-              ))}
-            </ul>
+            {order?.tests && order.tests.length > 0 ? (
+              <ul className="list-disc list-inside space-y-1 text-sm text-black columns-3 mt-2">
+                {order.tests.map((test: any, index: number) => (
+                  <li key={index}>{test}</li>
+                ))}
+              </ul>
+            ) : (
+              <div className="w-full mt-4 flex flex-col gap-8">
+                <div className="w-full border-b border-slate-300 border-dashed"></div>
+                <div className="w-full border-b border-slate-300 border-dashed"></div>
+                <div className="w-full border-b border-slate-300 border-dashed"></div>
+                <div className="w-full border-b border-slate-300 border-dashed"></div>
+                <div className="w-full border-b border-slate-300 border-dashed"></div>
+                <div className="w-full border-b border-slate-300 border-dashed"></div>
+                <div className="w-full border-b border-slate-300 border-dashed"></div>
+                <div className="w-full border-b border-slate-300 border-dashed"></div>
+                <div className="w-full border-b border-slate-300 border-dashed"></div>
+              </div>
+            )}
           </div>
         </div>
 
-        <footer className="flex flex-col items-center text-sm pt-20 mt-auto">
+        <footer className="flex flex-col items-center text-sm pt-24 pb-8 mt-auto">
           <div className="w-48 border-b border-black"></div>
-          <p className="font-semibold mt-1">Atentamente;</p>
-          <p>Dr. [Nombre del Doctor]</p>
+          <p className="font-semibold mt-1">Firma del Médico</p>
         </footer>
       </div>
     </div>

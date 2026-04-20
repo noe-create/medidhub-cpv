@@ -13,7 +13,7 @@ export async function getSpecialties(query?: string): Promise<Specialty[]> {
   let selectQuery = `SELECT * FROM specialties`;
   const params: any[] = [];
   if (query && query.trim().length > 0) {
-    selectQuery += ` WHERE name LIKE ?`;
+    selectQuery += ` WHERE name ILIKE ?`;
     params.push(`%${query}%`);
   }
   selectQuery += ' ORDER BY name';

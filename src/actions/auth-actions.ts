@@ -141,7 +141,7 @@ export async function getUsers(query?: string, page: number = 1, pageSize: numbe
     const params: any[] = [];
     if (query && query.trim().length > 1) {
         const searchQuery = `%${query.trim()}%`;
-        whereClause += ` AND (u.username LIKE ? OR u.name LIKE ?)`;
+        whereClause += ` AND (u.username ILIKE ? OR u.name ILIKE ?)`;
         params.push(searchQuery, searchQuery);
     }
 

@@ -36,7 +36,7 @@ export function SpecialtyManagement() {
   const [currentPage, setCurrentPage] = React.useState(1);
   const [totalCount, setTotalCount] = React.useState(0);
 
-  const canManage = user.role.id === 'superuser' || user.role.id === 'administrator';
+  const canManage = ['superuser', 'administrator', 'admin'].includes(user.role.id);
 
   const refreshSpecialties = React.useCallback(async (currentSearch: string) => {
     setIsLoading(true);

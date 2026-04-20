@@ -3,9 +3,8 @@
 
 import * as React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { getMorbidityStats, getAptitudeStats, getConsultationVolume, getWeeklyConsultationVolume } from '@/actions/report-actions';
+import { getMorbidityStats, getConsultationVolume, getWeeklyConsultationVolume } from '@/actions/report-actions';
 import { MorbidityBarChart } from '@/components/charts/morbidity-bar-chart';
-import { AptitudeDonutChart } from '@/components/charts/aptitude-donut-chart';
 import { VolumeAreaChart } from '@/components/charts/volume-area-chart';
 import { WeeklyVolumeChart } from '@/components/charts/weekly-volume-chart';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -13,9 +12,10 @@ import { Calendar } from '@/components/ui/calendar';
 import { addDays, startOfMonth, endOfMonth, format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
-import { Download, FileText, Loader2, TrendingUp, Users, Activity, HeartPulse, Sparkles, Calendar as CalendarIcon } from 'lucide-react';
+import { Download, FileText, Loader2, TrendingUp, Users, Activity, HeartPulse, Sparkles, Calendar as CalendarIcon, Search } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { DateRange } from 'react-day-picker';
+import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import * as XLSX from 'xlsx';
 
@@ -26,7 +26,8 @@ export default function ReportesPage() {
         to: endOfMonth(new Date()),
     });
     const [morbidityData, setMorbidityData] = React.useState<any[]>([]);
-    const [aptitudeData, setAptitudeData] = React.useState<any[]>([]);
+    const [searchTerm, setSearchTerm] = React.useState('');
+
     const [volumeData, setVolumeData] = React.useState<any[]>([]);
     const [weeklyVolumeData, setWeeklyVolumeData] = React.useState<any[]>([]);
     const [isLoading, setIsLoading] = React.useState(false);
@@ -43,15 +44,13 @@ export default function ReportesPage() {
 
         setIsLoading(true);
         try {
-            const [morbidity, aptitude, volume, weeklyVolume] = await Promise.all([
+            const [morbidity, volume, weeklyVolume] = await Promise.all([
                 getMorbidityStats({ from: dateRange.from, to: dateRange.to }),
-                getAptitudeStats({ from: dateRange.from, to: dateRange.to }),
                 getConsultationVolume({ from: dateRange.from, to: dateRange.to }),
                 getWeeklyConsultationVolume({ from: dateRange.from, to: dateRange.to })
             ]);
 
             setMorbidityData(morbidity);
-            setAptitudeData(aptitude);
             setVolumeData(volume);
             setWeeklyVolumeData(weeklyVolume);
         } catch (error) {
@@ -79,9 +78,7 @@ export default function ReportesPage() {
             if (morbidityData.length > 0) {
                 const morbiditySheet = XLSX.utils.json_to_sheet(morbidityData.map(d => ({
                     'Diagnóstico': d.cie10Description,
-                    'Código': d.cie10Code,
-                    'Cantidad': d.count,
-                    'Porcentaje': d.percentage + '%'
+                    'Frecuencia': d.frequency || d.count,
                 })));
                 XLSX.utils.book_append_sheet(workbook, morbiditySheet, 'Morbilidad');
             }
@@ -119,6 +116,12 @@ export default function ReportesPage() {
     React.useEffect(() => {
         handleGenerateReport();
     }, []);
+
+    const filteredMorbidity = React.useMemo(() => {
+        if (!searchTerm) return morbidityData;
+        const lower = searchTerm.toLowerCase();
+        return morbidityData.filter(d => d.cie10Description?.toLowerCase().includes(lower));
+    }, [morbidityData, searchTerm]);
 
     return (
         <div className="flex-1 space-y-8 p-4 md:p-8 pt-6 bg-slate-50/50 min-h-screen">
@@ -254,7 +257,7 @@ export default function ReportesPage() {
 
                         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
                             {/* Main Morbidity Chart - Prioritized as requested */}
-                            <Card className="lg:col-span-4 bg-white shadow-xl shadow-slate-200/50 border-none rounded-3xl overflow-hidden">
+                            <Card className="lg:col-span-7 bg-white shadow-xl shadow-slate-200/50 border-none rounded-3xl overflow-hidden">
                                 <CardHeader className="flex flex-row items-center justify-between bg-emerald-50/30 border-b border-emerald-100/50 px-6 py-4">
                                     <div className="space-y-1">
                                         <CardTitle className="text-lg font-black text-slate-800">Morbilidad (Diagnósticos)</CardTitle>
@@ -284,20 +287,59 @@ export default function ReportesPage() {
                                     </div>
                                 </CardHeader>
                                 <CardContent className="p-6">
-                                    <MorbidityBarChart data={morbidityData} />
+                                    <MorbidityBarChart data={filteredMorbidity} />
+
+                                    {/* Tabla de búsqueda */}
+                                    <div className="mt-8 space-y-4 pt-6 border-t border-slate-100">
+                                        <div className="flex items-center justify-between">
+                                            <h4 className="font-bold text-slate-800">Detalles de Afecciones</h4>
+                                            <div className="flex items-center gap-2">
+                                                <Search className="h-4 w-4 text-slate-400" />
+                                                <Input
+                                                    placeholder="Buscar afección..."
+                                                    className="w-[200px] sm:w-[250px] h-9 bg-slate-50 border-slate-200"
+                                                    value={searchTerm}
+                                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+                                            <div className="max-h-[300px] overflow-y-auto">
+                                                <table className="w-full text-sm text-left text-slate-500">
+                                                    <thead className="text-xs text-slate-700 uppercase bg-slate-50 sticky top-0 border-b border-slate-100">
+                                                        <tr>
+                                                            <th className="px-4 py-3 font-semibold">Diagnóstico Reportado</th>
+                                                            <th className="px-4 py-3 font-semibold text-right w-32">Casos</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-slate-100">
+                                                        {filteredMorbidity.length > 0 ? (
+                                                            filteredMorbidity.map((item, i) => (
+                                                                <tr key={i} className="hover:bg-slate-50 transition-colors">
+                                                                    <td className="px-4 py-3 font-medium text-slate-800">{item.cie10Description}</td>
+                                                                    <td className="px-4 py-3 text-right">
+                                                                        <div className="inline-flex items-center justify-center bg-emerald-100 text-emerald-800 font-bold px-2.5 py-0.5 rounded-full text-xs min-w-[2rem]">
+                                                                            {item.frequency || item.count}
+                                                                        </div>
+                                                                    </td>
+                                                                </tr>
+                                                            ))
+                                                        ) : (
+                                                            <tr>
+                                                                <td colSpan={2} className="px-4 py-8 text-center text-slate-500">
+                                                                    No se encontraron resultados para la búsqueda
+                                                                </td>
+                                                            </tr>
+                                                        )}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </CardContent>
                             </Card>
 
-                            {/* Aptitude Donut Chart */}
-                            <Card className="lg:col-span-3 bg-white shadow-xl shadow-slate-200/50 border-none rounded-3xl overflow-hidden">
-                                <CardHeader className="bg-indigo-50/30 border-b border-indigo-100/50 px-6 py-4">
-                                    <CardTitle className="text-lg font-black text-slate-800">Aptitud de Pacientes</CardTitle>
-                                    <CardDescription className="text-slate-500">Evaluaciones de medicina ocupacional</CardDescription>
-                                </CardHeader>
-                                <CardContent className="p-6">
-                                    <AptitudeDonutChart data={aptitudeData} />
-                                </CardContent>
-                            </Card>
+
 
                             {/* Weekly Trend Chart - New Advanced Visual */}
                             <Card className="lg:col-span-7 bg-white shadow-xl shadow-slate-200/50 border-none rounded-3xl overflow-hidden">
@@ -344,8 +386,7 @@ export default function ReportesPage() {
                             <div className="text-sm text-blue-800">
                                 <p className="font-semibold">Notas sobre la data:</p>
                                 <ul className="list-disc list-inside mt-1 space-y-1 text-blue-700/80">
-                                    <li><strong>Morbilidad:</strong> Requiere códigos CIE-10 asociados a las consultas.</li>
-                                    <li><strong>Aptitud:</strong> Basado exclusivamente en Evaluaciones Ocupacionales.</li>
+                                    <li><strong>Morbilidad Automática:</strong> Se procesan y estandarizan de forma inteligente los textos libres de diagnósticos en consultas para ofrecer estadísticas consolidadas.</li>
                                 </ul>
                             </div>
                         </div>

@@ -21,6 +21,22 @@ import { Icon } from '@iconify/react';
 import {
   LogOut,
   ChevronDown,
+  Clock,
+  LayoutDashboard,
+  Users,
+  UsersRound,
+  CalendarDays,
+  Activity,
+  Briefcase,
+  Calculator,
+  Building2,
+  UserCog,
+  Beaker,
+  FileText,
+  Settings,
+  KeySquare,
+  Search,
+  FileClock
 } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -35,7 +51,7 @@ import { PageCard } from '@/components/ui/page-card';
 
 interface MenuItem {
   href: string;
-  icon: string;
+  icon: string | React.ElementType;
   title: string;
   permission: string;
   subItems?: MenuItem[];
@@ -50,9 +66,13 @@ const allMenuOptions: MenuItem[] = [
   { href: '/dashboard/hce', icon: 'solar:heart-pulse-bold-duotone', title: 'Historia Clínica', permission: 'hce.view', group: 'Atención' },
   { href: '/dashboard/bitacora', icon: 'solar:syringe-bold-duotone', title: 'Bitácora Tratamiento', permission: 'treatmentlog.manage', group: 'Atención' },
   { href: '/dashboard/reintegros', icon: 'solar:document-medicine-bold-duotone', title: 'Evaluación Médica (Reintegro)', permission: 'consultation.perform', group: 'Atención' },
-  { href: '/dashboard/salud-ocupacional', icon: 'solar:mask-h-bold-duotone', title: 'Medicina Ocupacional', permission: 'consultation.perform', group: 'Atención' },
+  { href: '/dashboard/salud-ocupacional', icon: 'solar:mask-h-bold-duotone', title: 'Medicina Ocupacional', permission: 'superuser.only', group: 'Atención' },
 
   { href: '/dashboard/personas', icon: 'solar:user-bold-duotone', title: 'Personas', permission: 'people.manage', group: 'Admisión' },
+  { href: '/dashboard/buscador-pacientes', icon: Search, title: 'Directorio', permission: 'directory.search', group: 'Admisión' },
+  { href: '/dashboard/historial-medico', icon: FileClock, title: 'Historial Médico', permission: 'medicalhistory.view', group: 'Admisión' },
+  { href: '/dashboard/hce', icon: FileText, title: 'HCE (Archivos)', permission: 'hce.view', group: 'Admisión' },
+  { href: '/dashboard/recipe-blanco', icon: 'solar:printer-minimalistic-bold-duotone', title: 'Formatos en Blanco', permission: 'blankformats.print', group: 'Admisión' },
   { href: '/dashboard/lista-pacientes', icon: 'solar:users-group-rounded-bold-duotone', title: 'Lista de Pacientes', permission: 'patientlist.view', group: 'Admisión' },
   { href: '/dashboard/pacientes', icon: 'solar:shield-user-bold-duotone', title: 'Titulares', permission: 'titulars.manage', group: 'Admisión' },
   { href: '/dashboard/beneficiarios', icon: 'solar:users-group-two-rounded-bold-duotone', title: 'Beneficiarios', permission: 'beneficiaries.manage', group: 'Admisión' },
@@ -229,7 +249,11 @@ export function AppShell({ children, user, permissions }: { children: React.Reac
                                     dark:bg-none ${theme.darkIconBg}
                                     ${isActive ? 'scale-110 shadow-md ring-2 ring-white/50 dark:ring-0' : 'opacity-90 grayscale-[0.3] hover:grayscale-0 hover:scale-105 dark:grayscale-0 dark:opacity-100'}
                                   `}>
-                                    <Icon icon={option.icon} className={`h-5 w-5 ${theme.darkIcon}`} />
+                                    {typeof option.icon === 'string' ? (
+                                      <Icon icon={option.icon as string} className={`h-5 w-5 ${theme.darkIcon}`} />
+                                    ) : (
+                                      <option.icon className={`h-5 w-5 ${theme.darkIcon}`} />
+                                    )}
                                   </div>
                                   <span className={cn(
                                     "font-medium text-sm transition-colors",

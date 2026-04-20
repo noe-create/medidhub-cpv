@@ -73,8 +73,8 @@ export async function getJobPositions(search?: string, page: number = 1, pageSiz
         const params: any[] = [];
 
         if (search) {
-            query += ` WHERE name LIKE ? OR description LIKE ?`;
-            countQuery += ` WHERE name LIKE ? OR description LIKE ?`;
+            query += ` WHERE name ILIKE ? OR description ILIKE ?`;
+            countQuery += ` WHERE name ILIKE ? OR description ILIKE ?`;
             params.push(`%${search}%`, `%${search}%`);
         }
 

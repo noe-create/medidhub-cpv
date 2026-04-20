@@ -7,9 +7,9 @@ import type { Consultation } from '@/lib/types';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
-const RecipeBlock = ({ consultation, label }: { consultation: Consultation, label: string }) => {
+const RecipeBlock = ({ consultation, label }: { consultation?: any, label: string }) => {
     const getSpecialtyTitle = () => {
-        const serviceType = (consultation.paciente as any)?.serviceType;
+        const serviceType = consultation?.paciente?.serviceType;
         switch (serviceType) {
             case 'medicina familiar':
                 return 'MEDICINA FAMILIAR';
@@ -37,7 +37,7 @@ const RecipeBlock = ({ consultation, label }: { consultation: Consultation, labe
                 <div className="flex-grow text-center text-black">
                     <h2 className="text-xl font-serif font-bold">Centro Policlínico Valencia C.A.</h2>
                     <p className="text-xs font-sans">Rif: J075055861</p>
-                    <p className="text-lg font-serif font-bold mt-2">Dra. Alcida Joselin Perez C.</p>
+                    <p className="text-lg font-serif font-bold mt-2">&nbsp;</p>
                     <p className="text-xs font-sans font-semibold">{getSpecialtyTitle()}</p>
                 </div>
                 <img src="/recipe/logo_si.png" alt="Logo Salud Integral Derecha" className="h-14 w-auto" />
@@ -69,9 +69,9 @@ const RecipeBlock = ({ consultation, label }: { consultation: Consultation, labe
                 className="rounded-b-lg p-2 text-xs text-black font-sans bg-gray-200 flex flex-col justify-center"
                 style={{ minHeight: '3.5cm' }}
             >
-                <div className="flex justify-between px-2">
-                    <p><strong>PACIENTE:</strong> {consultation.paciente?.nombreCompleto}</p>
-                    <p><strong>C.I. Nº:</strong> {consultation.paciente?.cedula}</p>
+                <div className="flex justify-between px-2 text-sm">
+                    <p><strong>PACIENTE:</strong> {consultation?.paciente?.nombreCompleto || '________________________________'}</p>
+                    <p><strong>C.I. Nº:</strong> {consultation?.paciente?.cedula || '____________________'}</p>
                 </div>
                 <p className="text-center mt-1">Avenida Carabobo, frente al Diagnóstico Urológico La Viña, en la urbanización La Viña, Valencia, Carabobo.</p>
                 <p className="text-center">Teléfonos: 0241 8268688 / 8268431 / 8202710</p>
@@ -81,7 +81,7 @@ const RecipeBlock = ({ consultation, label }: { consultation: Consultation, labe
 };
 
 
-export function PrescriptionDisplay({ consultation }: { consultation: Consultation }) {
+export function PrescriptionDisplay({ consultation }: { consultation?: any }) {
     // This component is designed to be printed on a Letter-sized sheet in landscape,
     // with two recipes side-by-side.
     return (

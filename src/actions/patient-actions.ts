@@ -49,14 +49,14 @@ const fullCedulaSearchSql = `(p.nacionalidad || '-' || p."cedulaNumero")`;
 // --- Authorization Helpers ---
 async function ensureAdminPermission() {
     const session = await getSession();
-    if (!session.isLoggedIn || !session.user || !['superuser', 'administrator'].includes(session.user.role.id)) {
+    if (!session.isLoggedIn || !session.user || !['superuser', 'administrator', 'admin', 'administradora'].includes(session.user.role.id)) {
         throw new Error('Acción no autorizada. Se requiere rol de administrador o superusuario.');
     }
 }
 
 async function ensureDataEntryPermission() {
     const session = await getSession();
-    if (!session.isLoggedIn || !session.user || !['superuser', 'administrator', 'asistencial'].includes(session.user.role.id)) {
+    if (!session.isLoggedIn || !session.user || !['superuser', 'administrator', 'admin', 'administradora', 'asistencial', 'secretaria', 'recepcionista', 'dra_pediatra', 'dra_familiar', 'doctor', 'enfermera'].includes(session.user.role.id)) {
         throw new Error('Acción no autorizada. Se requiere permiso para ingreso de datos.');
     }
 }
@@ -89,6 +89,37 @@ async function getOrCreatePersona(client: Database, personaData: Omit<Persona, '
 }
 
 
+// --- NEW: Full Persona Profile ---
+export async function getFullPersonaProfile(personaId: string) {
+    const db = await getDb();
+    const persona = await db.get<any>(`
+        SELECT p.*, ${fullNameSql} as "nombreCompleto", ${fullCedulaSql} as cedula
+        FROM personas p WHERE p.id = ?
+    `, [personaId]);
+
+    if (!persona) return null;
+
+    const titularInfo = await db.get<any>('SELECT * FROM titulares WHERE "personaId" = ?', [personaId]);
+    const beneficiarioInfo = await db.all<any>(`
+        SELECT b.*, ${fullNameSql} as "titularNombre" 
+        FROM beneficiarios b
+        JOIN titulares t ON b."titularId" = t.id
+        JOIN personas p ON t."personaId" = p.id
+        WHERE b."personaId" = ?
+    `, [personaId]);
+
+    const waitlistHistory = await db.all<any>(`
+        SELECT * FROM waitlist WHERE "personaId" = ? ORDER BY "checkInTime" DESC
+    `, [personaId]);
+
+    return {
+        persona: { ...persona, fechaNacimiento: new Date(persona.fechaNacimiento) },
+        titularInfo,
+        beneficiarioInfo,
+        waitlistHistory: waitlistHistory.map((w: any) => ({ ...w, checkInTime: new Date(w.checkInTime) }))
+    };
+}
+
 export async function getPersonas(query?: string, page: number = 1, pageSize: number = 15): Promise<{ personas: Persona[], totalCount: number }> {
     const db = await getDb();
 
@@ -99,9 +130,9 @@ export async function getPersonas(query?: string, page: number = 1, pageSize: nu
     if (query && query.trim().length > 1) {
         const searchQuery = `%${query.trim()}%`;
         queryWhere = `
-            AND (${fullNameSql} LIKE ?
-            OR ${fullCedulaSearchSql} LIKE ?
-            OR p.email LIKE ?)
+            AND (${fullNameSql} ILIKE ?
+            OR ${fullCedulaSearchSql} ILIKE ?
+            OR p.email ILIKE ?)
         `;
         whereParams.push(searchQuery, searchQuery, searchQuery);
     }
@@ -155,8 +186,8 @@ export async function getTitulares(query?: string, page: number = 1, pageSize: n
     if (query && query.trim().length > 1) {
         const searchQuery = `%${query.trim()}%`;
         whereClause = `
-            WHERE ${fullNameSql} LIKE ?
-            OR ${fullCedulaSearchSql} LIKE ?
+            WHERE ${fullNameSql} ILIKE ?
+            OR ${fullCedulaSearchSql} ILIKE ?
         `;
         whereParams.push(searchQuery, searchQuery);
     }
@@ -394,9 +425,9 @@ export async function getAllBeneficiarios(query?: string): Promise<BeneficiarioC
     if (query && query.trim().length > 1) {
         const searchQuery = `%${query.trim()}%`;
         selectQuery += `
-            WHERE ${fullNameSql} LIKE ?
-            OR ${fullCedulaSearchSql} LIKE ?
-            OR ${titularNameSql} LIKE ?
+            WHERE ${fullNameSql} ILIKE ?
+            OR ${fullCedulaSearchSql} ILIKE ?
+            OR ${titularNameSql} ILIKE ?
         `;
         params.push(searchQuery, searchQuery, searchQuery);
     }
@@ -514,7 +545,7 @@ export async function searchPeopleForCheckin(query: string): Promise<SearchResul
         SELECT p.*, ${fullNameSql} as "nombreCompleto", ${fullCedulaSql} as cedula
         FROM personas p
         WHERE p.id NOT IN (SELECT "personaId" FROM users WHERE "personaId" IS NOT NULL)
-        ${hasQuery ? `AND (${fullNameSql} LIKE ? OR ${fullCedulaSearchSql} LIKE ?)` : ''}
+        ${hasQuery ? `AND (${fullNameSql} ILIKE ? OR ${fullCedulaSearchSql} ILIKE ?)` : ''}
         ORDER BY "primerNombre", "primerApellido"
         LIMIT 50
     `;
@@ -796,7 +827,7 @@ export async function getPatientHistory(personaId: string): Promise<HistoryEntry
 export async function createConsultation(data: CreateConsultationInput): Promise<Consultation> {
     const session = await getSession();
     const user = session.user;
-    if (!user || !['superuser', 'doctor'].includes(user.role.id)) {
+    if (!user || !['superuser', 'doctor', 'dra_pediatra', 'dra_familiar'].includes(user.role.id)) {
         throw new Error('Acción no autorizada. Se requiere rol de doctor o superusuario.');
     }
 
@@ -889,7 +920,7 @@ export async function getEmpresas(query?: string, page: number = 1, pageSize: nu
     let whereClause = '';
     if (query && query.trim().length > 1) {
         const searchQuery = `%${query.trim()}%`;
-        whereClause = ' WHERE name LIKE ? OR rif LIKE ?';
+        whereClause = ' WHERE name ILIKE ? OR rif ILIKE ?';
         whereParams.push(searchQuery, searchQuery);
     }
 
@@ -1222,7 +1253,7 @@ export async function searchCie10Codes(query: string): Promise<Cie10Code[]> {
     if (!query || query.trim().length < 2) return [];
     const searchQuery = `%${query.trim()}%`;
     return await db.all(
-        'SELECT * FROM cie10_codes WHERE code LIKE ? OR description LIKE ? LIMIT 10',
+        'SELECT * FROM cie10_codes WHERE code ILIKE ? OR description ILIKE ? LIMIT 10',
         [searchQuery, searchQuery]
     );
 }
@@ -1252,7 +1283,7 @@ export async function getListaPacientes(query?: string): Promise<PacienteConInfo
 
     if (query && query.trim().length > 1) {
         const searchQuery = `%${query.trim()}%`;
-        selectQuery += ` WHERE ${fullNameSql} LIKE ? OR ${fullCedulaSearchSql} LIKE ? OR p.email LIKE ?`;
+        selectQuery += ` WHERE ${fullNameSql} ILIKE ? OR ${fullCedulaSearchSql} ILIKE ? OR p.email ILIKE ?`;
         params.push(searchQuery, searchQuery, searchQuery);
     }
 
@@ -1294,7 +1325,7 @@ export async function getTreatmentOrders(query?: string): Promise<TreatmentOrder
 
     if (query && query.trim().length > 1) {
         const searchQuery = `%${query.trim()}%`;
-        baseQuery += ` WHERE ${fullNameSql} LIKE ? OR ${fullCedulaSearchSql} LIKE ?`;
+        baseQuery += ` WHERE ${fullNameSql} ILIKE ? OR ${fullCedulaSearchSql} ILIKE ?`;
         params.push(searchQuery, searchQuery);
     }
 
@@ -1342,7 +1373,7 @@ export async function getTreatmentOrders(query?: string): Promise<TreatmentOrder
 
 export async function createTreatmentExecution(data: CreateTreatmentExecutionInput): Promise<TreatmentExecution> {
     const session = await getSession();
-    if (!session.isLoggedIn || !session.user || !['doctor', 'enfermera', 'superuser'].includes(session.user.role.id)) {
+    if (!session.isLoggedIn || !session.user || !['doctor', 'dra_pediatra', 'dra_familiar', 'enfermera', 'superuser'].includes(session.user.role.id)) {
         throw new Error('Acción no autorizada.');
     }
     const executedBy = session.user.name || session.user.username;
@@ -1384,7 +1415,7 @@ export async function createTreatmentExecution(data: CreateTreatmentExecutionInp
 
 export async function updateTreatmentOrderStatus(orderId: string, status: 'En Progreso' | 'Completado' | 'Cancelado'): Promise<{ success: boolean }> {
     const session = await getSession();
-    if (!session.isLoggedIn || !session.user || !['doctor', 'enfermera', 'superuser'].includes(session.user.role.id)) {
+    if (!session.isLoggedIn || !session.user || !['doctor', 'dra_pediatra', 'dra_familiar', 'enfermera', 'superuser'].includes(session.user.role.id)) {
         throw new Error('Acción no autorizada.');
     }
     const db = await getDb();
@@ -1422,7 +1453,7 @@ export async function updateTreatmentOrderStatus(orderId: string, status: 'En Pr
 // --- Lab Order Actions ---
 export async function createLabOrder(consultationId: string, pacienteId: string, tests: string[]): Promise<LabOrder> {
     const session = await getSession();
-    if (!session.isLoggedIn || !session.user || !['superuser', 'doctor'].includes(session.user.role.id)) {
+    if (!session.isLoggedIn || !session.user || !['superuser', 'doctor', 'dra_pediatra', 'dra_familiar'].includes(session.user.role.id)) {
         throw new Error('Acción no autorizada.');
     }
     const db = await getDb();
@@ -1643,7 +1674,7 @@ export async function getServices(query?: string): Promise<Service[]> {
     let selectQuery = `SELECT * FROM services`;
     const params: any[] = [];
     if (query && query.trim().length > 1) {
-        selectQuery += ` WHERE name LIKE ? OR description LIKE ?`;
+        selectQuery += ` WHERE name ILIKE ? OR description ILIKE ?`;
         params.push(`%${query}%`, `%${query}%`);
     }
     selectQuery += ' ORDER BY name';
@@ -1788,24 +1819,23 @@ export async function getAppointmentsReport(params: {
 
     let query = `
         SELECT 
-            c."consultationDate" as fecha,
+            w."checkInTime" as fecha,
             ${fullCedulaSql} as cedula,
             ${fullNameSql} as paciente,
             w."serviceType" as servicio,
             w."accountType" as departamento,
             COALESCE(u.name, 'No asignado') as medico,
-            c."isReintegro",
+            w."isReintegro",
             CASE 
                 WHEN w.status = 'Completado' THEN 'Completada'
                 WHEN w.status = 'Cancelado' THEN 'Cancelada'
                 ELSE 'Pendiente'
             END as estado
-        FROM consultations c
-        LEFT JOIN pacientes pac ON c."pacienteId" = pac.id
+        FROM waitlist w
+        LEFT JOIN pacientes pac ON w."pacienteId" = pac.id
         LEFT JOIN personas p ON pac."personaId" = p.id
-        LEFT JOIN waitlist w ON c."waitlistId" = w.id
         LEFT JOIN users u ON w."personaId" = u."personaId"
-        WHERE c."consultationDate" BETWEEN ? AND ?
+        WHERE w."checkInTime" >= ? AND w."checkInTime" <= ?
     `;
 
     const queryParams: any[] = [fromDate, toDate];
@@ -1827,7 +1857,7 @@ export async function getAppointmentsReport(params: {
         }
     }
 
-    query += ` ORDER BY c."consultationDate" DESC LIMIT 200`;
+    query += ` ORDER BY w."checkInTime" DESC LIMIT 1000`;
 
     const rows = await db.all(query, queryParams);
 
@@ -1860,7 +1890,7 @@ export async function searchClinicEmployees(query: string): Promise<SearchResult
         FROM personas p
         JOIN titulares t ON p.id = t."personaId"
         WHERE t."unidadServicio" <> 'Afiliado Corporativo'
-        ${hasQuery ? `AND (${fullNameSql} LIKE ? OR ${fullCedulaSearchSql} LIKE ?)` : ''}
+        ${hasQuery ? `AND (${fullNameSql} ILIKE ? OR ${fullCedulaSearchSql} ILIKE ?)` : ''}
         ORDER BY "primerNombre", "primerApellido"
         LIMIT 50
     `;

@@ -42,7 +42,7 @@ export function PatientManagement() {
   const [currentPage, setCurrentPage] = React.useState(1);
   const [totalCount, setTotalCount] = React.useState(0);
 
-  const canManage = ['superuser', 'administrator', 'asistencial'].includes(user.role.id);
+  const canManage = ['superuser', 'administrator', 'admin', 'administradora', 'asistencial', 'secretaria', 'recepcionista'].includes(user.role.id);
 
   const refreshTitulares = React.useCallback(async (currentSearch: string, page: number) => {
     setIsLoading(true);

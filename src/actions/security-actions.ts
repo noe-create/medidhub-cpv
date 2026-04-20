@@ -60,7 +60,7 @@ export async function createRole(data: { name: string; description: string; hasS
 
   } catch (error) {
     await db.exec('ROLLBACK');
-    if ((error as any).code === 'SQLITE_CONSTRAINT') {
+    if ((error as any).code === '23505' || (error as any).code === 'SQLITE_CONSTRAINT') {
       throw new Error('Ya existe un rol con ese nombre.');
     }
     console.error("Error creating role:", error);
@@ -84,7 +84,7 @@ export async function updateRole(id: string, data: { name: string; description: 
     await db.exec('COMMIT');
   } catch (error) {
     await db.exec('ROLLBACK');
-    if ((error as any).code === 'SQLITE_CONSTRAINT') {
+    if ((error as any).code === '23505' || (error as any).code === 'SQLITE_CONSTRAINT') {
       throw new Error('Ya existe un rol con ese nombre.');
     }
     throw error;

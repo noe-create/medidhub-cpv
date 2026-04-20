@@ -82,13 +82,13 @@ export function PatientQueue({ user, patients, onListRefresh }: PatientQueueProp
     return null;
   }
 
-  const canManageStatus = ['superuser', 'administrator', 'asistencial', 'doctor', 'enfermera'].includes(user.role.id);
+  const canManageStatus = ['superuser', 'administrator', 'admin', 'administradora', 'asistencial', 'secretaria', 'recepcionista', 'doctor', 'dra_pediatra', 'dra_familiar', 'enfermera'].includes(user.role.id);
 
   const statusOptionsForRole = React.useMemo(() => {
     if (!user) return [];
     const baseOptions: PatientStatus[] = ['Ausente', 'Pospuesto', 'Reevaluacion'];
 
-    if (user.role.id === 'asistencial' || user.role.id === 'administrator') {
+    if (['asistencial', 'administrator', 'admin', 'administradora', 'secretaria', 'recepcionista'].includes(user.role.id)) {
       return ['Esperando', ...baseOptions];
     }
 
@@ -96,7 +96,7 @@ export function PatientQueue({ user, patients, onListRefresh }: PatientQueueProp
       return ['Esperando', 'En Tratamiento', ...baseOptions];
     }
 
-    // doctor, superuser
+    // doctor, superuser, dra_pediatra, dra_familiar
     return ['Esperando', 'En Tratamiento', ...baseOptions];
   }, [user]);
 
@@ -199,11 +199,21 @@ export function PatientQueue({ user, patients, onListRefresh }: PatientQueueProp
   const visibleServices = React.useMemo(() => {
     const allServices = Object.keys(serviceInfo) as ServiceType[];
 
-    if (user.role.id === 'doctor' && user.specialty) {
-      if ((user.specialty as unknown as string) === 'medico familiar') {
+    if (['doctor', 'dra_pediatra', 'dra_familiar'].includes(user.role.id)) {
+      if (user.specialty) {
+        if ((user.specialty as unknown as string) === 'medico familiar') {
+          return allServices.filter(s => s === 'medicina familiar');
+        }
+        if ((user.specialty as unknown as string) === 'medico pediatra') {
+          return allServices.filter(s => s === 'consulta pediatrica');
+        }
+      }
+
+      // Fallback by role if specialty isn't matched
+      if (user.role.id === 'dra_familiar') {
         return allServices.filter(s => s === 'medicina familiar');
       }
-      if ((user.specialty as unknown as string) === 'medico pediatra') {
+      if (user.role.id === 'dra_pediatra') {
         return allServices.filter(s => s === 'consulta pediatrica');
       }
     }
@@ -213,7 +223,7 @@ export function PatientQueue({ user, patients, onListRefresh }: PatientQueueProp
     }
 
     // For superuser, admin, and assistant, show all services
-    if (['superuser', 'asistencial', 'administrator'].includes(user.role.id)) {
+    if (['superuser', 'asistencial', 'administrator', 'admin', 'administradora', 'secretaria', 'recepcionista'].includes(user.role.id)) {
       return allServices;
     }
 
@@ -336,7 +346,7 @@ export function PatientQueue({ user, patients, onListRefresh }: PatientQueueProp
 
                         <div className="flex items-center gap-2 pt-2">
                           <div className="flex-1">
-                            {(user?.role.id === 'superuser' || user?.role.id === 'doctor') &&
+                            {(['superuser', 'doctor', 'dra_pediatra', 'dra_familiar'].includes(user?.role.id || '')) &&
                               (patient.status === 'Esperando' || patient.status === 'En Consulta' || patient.status === 'Reevaluacion') && (
                                 <Button
                                   onClick={() => handleStartOrContinueConsultation(patient)}
