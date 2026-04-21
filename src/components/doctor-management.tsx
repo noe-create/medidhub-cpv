@@ -19,6 +19,7 @@ import dynamic from 'next/dynamic';
 import { Skeleton } from './ui/skeleton';
 import { DataTable } from '@/components/ui/data-table';
 import { type ColumnDef } from '@tanstack/react-table';
+import { calculateAge } from '@/lib/utils';
 
 const UserForm = dynamic(() => import('./user-form').then(mod => mod.UserForm), {
   loading: () => <div className="p-8"><Skeleton className="h-48 w-full" /></div>,
@@ -218,6 +219,7 @@ export function DoctorManagement({ roles }: DoctorManagementProps) {
           </DialogHeader>
           {isFormOpen && (
             <UserForm
+              key={selectedDoctor?.id || 'new'}
               user={selectedDoctor}
               roles={doctorRoles}
               onSubmitted={handleFormSubmitted}

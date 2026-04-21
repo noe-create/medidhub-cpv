@@ -96,30 +96,94 @@ export function PatientForm({ titular, onSubmitted, onCancel, excludeIds = [] }:
     const [isSubmitting, setIsSubmitting] = React.useState(false);
     const [selectedPersona, setSelectedPersona] = React.useState<Persona | null>(null);
 
+    const personaToLoad = selectedPersona || titular?.persona || null;
+
+    const initialDate = React.useMemo(() => {
+        // Robustly handle both naming conventions and data types
+        const dateValue = (personaToLoad as any)?.fechaNacimiento || (personaToLoad as any)?.fecha_nacimiento;
+        if (!dateValue) return undefined;
+        
+        // If it's already a Date object, use it directly via UTC components
+        if (dateValue instanceof Date && !isNaN(dateValue.getTime())) {
+            return new Date(Date.UTC(dateValue.getUTCFullYear(), dateValue.getUTCMonth(), dateValue.getUTCDate()));
+        }
+
+        const strValue = String(dateValue);
+
+        // Handle DD/MM/YYYY format (common in imports)
+        if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(strValue)) {
+            const [day, month, year] = strValue.split('/').map(Number);
+            const d = new Date(Date.UTC(year, month - 1, day));
+            if (!isNaN(d.getTime())) return d;
+        }
+
+        // Handle DD-MM-YYYY format
+        if (/^\d{1,2}-\d{1,2}-\d{4}$/.test(strValue)) {
+            const [day, month, year] = strValue.split('-').map(Number);
+            const d = new Date(Date.UTC(year, month - 1, day));
+            if (!isNaN(d.getTime())) return d;
+        }
+
+        // Handle ISO string (from Next.js serialization: "1990-05-15T04:00:00.000Z")
+        const d = new Date(strValue);
+        if (!isNaN(d.getTime())) {
+            // Always use UTC components to avoid timezone day-shift
+            return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+        }
+        
+        return undefined;
+    }, [personaToLoad]);
+
+    // Compute initial titular-specific values BEFORE useForm so they land in defaultValues.
+    // This prevents the 'unidadServicio change' side-effect from wiping departamento/ficha on mount.
+    const initialTitularValues = React.useMemo(() => {
+        if (!titular) return { unidadServicio: undefined as any, departamento: '', otroDepartamento: '', numeroFicha: '' };
+        const unit = titular.unidadServicio;
+        if (['Afiliado Corporativo', 'Privado'].includes(unit)) {
+            return { unidadServicio: unit as any, departamento: '', otroDepartamento: '', numeroFicha: titular.numeroFicha || '' };
+        }
+        // It's an Empleado
+        const isKnownDept = DEPARTMENTS.includes(unit);
+        return {
+            unidadServicio: 'Empleado' as any,
+            departamento: isKnownDept ? unit : 'Otro...',
+            otroDepartamento: isKnownDept ? '' : unit,
+            numeroFicha: titular.numeroFicha || '',
+        };
+    }, [titular]);
+
     const form = useForm<PatientFormValues>({
         resolver: zodResolver(patientSchema),
         defaultValues: {
-            primerNombre: '',
-            segundoNombre: '',
-            primerApellido: '',
-            segundoApellido: '',
-            nacionalidad: 'V',
-            cedulaNumero: '',
-            numeroFicha: '',
-            telefono1: '',
-            telefono2: '',
-            email: '',
-            direccion: '',
-            unidadServicio: undefined,
-            departamento: '',
-            otroDepartamento: '',
-            representanteId: titular?.persona.representanteId || undefined
+            primerNombre: personaToLoad?.primerNombre || '',
+            segundoNombre: personaToLoad?.segundoNombre || '',
+            primerApellido: personaToLoad?.primerApellido || '',
+            segundoApellido: personaToLoad?.segundoApellido || '',
+            nacionalidad: personaToLoad?.nacionalidad || 'V',
+            cedulaNumero: personaToLoad?.cedulaNumero || '',
+            telefono1: personaToLoad?.telefono1 || '',
+            telefono2: personaToLoad?.telefono2 || '',
+            email: personaToLoad?.email || '',
+            direccion: personaToLoad?.direccion || '',
+            unidadServicio: initialTitularValues.unidadServicio,
+            departamento: initialTitularValues.departamento,
+            otroDepartamento: initialTitularValues.otroDepartamento,
+            numeroFicha: initialTitularValues.numeroFicha,
+            fechaNacimiento: initialDate,
+            representanteId: personaToLoad?.representanteId || undefined
         },
     });
 
+    // Guard ref: prevents the 'clear departamento/ficha' effect from firing on the initial mount
+    const isFirstRender = React.useRef(true);
+
     const isPersonaSelected = !!selectedPersona;
 
-    const { clearDraft } = useFormDraft(form, 'medihub_draft_titular', !titular);
+    const { clearDraft } = useFormDraft(
+        form, 
+        personaToLoad ? `edit-patient-${personaToLoad.id}` : 'new-patient',
+        !personaToLoad // Only enable drafts for NEW records
+    );
 
     const fechaNacimiento = form.watch('fechaNacimiento');
     const cedulaNumero = form.watch('cedulaNumero');
@@ -127,6 +191,11 @@ export function PatientForm({ titular, onSubmitted, onCancel, excludeIds = [] }:
     const [showRepresentativeField, setShowRepresentativeField] = React.useState(false);
 
     React.useEffect(() => {
+        // Skip the first render so defaultValues for Empleado are NOT wiped on mount
+        if (isFirstRender.current) {
+            isFirstRender.current = false;
+            return;
+        }
         if (unidadServicio !== 'Empleado') {
             form.setValue('numeroFicha', '');
             form.setValue('departamento', '');
@@ -154,57 +223,26 @@ export function PatientForm({ titular, onSubmitted, onCancel, excludeIds = [] }:
     };
 
     React.useEffect(() => {
-        let personaToLoad: Persona | null = null;
-        if (selectedPersona) {
-            personaToLoad = selectedPersona;
-        } else if (titular) {
-            personaToLoad = titular.persona;
-        }
-
         if (personaToLoad) {
-            const dateString = personaToLoad.fechaNacimiento as unknown as string;
-            const date = new Date(dateString);
-            const utcDate = new Date(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
-
             form.reset({
                 ...form.getValues(),
                 primerNombre: personaToLoad.primerNombre || '',
                 segundoNombre: personaToLoad.segundoNombre || '',
                 primerApellido: personaToLoad.primerApellido || '',
                 segundoApellido: personaToLoad.segundoApellido || '',
-                nacionalidad: personaToLoad.nacionalidad,
-                cedulaNumero: personaToLoad.cedulaNumero,
-                fechaNacimiento: utcDate,
-                genero: personaToLoad.genero,
-                telefono1: personaToLoad.telefono1,
-                telefono2: personaToLoad.telefono2,
+                nacionalidad: personaToLoad.nacionalidad || 'V',
+                cedulaNumero: personaToLoad.cedulaNumero || '',
+                fechaNacimiento: initialDate as any,
+                genero: personaToLoad.genero || undefined,
+                telefono1: personaToLoad.telefono1 || '',
+                telefono2: personaToLoad.telefono2 || '',
                 email: personaToLoad.email || '',
                 direccion: personaToLoad.direccion || '',
                 representanteId: personaToLoad.representanteId || undefined,
-                departamento: '',
-                otroDepartamento: '',
             });
         }
-
-        if (!selectedPersona && titular) {
-            const unit = titular.unidadServicio;
-            if (['Afiliado Corporativo', 'Privado'].includes(unit)) {
-                form.setValue('unidadServicio', unit as any);
-                form.setValue('departamento', '');
-                form.setValue('otroDepartamento', '');
-            } else {
-                form.setValue('unidadServicio', 'Empleado');
-                if (DEPARTMENTS.includes(unit)) {
-                    form.setValue('departamento', unit);
-                    form.setValue('otroDepartamento', '');
-                } else {
-                    form.setValue('departamento', 'Otro...');
-                    form.setValue('otroDepartamento', unit);
-                }
-            }
-            form.setValue('numeroFicha', titular.numeroFicha);
-        }
-    }, [selectedPersona, titular, form]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedPersona, titular, initialDate]);
 
 
     const handleCancel = () => {
@@ -300,13 +338,26 @@ export function PatientForm({ titular, onSubmitted, onCancel, excludeIds = [] }:
                         control={form.control}
                         name="fechaNacimiento"
                         render={({ field }) => {
-                            const selectedYear = field.value ? field.value.getUTCFullYear() : undefined;
-                            const selectedMonth = field.value ? field.value.getUTCMonth() + 1 : undefined;
-                            const selectedDay = field.value ? field.value.getUTCDate() : undefined;
+                            // Ensure we have a valid Date object regardless if field.value is a Date or a string
+                            let valueAsDate: any = field.value;
+                            if (typeof valueAsDate === 'string' && valueAsDate) {
+                                let d = new Date(valueAsDate);
+                                if (isNaN(d.getTime()) && valueAsDate.includes('/')) {
+                                    const [day, month, year] = valueAsDate.split('/').map(Number);
+                                    d = new Date(Date.UTC(year, month - 1, day));
+                                }
+                                valueAsDate = d;
+                            }
+
+                            const dateObj = valueAsDate instanceof Date && !isNaN(valueAsDate.getTime()) ? valueAsDate : null;
+                            const selectedYear = dateObj ? dateObj.getUTCFullYear() : undefined;
+                            const selectedMonth = dateObj ? dateObj.getUTCMonth() + 1 : undefined;
+                            const selectedDay = dateObj ? dateObj.getUTCDate() : undefined;
 
                             const handleDateChange = (part: 'year' | 'month' | 'day', value: string) => {
-                                let year = selectedYear || new Date().getFullYear();
-                                let month = selectedMonth ? selectedMonth - 1 : new Date().getMonth();
+                                const now = new Date();
+                                let year = selectedYear || now.getUTCFullYear();
+                                let month = selectedMonth ? selectedMonth - 1 : now.getUTCMonth();
                                 let day = selectedDay || 1;
 
                                 if (part === 'year') year = parseInt(value, 10);
@@ -320,19 +371,43 @@ export function PatientForm({ titular, onSubmitted, onCancel, excludeIds = [] }:
                                 field.onChange(newDate);
                             };
 
-                            const years = Array.from({ length: 120 }, (_, i) => new Date().getFullYear() - i);
+                            const years = Array.from({ length: 135 }, (_, i) => new Date().getFullYear() - i);
                             const months = Array.from({ length: 12 }, (_, i) => ({ value: i + 1, label: new Date(0, i).toLocaleString('es', { month: 'long' }) }));
                             const daysInSelectedMonth = selectedYear && selectedMonth ? new Date(Date.UTC(selectedYear, selectedMonth, 0)).getUTCDate() : 31;
                             const days = Array.from({ length: daysInSelectedMonth }, (_, i) => i + 1);
 
                             return (
                                 <FormItem className="md:col-span-2">
-                                    <FormLabel className="flex items-center gap-2"><CalendarDays className="h-4 w-4 text-muted-foreground" />Fecha de Nacimiento</FormLabel>
+                                    <FormLabel className="flex items-center gap-2 mb-2">
+                                        <CalendarDays className="h-4 w-4 text-muted-foreground" />
+                                        Fecha de Nacimiento
+                                    </FormLabel>
+                                    
                                     <div className="grid grid-cols-3 gap-2">
-                                        <Select disabled={isPersonaSelected} onValueChange={(v) => handleDateChange('day', v)} value={selectedDay ? String(selectedDay) : ''}><FormControl><SelectTrigger><SelectValue placeholder="Día" /></SelectTrigger></FormControl><SelectContent>{days.map((d) => (<SelectItem key={d} value={String(d)}>{d}</SelectItem>))}</SelectContent></Select>
-                                        <Select disabled={isPersonaSelected} onValueChange={(v) => handleDateChange('month', v)} value={selectedMonth ? String(selectedMonth) : ''}><FormControl><SelectTrigger><SelectValue placeholder="Mes" /></SelectTrigger></FormControl><SelectContent>{months.map((m) => (<SelectItem key={m.value} value={String(m.value)}><span className="capitalize">{m.label}</span></SelectItem>))}</SelectContent></Select>
-                                        <Select disabled={isPersonaSelected} onValueChange={(v) => handleDateChange('year', v)} value={selectedYear ? String(selectedYear) : ''}><FormControl><SelectTrigger><SelectValue placeholder="Año" /></SelectTrigger></FormControl><SelectContent>{years.map((y) => (<SelectItem key={y} value={String(y)}>{y}</SelectItem>))}</SelectContent></Select>
+                                        <Select disabled={isPersonaSelected} onValueChange={(v) => handleDateChange('day', v)} value={selectedDay ? String(selectedDay) : ''}>
+                                            <FormControl><SelectTrigger><SelectValue placeholder="Día" /></SelectTrigger></FormControl>
+                                            <SelectContent>{days.map((d) => (<SelectItem key={d} value={String(d)}>{d}</SelectItem>))}</SelectContent>
+                                        </Select>
+                                        <Select disabled={isPersonaSelected} onValueChange={(v) => handleDateChange('month', v)} value={selectedMonth ? String(selectedMonth) : ''}>
+                                            <FormControl><SelectTrigger><SelectValue placeholder="Mes" /></SelectTrigger></FormControl>
+                                            <SelectContent>{months.map((m) => (<SelectItem key={m.value} value={String(m.value)}><span className="capitalize">{m.label}</span></SelectItem>))}</SelectContent>
+                                        </Select>
+                                        <Select disabled={isPersonaSelected} onValueChange={(v) => handleDateChange('year', v)} value={selectedYear ? String(selectedYear) : ''}>
+                                            <FormControl><SelectTrigger><SelectValue placeholder="Año" /></SelectTrigger></FormControl>
+                                            <SelectContent>{years.map((y) => (<SelectItem key={y} value={String(y)}>{y}</SelectItem>))}</SelectContent>
+                                        </Select>
                                     </div>
+
+                                    {dateObj ? (
+                                        <div className="mt-2 p-2 bg-blue-500/10 rounded-md border border-blue-500/20 flex items-center justify-between">
+                                            <span className="text-sm font-medium text-blue-700 dark:text-blue-400">Edad Calculada:</span>
+                                            <span className="text-sm font-bold text-blue-700 dark:text-blue-400">{calculateAge(dateObj)} años</span>
+                                        </div>
+                                    ) : (
+                                        <div className="mt-2 text-[10px] text-muted-foreground italic bg-muted/50 p-2 rounded border border-dashed text-center">
+                                            Seleccione una fecha válida para visualizar la edad.
+                                        </div>
+                                    )}
                                     <FormMessage />
                                 </FormItem>
                             );

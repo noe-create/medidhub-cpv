@@ -100,9 +100,39 @@ export function PatientCheckinForm({ onSubmitted }: PatientCheckinFormProps) {
         <div className="space-y-4">
           <PatientSearch selectedResult={selectedResult} onResultSelect={setSelectedResult} />
 
-          {selectedResult && !isPersonValid && (
-            <div className="p-3 text-sm text-destructive-foreground bg-destructive/90 rounded-md">
-              Esta persona no es titular ni beneficiario y no puede ser registrada. Por favor, añada un rol desde el módulo de Gestión de Titulares.
+          {selectedResult && (
+            <div className="p-4 bg-muted/40 rounded-2xl border border-border/50 space-y-3">
+                <div className="flex items-center justify-between">
+                    <span className="text-xs font-extrabold text-muted-foreground uppercase tracking-widest">Información del Paciente</span>
+                    <div className="p-1.5 bg-background rounded-lg border border-border/50 shadow-sm">
+                        <Users className="h-4 w-4 text-indigo-500" />
+                    </div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4 pt-2">
+                    <div className="space-y-1">
+                        <span className="text-[10px] font-black text-muted-foreground/60 uppercase block">Cédula / ID</span>
+                        <span className="text-sm font-bold text-foreground">{selectedResult.persona.cedula}</span>
+                    </div>
+                    <div className="space-y-1">
+                        <span className="text-[10px] font-black text-muted-foreground/60 uppercase block">Edad Actual</span>
+                        <span className="text-sm font-black text-indigo-700 bg-indigo-500/10 px-2 py-0.5 rounded-md border border-indigo-500/20 w-fit block">
+                            {calculateAge(new Date(selectedResult.persona.fechaNacimiento))} años
+                        </span>
+                    </div>
+                    <div className="space-y-1 col-span-2">
+                        <span className="text-[10px] font-black text-muted-foreground/60 uppercase block">Fecha de Nacimiento</span>
+                        <span className="text-sm font-bold text-foreground">
+                            {new Date(selectedResult.persona.fechaNacimiento).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric', timeZone: 'UTC' })}
+                        </span>
+                    </div>
+                </div>
+
+                {selectedResult && !isPersonValid && (
+                    <div className="mt-2 p-3 text-xs text-destructive-foreground bg-destructive/90 rounded-xl font-bold border border-destructive shadow-lg animate-in fade-in slide-in-from-top-1">
+                        ⚠️ Esta persona no tiene roles habilitados. Por favor, añada un rol (Titular o Beneficiario) desde el módulo de Gestión.
+                    </div>
+                )}
             </div>
           )}
 

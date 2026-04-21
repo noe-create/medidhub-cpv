@@ -33,6 +33,7 @@ export interface User {
   personaId?: string;
   name?: string;
   genero?: Genero;
+  fechaNacimiento?: Date | string;
 }
 
 export interface Persona {

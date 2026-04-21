@@ -166,9 +166,9 @@ export async function getUsers(query?: string, page: number = 1, pageSize: numbe
         personaId?: string;
     }
 
-    const usersData = await db.all<UserDataFromDb[]>(`
+    const usersData = await db.all<any[]>(`
     SELECT
-    u.id, u.username, u.name, u."roleId", u."specialtyId", u."personaId"
+    u.id, u.username, u.name, u."roleId", u."specialtyId", u."personaId", u.fecha_nacimiento as "fechaNacimiento"
         FROM users u
         ${whereClause}
         ORDER BY u.username
@@ -194,6 +194,7 @@ export async function getUsers(query?: string, page: number = 1, pageSize: numbe
                 name: rolesMap.get(roleId) || 'Rol no encontrado'
             },
             specialty: u.specialtyId ? { id: u.specialtyId, name: specialtiesMap.get(u.specialtyId) || 'Especialidad no encontrada' } : undefined,
+            fechaNacimiento: u.fechaNacimiento,
         };
     });
 
@@ -206,6 +207,7 @@ interface UserCreationData {
     name: string;
     roleId: string;
     specialtyId?: string;
+    fechaNacimiento?: string;
 }
 
 export async function createUser(data: UserCreationData) {
@@ -220,8 +222,8 @@ export async function createUser(data: UserCreationData) {
         const hashedPassword = await bcrypt.hash(data.password, 10);
         const userId = `usr-${uuidv4()}`;
         await db.run(
-            'INSERT INTO users (id, username, password, "roleId", "specialtyId", name) VALUES (?, ?, ?, ?, ?, ?)',
-            [userId, data.username, hashedPassword, data.roleId, data.specialtyId || null, data.name || null]
+            'INSERT INTO users (id, username, password, "roleId", "specialtyId", name, "fecha_nacimiento") VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [userId, data.username, hashedPassword, data.roleId, data.specialtyId || null, data.name || null, data.fechaNacimiento || null]
         );
     } catch (error: any) {
         // Handle unique constraint violation for both SQLite and PostgreSQL
@@ -238,6 +240,7 @@ interface UserUpdateData {
     name: string;
     roleId: string;
     specialtyId?: string;
+    fechaNacimiento?: string;
 }
 
 export async function updateUser(id: string, data: UserUpdateData) {
@@ -249,13 +252,13 @@ export async function updateUser(id: string, data: UserUpdateData) {
         if (data.password && data.password.length > 0) {
             const hashedPassword = await bcrypt.hash(data.password, 10);
             await db.run(
-                'UPDATE users SET username = ?, password = ?, "roleId" = ?, "specialtyId" = ?, name = ? WHERE id = ?',
-                [data.username, hashedPassword, data.roleId, data.specialtyId || null, data.name || null, id]
+                'UPDATE users SET username = ?, password = ?, "roleId" = ?, "specialtyId" = ?, name = ?, "fecha_nacimiento" = ? WHERE id = ?',
+                [data.username, hashedPassword, data.roleId, data.specialtyId || null, data.name || null, data.fechaNacimiento || null, id]
             );
         } else {
             await db.run(
-                'UPDATE users SET username = ?, "roleId" = ?, "specialtyId" = ?, name = ? WHERE id = ?',
-                [data.username, data.roleId, data.specialtyId || null, data.name || null, id]
+                'UPDATE users SET username = ?, "roleId" = ?, "specialtyId" = ?, name = ?, "fecha_nacimiento" = ? WHERE id = ?',
+                [data.username, data.roleId, data.specialtyId || null, data.name || null, data.fechaNacimiento || null, id]
             );
         }
 

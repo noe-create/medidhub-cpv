@@ -2,6 +2,9 @@
 
 'use client';
 
+import { calculateAge } from '@/lib/utils';
+
+
 import * as React from 'react';
 import type { Persona } from '@/lib/types';
 import { format } from 'date-fns';
@@ -14,6 +17,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from './ui/dropdown-menu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { useUser } from './app-shell';
+import { Label } from './ui/label';
 import * as XLSX from 'xlsx';
 import dynamic from 'next/dynamic';
 import { Skeleton } from './ui/skeleton';
@@ -44,6 +48,8 @@ export function PeopleList() {
 
     const [currentPage, setCurrentPage] = React.useState(1);
     const [totalCount, setTotalCount] = React.useState(0);
+    const [importResult, setImportResult] = React.useState<{ imported: number, skipped: number, errors: string[] } | null>(null);
+    const [isResultDialogOpen, setIsResultDialogOpen] = React.useState(false);
 
     const canManage = ['superuser', 'administrator', 'admin', 'administradora', 'asistencial', 'secretaria', 'recepcionista'].includes(user.role.id);
 
@@ -114,7 +120,23 @@ export function PeopleList() {
     const columns: ColumnDef<Persona>[] = [
         { accessorKey: "nombreCompleto", header: "Nombre Completo", cell: ({ row }) => <div className="font-medium">{row.original.nombreCompleto}</div> },
         { accessorKey: "cedula", header: "Cédula" },
-        { accessorKey: "fechaNacimiento", header: "Fecha de Nacimiento", cell: ({ row }) => format(new Date(row.original.fechaNacimiento), 'PPP', { locale: es }) },
+        {
+            accessorKey: 'fechaNacimiento',
+            header: 'F. Nacimiento / Edad',
+            cell: ({ row }: { row: any }) => {
+                const p = row.original;
+                if (!p.fechaNacimiento) return <span className="text-muted-foreground text-xs italic">No registrada</span>;
+                const age = calculateAge(new Date(p.fechaNacimiento));
+                return (
+                    <div className="flex flex-col">
+                        <span className="font-medium text-xs">{new Date(p.fechaNacimiento).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                        <span className="text-[10px] font-extrabold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded w-fit mt-0.5 uppercase tracking-tighter">
+                            {age} años
+                        </span>
+                    </div>
+                );
+            }
+        },
         { accessorKey: "genero", header: "Género" },
         { accessorKey: "email", header: "Email", cell: ({ row }) => row.original.email || 'N/A' },
         {
@@ -214,8 +236,155 @@ export function PeopleList() {
         }
     };
 
-    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-        //...
+    const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        setIsUploading(true);
+        const reader = new FileReader();
+
+        reader.onload = async (e) => {
+            try {
+                const data = new Uint8Array(e.target?.result as ArrayBuffer);
+                const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                const rows = XLSX.utils.sheet_to_json<any[]>(worksheet, { header: 1 });
+
+                if (rows.length === 0) {
+                    toast({ title: 'Archivo vacío', description: 'El archivo no contiene datos.', variant: 'destructive' });
+                    setIsUploading(false);
+                    return;
+                }
+
+                // Detect headers and column indices
+                const firstRow = rows[0].map(h => String(h || '').toLowerCase().trim());
+                const isHeader = firstRow.some(h => ['nombre', 'apellido', 'cédula', 'cedula', 'nacimiento', 'género', 'genero'].some(k => h.includes(k)));
+
+                const getColIndex = (keywords: string[]) => firstRow.findIndex(h => keywords.some(k => h.includes(k)));
+
+                const colIndices = {
+                    idxNombre1: getColIndex(['primer nombre', 'nombre 1']),
+                    idxApellido1: getColIndex(['primer apellido', 'apellido 1']),
+                    idxNombreFull: getColIndex(['nombre completo', 'paciente', 'nombre']),
+                    idxCedula: getColIndex(['cédula', 'cedula', 'id', 'documento', 'identidad']),
+                    idxFecha: getColIndex(['nacimiento', 'fecha', 'f. nac']),
+                    idxGenero: getColIndex(['género', 'genero', 'sexo']),
+                    idxEmail: getColIndex(['email', 'correo']),
+                    idxTel1: getColIndex(['teléfono 1', 'telefono 1', 'tlf 1']),
+                    idxTel2: getColIndex(['teléfono 2', 'telefono 2', 'tlf 2']),
+                    idxDireccion: getColIndex(['dirección', 'direccion']),
+                    idxNombre2: getColIndex(['segundo nombre', 'nombre 2']),
+                    idxApellido2: getColIndex(['segundo apellido', 'apellido 2']),
+                };
+
+                const startIndex = isHeader ? 1 : 0;
+
+                // Fallback for NO headers based on the instructions (A-J)
+                if (!isHeader) {
+                    colIndices.idxNombre1 = 0;   // A
+                    colIndices.idxNombre2 = 1;   // B
+                    colIndices.idxApellido1 = 2; // C
+                    colIndices.idxApellido2 = 3; // D
+                    colIndices.idxCedula = 4;    // E
+                    colIndices.idxTel1 = 5;      // F
+                    colIndices.idxTel2 = 6;      // G
+                    colIndices.idxDireccion = 7; // H
+                    colIndices.idxFecha = 8;     // I
+                    colIndices.idxGenero = 9;    // J
+                }
+
+                
+                // Security Check: If header exists, we MUST have found critical columns
+                if (isHeader) {
+                    const missing = [];
+                    if (colIndices.idxNombre1 === -1 && colIndices.idxNombreFull === -1) missing.push('Nombre');
+                    if (colIndices.idxCedula === -1) missing.push('Cédula');
+                    if (colIndices.idxFecha === -1) missing.push('Fecha de Nacimiento');
+                    if (colIndices.idxGenero === -1) missing.push('Género');
+
+                    if (missing.length > 0) {
+                        toast({ 
+                            title: 'Columnas no encontradas', 
+                            description: `No pudimos identificar las columnas: ${missing.join(', ')}. Por favor revisa los encabezados de tu archivo.`, 
+                            variant: 'destructive' 
+                        });
+                        setIsUploading(false);
+                        return;
+                    }
+                }
+
+                const mappedData = rows.slice(startIndex)
+                    .filter(row => row.length > 0 && row.some(cell => cell !== null && cell !== ''))
+                    .map((row) => {
+                        // Extract Name
+                        let primerNombre = '';
+                        let primerApellido = '';
+                        
+                        if (colIndices.idxNombre1 !== -1) {
+                            primerNombre = String(row[colIndices.idxNombre1] || '').trim();
+                            primerApellido = String(row[colIndices.idxApellido1] !== -1 ? row[colIndices.idxApellido1] : '').trim();
+                        } else if (colIndices.idxNombreFull !== -1) {
+                            const full = String(row[colIndices.idxNombreFull] || '').trim();
+                            const parts = full.split(/\s+/);
+                            if (parts.length >= 2) {
+                                // If it looks like "LAST FIRST" or "FIRST LAST" we try to split.
+                                // Common format in exported lists is "APELLIDO NOMBRE"
+                                primerApellido = parts[0];
+                                primerNombre = parts.slice(1).join(' ');
+                            } else {
+                                primerNombre = full;
+                            }
+                        }
+
+                        // Robust Date Parsing
+                        let fechaNac = '';
+                        const dateVal = row[colIndices.idxFecha];
+                        if (dateVal) {
+                            if (dateVal instanceof Date) {
+                                fechaNac = `${dateVal.getDate()}/${dateVal.getMonth() + 1}/${dateVal.getFullYear()}`;
+                            } else if (typeof dateVal === 'number') {
+                                try {
+                                    const date = XLSX.SSF.parse_date_code(dateVal);
+                                    fechaNac = `${date.d}/${date.m}/${date.y}`;
+                                } catch (e) { fechaNac = String(dateVal); }
+                            } else { fechaNac = String(dateVal).trim(); }
+                        }
+
+                        // Gender mapping
+                        let genero = String(row[colIndices.idxGenero] || '').trim().toLowerCase();
+                        if (genero.startsWith('m')) genero = 'Masculino';
+                        else if (genero.startsWith('f')) genero = 'Femenino';
+                        else genero = 'Masculino'; // Default or keep as is
+
+                        return {
+                            primerNombre,
+                            segundoNombre: colIndices.idxNombre2 !== -1 ? String(row[colIndices.idxNombre2] || '').trim() : '',
+                            primerApellido,
+                            segundoApellido: colIndices.idxApellido2 !== -1 ? String(row[colIndices.idxApellido2] || '').trim() : '',
+                            cedula: colIndices.idxCedula !== -1 ? String(row[colIndices.idxCedula] || '').trim() : '',
+                            telefono1: colIndices.idxTel1 !== -1 ? String(row[colIndices.idxTel1] || '').trim() : '',
+                            telefono2: colIndices.idxTel2 !== -1 ? String(row[colIndices.idxTel2] || '').trim() : '',
+                            direccion: colIndices.idxDireccion !== -1 ? String(row[colIndices.idxDireccion] || '').trim() : '',
+                            fechaNacimiento: fechaNac,
+                            genero: genero as any,
+                            email: colIndices.idxEmail !== -1 ? String(row[colIndices.idxEmail] || '').trim() : '',
+                        };
+                    });
+
+                const result = await bulkCreatePersonas(mappedData);
+                setImportResult(result);
+                setIsResultDialogOpen(true);
+                await refreshPersonas(search, 1);
+            } catch (error) {
+                console.error('Error:', error);
+                toast({ title: 'Error Crítico', description: 'Ocurrió un fallo al procesar el archivo.', variant: 'destructive' });
+            } finally {
+                setIsUploading(false);
+                if (fileInputRef.current) fileInputRef.current.value = '';
+            }
+        };
+        reader.readAsArrayBuffer(file);
     };
 
 
@@ -236,11 +405,9 @@ export function PeopleList() {
                         onChange={(e) => setSearch(e.target.value)}
                         className="max-w-sm border-none shadow-none focus-visible:ring-0 bg-transparent"
                     />
-                    {/* Helper styling for search input wrapper could be added if needed, or rely on Input refactor */}
                 </div>
 
                 <div className="flex justify-between items-center mb-6 gap-4">
-                    {/* Re-implementing the Search Input correctly outside to standard */}
                     <Input
                         placeholder="Buscar por nombre, cédula o email..."
                         value={search}
@@ -321,6 +488,41 @@ export function PeopleList() {
                 </div>
             </div>
 
+            <Dialog open={isResultDialogOpen} onOpenChange={setIsResultDialogOpen}>
+                <DialogContent className="sm:max-w-xl">
+                    <DialogHeader>
+                        <DialogTitle>Resumen de Importación</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="bg-primary/10 p-4 rounded-xl text-center">
+                                <p className="text-sm font-medium text-primary">Importados</p>
+                                <p className="text-3xl font-bold">{importResult?.imported}</p>
+                            </div>
+                            <div className="bg-destructive/10 p-4 rounded-xl text-center">
+                                <p className="text-sm font-medium text-destructive">Saltados</p>
+                                <p className="text-3xl font-bold">{importResult?.skipped}</p>
+                            </div>
+                        </div>
+                        
+                        {importResult?.errors && importResult.errors.length > 0 && (
+                            <div className="space-y-2">
+                                <Label className="text-sm font-semibold">Detalle de registros no importados:</Label>
+                                <div className="max-h-[300px] overflow-y-auto border rounded-xl p-2 bg-muted/30 space-y-2 text-xs">
+                                    {importResult.errors.map((error, idx) => (
+                                        <div key={idx} className="p-2 border-b last:border-0 border-border flex items-start gap-2">
+                                            <span className="text-destructive font-bold">•</span>
+                                            <span>{error}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                        <Button className="w-full rounded-xl" onClick={() => setIsResultDialogOpen(false)}>Entendido</Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
             <Dialog open={isFormOpen} onOpenChange={handleCloseDialog}>
                 <DialogContent className="sm:max-w-2xl">
                     <DialogHeader>
@@ -328,6 +530,7 @@ export function PeopleList() {
                     </DialogHeader>
                     {isFormOpen && (
                         <PersonForm
+                            key={selectedPersona?.id || 'new'}
                             persona={selectedPersona}
                             onSubmitted={handleFormSubmitted}
                             onCancel={handleCloseDialog}

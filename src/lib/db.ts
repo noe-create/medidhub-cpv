@@ -152,22 +152,27 @@ async function createTables(client: PoolClient): Promise<void> {
             "roleId" TEXT NOT NULL,
             "specialtyId" TEXT,
             "personaId" TEXT UNIQUE,
+            "fecha_nacimiento" TEXT,
             FOREIGN KEY ("roleId") REFERENCES roles(id) ON DELETE RESTRICT,
             FOREIGN KEY ("specialtyId") REFERENCES specialties(id) ON DELETE SET NULL,
             FOREIGN KEY ("personaId") REFERENCES personas(id) ON DELETE SET NULL
         );
     `);
 
-    // Add the 'name' column to the 'users' table if it doesn't exist.
-    // Postgres way to check column
-    const checkCol = await client.query(`
+    // Migration for users table: add 'name' and 'fecha_nacimiento' columns if they don't exist.
+    const checkUsersCols = await client.query(`
         SELECT column_name 
         FROM information_schema.columns 
-        WHERE table_name='users' AND column_name='name'
+        WHERE table_name='users' AND column_name IN ('name', 'fecha_nacimiento')
     `);
 
-    if (checkCol.rows.length === 0) {
+    const existingCols = checkUsersCols.rows.map(r => r.column_name);
+
+    if (!existingCols.includes('name')) {
         await client.query('ALTER TABLE users ADD COLUMN name TEXT');
+    }
+    if (!existingCols.includes('fecha_nacimiento')) {
+        await client.query('ALTER TABLE users ADD COLUMN "fecha_nacimiento" TEXT');
     }
 
     await client.query(`

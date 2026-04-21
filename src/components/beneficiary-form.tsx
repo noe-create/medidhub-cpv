@@ -65,26 +65,67 @@ export function BeneficiaryForm({ beneficiario, onSubmitted, onCancel, excludeId
     const [isSubmitting, setIsSubmitting] = React.useState(false);
     const [selectedPersona, setSelectedPersona] = React.useState<Persona | null>(null);
 
+    const personaToLoad = selectedPersona || beneficiario?.persona || null;
+
+    const initialDate = React.useMemo(() => {
+        // Robustly handle both naming conventions and data types
+        const dateValue = (personaToLoad as any)?.fechaNacimiento || (personaToLoad as any)?.fecha_nacimiento;
+        if (!dateValue) return undefined;
+        
+        // If it's already a Date object, use it directly via UTC components
+        if (dateValue instanceof Date && !isNaN(dateValue.getTime())) {
+            return new Date(Date.UTC(dateValue.getUTCFullYear(), dateValue.getUTCMonth(), dateValue.getUTCDate()));
+        }
+
+        const strValue = String(dateValue);
+
+        // Handle DD/MM/YYYY format (common in imports)
+        if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(strValue)) {
+            const [day, month, year] = strValue.split('/').map(Number);
+            const d = new Date(Date.UTC(year, month - 1, day));
+            if (!isNaN(d.getTime())) return d;
+        }
+
+        // Handle DD-MM-YYYY format
+        if (/^\d{1,2}-\d{1,2}-\d{4}$/.test(strValue)) {
+            const [day, month, year] = strValue.split('-').map(Number);
+            const d = new Date(Date.UTC(year, month - 1, day));
+            if (!isNaN(d.getTime())) return d;
+        }
+
+        // Handle ISO string (from Next.js serialization: "1990-05-15T04:00:00.000Z")
+        const d = new Date(strValue);
+        if (!isNaN(d.getTime())) {
+            // Always use UTC components to avoid timezone day-shift
+            return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+        }
+        
+        return undefined;
+    }, [personaToLoad]);
+
     const form = useForm<BeneficiaryFormValues>({
         resolver: zodResolver(beneficiarySchema),
         defaultValues: {
-            primerNombre: '',
-            segundoNombre: '',
-            primerApellido: '',
-            segundoApellido: '',
-            nacionalidad: 'V',
-            cedulaNumero: '',
-            telefono1: '',
-            telefono2: '',
-            email: '',
-            direccion: '',
-            representanteId: beneficiario?.persona.representanteId || undefined
+            primerNombre: personaToLoad?.primerNombre || '',
+            segundoNombre: personaToLoad?.segundoNombre || '',
+            primerApellido: personaToLoad?.primerApellido || '',
+            segundoApellido: personaToLoad?.segundoApellido || '',
+            nacionalidad: personaToLoad?.nacionalidad || 'V',
+            cedulaNumero: personaToLoad?.cedulaNumero || '',
+            fechaNacimiento: initialDate,
+            genero: personaToLoad?.genero || undefined,
+            telefono1: personaToLoad?.telefono1 || '',
+            email: personaToLoad?.email || '',
         },
     });
 
     const isPersonaSelected = !!selectedPersona;
 
-    const { clearDraft } = useFormDraft(form, 'medihub_draft_beneficiario', !beneficiario);
+    const { clearDraft } = useFormDraft(
+        form, 
+        personaToLoad ? `edit-beneficiary-${personaToLoad.id}` : 'new-beneficiary',
+        !personaToLoad // Only enable drafts for NEW records
+    );
 
     const fechaNacimiento = form.watch('fechaNacimiento');
     const cedulaNumero = form.watch('cedulaNumero');
@@ -107,37 +148,8 @@ export function BeneficiaryForm({ beneficiario, onSubmitted, onCancel, excludeId
         form.setValue('representanteId', p?.id || '', { shouldValidate: true });
     };
 
-
-    React.useEffect(() => {
-        let personaToLoad: Persona | null = null;
-        if (selectedPersona) {
-            personaToLoad = selectedPersona;
-        } else if (beneficiario) {
-            personaToLoad = beneficiario.persona;
-        }
-
-        if (personaToLoad) {
-            const dateString = personaToLoad.fechaNacimiento as unknown as string;
-            const date = new Date(dateString);
-            const utcDate = new Date(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
-
-            form.reset({
-                primerNombre: personaToLoad.primerNombre || '',
-                segundoNombre: personaToLoad.segundoNombre || '',
-                primerApellido: personaToLoad.primerApellido || '',
-                segundoApellido: personaToLoad.segundoApellido || '',
-                nacionalidad: personaToLoad.nacionalidad,
-                cedulaNumero: personaToLoad.cedulaNumero,
-                fechaNacimiento: utcDate,
-                genero: personaToLoad.genero,
-                email: personaToLoad.email || '',
-                telefono1: personaToLoad.telefono1 || '',
-                telefono2: personaToLoad.telefono2 || '',
-                direccion: personaToLoad.direccion || '',
-                representanteId: personaToLoad.representanteId || undefined
-            });
-        }
-    }, [selectedPersona, beneficiario, form.reset, form]);
+    // Removed redundant reset effect to prevent race conditions.
+    // The 'key' prop in the parent component handles re-initialization.
 
     const handleCancel = () => {
         clearDraft();
@@ -206,43 +218,51 @@ export function BeneficiaryForm({ beneficiario, onSubmitted, onCancel, excludeId
                         control={form.control}
                         name="fechaNacimiento"
                         render={({ field }) => {
-                            const selectedYear = field.value ? field.value.getUTCFullYear() : undefined;
-                            const selectedMonth = field.value ? field.value.getUTCMonth() + 1 : undefined;
-                            const selectedDay = field.value ? field.value.getUTCDate() : undefined;
+                            // Ensure we have a valid Date object regardless if field.value is a Date or a string
+                            let valueAsDate: any = field.value;
+                            if (typeof valueAsDate === 'string' && valueAsDate) {
+                                let d = new Date(valueAsDate);
+                                if (isNaN(d.getTime()) && valueAsDate.includes('/')) {
+                                    const [day, month, year] = valueAsDate.split('/').map(Number);
+                                    d = new Date(Date.UTC(year, month - 1, day));
+                                }
+                                valueAsDate = d;
+                            }
+
+                            const dateObj = valueAsDate instanceof Date && !isNaN(valueAsDate.getTime()) ? valueAsDate : null;
+                            const selectedYear = dateObj ? dateObj.getUTCFullYear() : undefined;
+                            const selectedMonth = dateObj ? dateObj.getUTCMonth() + 1 : undefined;
+                            const selectedDay = dateObj ? dateObj.getUTCDate() : undefined;
 
                             const handleDateChange = (part: 'year' | 'month' | 'day', value: string) => {
-                                let year = selectedYear || new Date().getFullYear();
-                                let month = selectedMonth ? selectedMonth - 1 : new Date().getMonth();
+                                const now = new Date();
+                                let year = selectedYear || now.getUTCFullYear();
+                                let month = selectedMonth ? selectedMonth - 1 : now.getUTCMonth();
                                 let day = selectedDay || 1;
 
-                                if (part === 'year') {
-                                    year = parseInt(value, 10);
-                                } else if (part === 'month') {
-                                    month = parseInt(value, 10) - 1;
-                                } else if (part === 'day') {
-                                    day = parseInt(value, 10);
-                                }
+                                if (part === 'year') year = parseInt(value, 10);
+                                else if (part === 'month') month = parseInt(value, 10) - 1;
+                                else if (part === 'day') day = parseInt(value, 10);
 
                                 const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
-                                if (day > daysInMonth) {
-                                    day = daysInMonth;
-                                }
+                                if (day > daysInMonth) day = daysInMonth;
 
                                 const newDate = new Date(Date.UTC(year, month, day));
                                 field.onChange(newDate);
                             };
 
-                            const years = Array.from({ length: 120 }, (_, i) => new Date().getFullYear() - i);
-                            const months = Array.from({ length: 12 }, (_, i) => ({
-                                value: i + 1,
-                                label: new Date(0, i).toLocaleString('es', { month: 'long' }),
-                            }));
+                            const years = Array.from({ length: 135 }, (_, i) => new Date().getFullYear() - i);
+                            const months = Array.from({ length: 12 }, (_, i) => ({ value: i + 1, label: new Date(0, i).toLocaleString('es', { month: 'long' }) }));
                             const daysInSelectedMonth = selectedYear && selectedMonth ? new Date(Date.UTC(selectedYear, selectedMonth, 0)).getUTCDate() : 31;
                             const days = Array.from({ length: daysInSelectedMonth }, (_, i) => i + 1);
 
                             return (
                                 <FormItem className="md:col-span-2">
-                                    <FormLabel className="flex items-center gap-2"><CalendarDays className="h-4 w-4 text-muted-foreground" />Fecha de Nacimiento</FormLabel>
+                                    <FormLabel className="flex items-center gap-2 mb-2">
+                                        <CalendarDays className="h-4 w-4 text-muted-foreground" />
+                                        Fecha de Nacimiento
+                                    </FormLabel>
+                                    
                                     <div className="grid grid-cols-3 gap-2">
                                         <Select onValueChange={(value) => handleDateChange('day', value)} value={selectedDay ? String(selectedDay) : ''} disabled={isPersonaSelected}>
                                             <FormControl><SelectTrigger><SelectValue placeholder="Día" /></SelectTrigger></FormControl>
@@ -257,6 +277,17 @@ export function BeneficiaryForm({ beneficiario, onSubmitted, onCancel, excludeId
                                             <SelectContent>{years.map((y) => (<SelectItem key={y} value={String(y)}>{y}</SelectItem>))}</SelectContent>
                                         </Select>
                                     </div>
+
+                                    {dateObj ? (
+                                        <div className="mt-2 p-2 bg-blue-500/10 rounded-md border border-blue-500/20 flex items-center justify-between">
+                                            <span className="text-sm font-medium text-blue-700 dark:text-blue-400">Edad Calculada:</span>
+                                            <span className="text-sm font-bold text-blue-700 dark:text-blue-400">{calculateAge(dateObj)} años</span>
+                                        </div>
+                                    ) : (
+                                        <div className="mt-2 text-[10px] text-muted-foreground italic bg-muted/50 p-2 rounded border border-dashed text-center">
+                                            Seleccione una fecha válida para visualizar la edad.
+                                        </div>
+                                    )}
                                     <FormMessage />
                                 </FormItem>
                             );

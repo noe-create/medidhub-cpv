@@ -240,6 +240,7 @@ export function BeneficiaryManagement({ titular, initialBeneficiarios }: Benefic
           </DialogHeader>
           {isFormOpen && (
             <BeneficiaryForm
+              key={selectedBeneficiario?.id || 'new'}
               beneficiario={selectedBeneficiario}
               onSubmitted={handleFormSubmitted}
               onCancel={handleCloseDialog}

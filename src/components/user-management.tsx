@@ -19,6 +19,7 @@ import { useUser } from './app-shell';
 import dynamic from 'next/dynamic';
 import { Skeleton } from './ui/skeleton';
 import { DataTable, type ColumnDef } from '@/components/ui/data-table';
+import { calculateAge } from '@/lib/utils';
 
 const UserForm = dynamic(() => import('./user-form').then(mod => mod.UserForm), {
   loading: () => <div className="p-8"><Skeleton className="h-48 w-full" /></div>,
@@ -139,13 +140,24 @@ export function UserManagement({ roles }: UserManagementProps) {
       }
     },
     {
-      id: 'status',
-      header: 'Estado',
-      cell: () => (
-        <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 hover:bg-emerald-500/20 shadow-none font-extrabold px-2.5 py-0.5 rounded-full">
-          Activo
-        </Badge>
-      )
+      accessorKey: 'fechaNacimiento',
+      header: 'F. Nacimiento / Edad',
+      cell: ({ row }: { row: any }) => {
+        const user = row.original;
+        if (!user.fechaNacimiento) return <span className="text-muted-foreground text-xs italic">No registrada</span>;
+        
+        const date = new Date(user.fechaNacimiento);
+        const age = calculateAge(date);
+        
+        return (
+          <div className="flex flex-col">
+            <span className="font-medium text-xs">{new Date(user.fechaNacimiento).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+            <span className="text-[10px] font-extrabold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded w-fit mt-0.5 uppercase tracking-tighter">
+                {age} años
+            </span>
+          </div>
+        );
+      }
     },
     {
       accessorKey: 'role.name',

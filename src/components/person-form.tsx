@@ -70,24 +70,47 @@ interface PersonFormProps {
 export function PersonForm({ persona, onSubmitted, onCancel }: PersonFormProps) {
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
+  const initialDate = React.useMemo(() => {
+    // Robustly handle both naming conventions and data types
+    const dateValue = (persona as any)?.fechaNacimiento || (persona as any)?.fecha_nacimiento;
+    if (!dateValue) return undefined;
+    
+    let d = new Date(dateValue);
+    // If invalid, try DD/MM/YYYY
+    if (isNaN(d.getTime()) && typeof dateValue === 'string' && dateValue.includes('/')) {
+        const [day, month, year] = dateValue.split('/').map(Number);
+        d = new Date(Date.UTC(year, month - 1, day));
+    }
+    
+    if (isNaN(d.getTime())) return undefined;
+    // Normalize to UTC midnight for consistent triple-select behavior
+    return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  }, [persona]);
+
   const form = useForm<PersonFormValues>({
     resolver: zodResolver(personSchema),
     defaultValues: {
-      primerNombre: '',
-      segundoNombre: '',
-      primerApellido: '',
-      segundoApellido: '',
-      nacionalidad: 'V',
-      cedulaNumero: '',
-      telefono1: '',
-      telefono2: '',
-      email: '',
-      direccion: '',
+      primerNombre: persona?.primerNombre || '',
+      segundoNombre: persona?.segundoNombre || '',
+      primerApellido: persona?.primerApellido || '',
+      segundoApellido: persona?.segundoApellido || '',
+      nacionalidad: persona?.nacionalidad || 'V',
+      cedulaNumero: persona?.cedulaNumero || '',
+      fechaNacimiento: initialDate,
+      genero: persona?.genero || undefined,
+      telefono1: persona?.telefono1 || '',
+      telefono2: persona?.telefono2 || '',
+      email: persona?.email || '',
+      direccion: persona?.direccion || '',
       representanteId: persona?.representanteId || undefined
     },
   });
 
-  const { clearDraft } = useFormDraft(form, 'medihub_draft_persona', !persona);
+  const { clearDraft } = useFormDraft(
+      form, 
+      persona ? `edit-person-${persona.id}` : 'new-person',
+      !persona // Only enable drafts for NEW records to avoid overwriting edits with stale data
+  );
 
   const fechaNacimiento = form.watch('fechaNacimiento');
   const cedulaNumero = form.watch('cedulaNumero');
@@ -106,29 +129,9 @@ export function PersonForm({ persona, onSubmitted, onCancel }: PersonFormProps) 
     form.setValue('representanteId', p?.id || '', { shouldValidate: true });
   };
 
-
-  React.useEffect(() => {
-    if (persona) {
-      form.reset({
-        primerNombre: persona.primerNombre || '',
-        segundoNombre: persona.segundoNombre || '',
-        primerApellido: persona.primerApellido || '',
-        segundoApellido: persona.segundoApellido || '',
-        nacionalidad: persona.nacionalidad,
-        cedulaNumero: persona.cedulaNumero,
-        fechaNacimiento: persona.fechaNacimiento ? new Date(persona.fechaNacimiento) : undefined,
-        genero: persona.genero || undefined,
-        telefono1: persona.telefono1 || '',
-        telefono2: persona.telefono2 || '',
-        email: persona.email || '',
-        direccion: persona.direccion || '',
-        representanteId: persona.representanteId || undefined,
-      });
-    }
-    // When persona is null (creation mode), we don't reset to empty here
-    // because useFormDraft handles restoring saved drafts from localStorage.
-    // The initial empty state is already set by useForm's defaultValues.
-  }, [persona, form]);
+  // Removed the form.reset useEffect to prevent race conditions.
+  // The 'key' prop in the parent component handles re-initialization 
+  // with correct defaultValues when selecting a different persona.
 
   const handleCancel = () => {
     clearDraft();
@@ -191,39 +194,109 @@ export function PersonForm({ persona, onSubmitted, onCancel }: PersonFormProps) 
             control={form.control}
             name="fechaNacimiento"
             render={({ field }) => {
-              const selectedYear = field.value ? field.value.getUTCFullYear() : undefined;
-              const selectedMonth = field.value ? field.value.getUTCMonth() + 1 : undefined;
-              const selectedDay = field.value ? field.value.getUTCDate() : undefined;
+              let valueAsDate: any = field.value;
+              if (typeof valueAsDate === 'string' && valueAsDate) {
+                let d = new Date(valueAsDate);
+                if (isNaN(d.getTime()) && valueAsDate.includes('/')) {
+                   const [day, month, year] = valueAsDate.split('/').map(Number);
+                   d = new Date(Date.UTC(year, month - 1, day));
+                }
+                valueAsDate = d;
+              }
+              
+              const dateObj = valueAsDate instanceof Date && !isNaN(valueAsDate.getTime()) ? valueAsDate : null;
+              const selectedYear = dateObj ? dateObj.getUTCFullYear() : undefined;
+              const selectedMonth = dateObj ? dateObj.getUTCMonth() + 1 : undefined;
+              const selectedDay = dateObj ? dateObj.getUTCDate() : undefined;
 
-              const handleDateChange = (part: 'year' | 'month' | 'day', value: string) => {
-                let year = selectedYear || new Date().getFullYear();
-                let month = selectedMonth ? selectedMonth - 1 : new Date().getMonth();
+              const handleDateUpdate = (part: 'year' | 'month' | 'day', value: number) => {
+                const now = new Date();
+                let year = selectedYear || now.getUTCFullYear();
+                let month = selectedMonth ? selectedMonth - 1 : now.getUTCMonth();
                 let day = selectedDay || 1;
 
-                if (part === 'year') year = parseInt(value, 10);
-                else if (part === 'month') month = parseInt(value, 10) - 1;
-                else if (part === 'day') day = parseInt(value, 10);
+                if (part === 'year') year = value;
+                else if (part === 'month') month = value - 1;
+                else if (part === 'day') day = value;
 
                 const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
                 if (day > daysInMonth) day = daysInMonth;
 
-                const newDate = new Date(Date.UTC(year, month, day));
-                field.onChange(newDate);
+                field.onChange(new Date(Date.UTC(year, month, day)));
               };
 
-              const years = Array.from({ length: 120 }, (_, i) => new Date().getFullYear() - i);
-              const months = Array.from({ length: 12 }, (_, i) => ({ value: i + 1, label: new Date(0, i).toLocaleString('es', { month: 'long' }) }));
+              const years = Array.from({ length: 135 }, (_, i) => new Date().getFullYear() - i);
+              const months = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
               const daysInSelectedMonth = selectedYear && selectedMonth ? new Date(Date.UTC(selectedYear, selectedMonth, 0)).getUTCDate() : 31;
               const days = Array.from({ length: daysInSelectedMonth }, (_, i) => i + 1);
 
               return (
                 <FormItem className="md:col-span-2">
-                  <FormLabel className="flex items-center gap-2"><CalendarDays className="h-4 w-4 text-muted-foreground" />Fecha de Nacimiento</FormLabel>
+                  <FormLabel className="flex items-center gap-2 mb-2">
+                    <CalendarDays className="h-4 w-4 text-muted-foreground" />
+                    Fecha de Nacimiento
+                  </FormLabel>
+                  
                   <div className="grid grid-cols-3 gap-2">
-                    <Select onValueChange={(v) => handleDateChange('day', v)} value={selectedDay ? String(selectedDay) : ''}><FormControl><SelectTrigger><SelectValue placeholder="Día" /></SelectTrigger></FormControl><SelectContent>{days.map((d) => (<SelectItem key={d} value={String(d)}>{d}</SelectItem>))}</SelectContent></Select>
-                    <Select onValueChange={(v) => handleDateChange('month', v)} value={selectedMonth ? String(selectedMonth) : ''}><FormControl><SelectTrigger><SelectValue placeholder="Mes" /></SelectTrigger></FormControl><SelectContent>{months.map((m) => (<SelectItem key={m.value} value={String(m.value)}><span className="capitalize">{m.label}</span></SelectItem>))}</SelectContent></Select>
-                    <Select onValueChange={(v) => handleDateChange('year', v)} value={selectedYear ? String(selectedYear) : ''}><FormControl><SelectTrigger><SelectValue placeholder="Año" /></SelectTrigger></FormControl><SelectContent>{years.map((y) => (<SelectItem key={y} value={String(y)}>{y}</SelectItem>))}</SelectContent></Select>
+                    <Select
+                      value={String(selectedDay) || ''}
+                      onValueChange={(val) => handleDateUpdate('day', parseInt(val))}
+                    >
+                      <SelectTrigger id="birth-day">
+                        <SelectValue placeholder="Día" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {days.map((d) => (
+                          <SelectItem key={d} value={String(d)}>
+                            {d}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    <Select
+                      value={String(selectedMonth) || ''}
+                      onValueChange={(val) => handleDateUpdate('month', parseInt(val))}
+                    >
+                      <SelectTrigger id="birth-month">
+                        <SelectValue placeholder="Mes" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {months.map((m, idx) => (
+                          <SelectItem key={m} value={String(idx + 1)}>
+                            {m}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    <Select
+                      value={String(selectedYear) || ''}
+                      onValueChange={(val) => handleDateUpdate('year', parseInt(val))}
+                    >
+                      <SelectTrigger id="birth-year">
+                        <SelectValue placeholder="Año" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {years.map((y) => (
+                          <SelectItem key={y} value={String(y)}>
+                            {y}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
+
+                  {dateObj ? (
+                    <div className="mt-2 p-2 bg-blue-500/10 rounded-md border border-blue-500/20 flex items-center justify-between">
+                      <span className="text-sm font-medium text-blue-700 dark:text-blue-400">Edad Calculada:</span>
+                      <span className="text-sm font-bold text-blue-700 dark:text-blue-400">{calculateAge(dateObj)} años</span>
+                    </div>
+                  ) : (
+                    <div className="mt-2 text-[10px] text-muted-foreground italic bg-muted/50 p-2 rounded border border-dashed text-center">
+                      Seleccione una fecha válida para visualizar la edad.
+                    </div>
+                  )}
                   <FormMessage />
                 </FormItem>
               );

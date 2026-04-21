@@ -46,6 +46,52 @@ const titularNameSql = `TRIM(p_titular."primerNombre" || ' ' || COALESCE(p_titul
 const fullCedulaSql = `CASE WHEN p.nacionalidad IS NOT NULL AND p."cedulaNumero" IS NOT NULL THEN p.nacionalidad || '-' || p."cedulaNumero" ELSE NULL END`;
 const fullCedulaSearchSql = `(p.nacionalidad || '-' || p."cedulaNumero")`;
 
+// --- Date Helpers ---
+function parseDateToIso(dateStr: any): string | null {
+    if (!dateStr) return null;
+    const str = String(dateStr).trim();
+    if (!str) return null;
+
+    // Handle DD/MM/YYYY or YYYY/MM/DD or DD-MM-YYYY
+    const slashParts = str.split('/');
+    const dashParts = str.split('-');
+    const parts = slashParts.length === 3 ? slashParts : (dashParts.length === 3 ? dashParts : []);
+
+    if (parts.length === 3) {
+        const first = parseInt(parts[0], 10);
+        const second = parseInt(parts[1], 10);
+        const third = parseInt(parts[2], 10);
+
+        if (isNaN(first) || isNaN(second) || isNaN(third)) return null;
+
+        let day: number, month: number, year: number;
+        if (third > 31) { // Format: DD/MM/YYYY (likely)
+            day = first; month = second; year = third;
+        } else if (first > 100) { // Format: YYYY/MM/DD
+            year = first; month = second; day = third;
+        } else { // Default assumption: DD/MM/YYYY
+            day = first; month = second; year = third;
+        }
+
+        // Validate components
+        if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+
+        const date = new Date(Date.UTC(year, month - 1, day));
+        if (!isNaN(date.getTime()) && date.getUTCFullYear() === year) {
+            return date.toISOString();
+        }
+    }
+
+    // Fallback: Standard JS Date parsing
+    const fallback = new Date(str);
+    if (!isNaN(fallback.getTime())) {
+        // Ensure we normalize to UTC midnight to avoid timezone shifts
+        return new Date(Date.UTC(fallback.getUTCFullYear(), fallback.getUTCMonth(), fallback.getUTCDate())).toISOString();
+    }
+
+    return null;
+}
+
 // --- Authorization Helpers ---
 async function ensureAdminPermission() {
     const session = await getSession();
@@ -1019,17 +1065,26 @@ export async function bulkCreatePersonas(
     let importedCount = 0;
     let skippedCount = 0;
     const errorMessages: string[] = [];
+    const seenInBatch = new Set<string>();
 
     await db.exec('BEGIN');
     try {
         for (const [index, data] of personasData.entries()) {
-            if (!data.primerNombre || !data.primerApellido || !data.fechaNacimiento || !data.genero) {
+            const missingFields = [];
+            if (!data.primerNombre) missingFields.push('primer nombre');
+            if (!data.primerApellido) missingFields.push('primer apellido');
+            if (!data.fechaNacimiento) missingFields.push('fecha de nacimiento');
+            if (!data.genero) missingFields.push('género');
+
+            const personName = `${data.primerNombre} ${data.primerApellido}`.trim() || `Fila ${index + 1}`;
+
+            if (missingFields.length > 0) {
                 skippedCount++;
-                errorMessages.push(`Fila ${index + 1}: Faltan campos requeridos (primer nombre, primer apellido, fecha de nacimiento, género).`);
+                errorMessages.push(`${personName}: Faltan campos requeridos (${missingFields.join(', ')}).`);
                 continue;
             }
 
-            const { cedula: cedulaCompleta, ...restOfData } = data;
+            const { cedula: cedulaCompleta } = data;
             let nacionalidad: string | null = null;
             let cedulaNumero: string | null = null;
 
@@ -1039,44 +1094,205 @@ export async function bulkCreatePersonas(
                     nacionalidad = parts[0];
                     cedulaNumero = parts[1];
                 } else {
-                    errorMessages.push(`Fila ${index + 1}: Formato de cédula inválido '${cedulaCompleta}'. Se esperaba V-######## o E-########.`);
-                    skippedCount++;
-                    continue;
+                    nacionalidad = 'V';
+                    cedulaNumero = cedulaCompleta;
                 }
             }
 
+            const isoDate = parseDateToIso(data.fechaNacimiento);
+
+            if (!isoDate) {
+                skippedCount++;
+                errorMessages.push(`${personName}: Fecha '${data.fechaNacimiento}' inválida. Use DD/MM/AAAA.`);
+                continue;
+            }
+
             if (nacionalidad && cedulaNumero) {
-                const existingPersona = await db.get('SELECT id FROM personas WHERE nacionalidad = ? AND "cedulaNumero" = ?', [nacionalidad, cedulaNumero]);
+                const existingPersona = await db.get<{ id: string }>('SELECT id FROM personas WHERE nacionalidad = ? AND "cedulaNumero" = ?', [nacionalidad, cedulaNumero]);
                 if (existingPersona) {
-                    skippedCount++;
+                    // Update existing persona data to fix any previous import errors
+                    await db.run(
+                        'UPDATE personas SET "primerNombre" = ?, "segundoNombre" = ?, "primerApellido" = ?, "segundoApellido" = ?, "fechaNacimiento" = ?, genero = ?, telefono1 = ?, telefono2 = ?, email = ?, direccion = ? WHERE id = ?',
+                        [data.primerNombre, data.segundoNombre, data.primerApellido, data.segundoApellido, isoDate, data.genero, data.telefono1, data.telefono2, data.email, data.direccion, existingPersona.id]
+                    );
+                    // Sync date to users table if linked
+                    await db.run('UPDATE users SET "fecha_nacimiento" = ? WHERE "personaId" = ?', [isoDate, existingPersona.id]);
+                    importedCount++;
                     continue;
                 }
+
+                const batchKey = `${nacionalidad}-${cedulaNumero}`;
+                if (seenInBatch.has(batchKey)) {
+                    skippedCount++;
+                    errorMessages.push(`${personName}: Duplicado dentro del archivo (Cédula ${nacionalidad}-${cedulaNumero}).`);
+                    continue;
+                }
+                seenInBatch.add(batchKey);
             }
 
             const personaId = generateId('p');
 
             await db.run(
                 'INSERT INTO personas (id, "primerNombre", "segundoNombre", "primerApellido", "segundoApellido", nacionalidad, "cedulaNumero", "fechaNacimiento", genero, telefono1, telefono2, email, direccion, "createdAt") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                [personaId, data.primerNombre, data.segundoNombre, data.primerApellido, data.segundoApellido, nacionalidad, cedulaNumero, new Date(data.fechaNacimiento).toISOString(), data.genero, data.telefono1, data.telefono2, data.email, data.direccion, new Date().toISOString()]
+                [personaId, data.primerNombre, data.segundoNombre, data.primerApellido, data.segundoApellido, nacionalidad, cedulaNumero, isoDate, data.genero, data.telefono1, data.telefono2, data.email, data.direccion, new Date().toISOString()]
             );
 
             await getOrCreatePaciente(db, personaId);
-
             importedCount++;
         }
+
         await db.exec('COMMIT');
+        revalidatePath('/dashboard/personas');
+        return { imported: importedCount, skipped: skippedCount, errors: errorMessages };
     } catch (error: any) {
         await db.exec('ROLLBACK');
         console.error("Error bulk inserting personas:", error);
-        throw new Error('Error masivo al insertar personas. Se revirtieron todos los cambios.');
+        throw new Error(`Error masivo al insertar personas: ${error.message || 'Error desconocido'}. Se revirtieron todos los cambios.`);
     }
+}
 
-    revalidatePath('/dashboard/personas');
-    return {
-        imported: importedCount,
-        skipped: skippedCount,
-        errors: errorMessages,
-    };
+export async function bulkCreateTitulares(
+    titularesData: any[]
+): Promise<{ imported: number; skipped: number; errors: string[] }> {
+    await ensureDataEntryPermission();
+    const db = await getDb();
+    let importedCount = 0;
+    let skippedCount = 0;
+    const errorMessages: string[] = [];
+    const seenInBatch = new Set<string>();
+
+    await db.exec('BEGIN');
+    try {
+        for (const [index, row] of titularesData.entries()) {
+            // Basic mapping from Excel columns/JSON keys to our internal fields
+            const data = {
+                primerNombre: row.primerNombre || row['Primer Nombre'],
+                segundoNombre: row.segundoNombre || row['Segundo Nombre'],
+                primerApellido: row.primerApellido || row['Primer Apellido'],
+                segundoApellido: row.segundoApellido || row['Segundo Apellido'],
+                nacionalidad: row.nacionalidad || row['Nacionalidad'],
+                cedulaNumero: String(row.cedulaNumero || row['Cédula'] || ''),
+                fechaNacimiento: row.fechaNacimiento || row['Fecha de Nacimiento'],
+                genero: row.genero || row['Género'],
+                unidadServicio: row.unidadServicio || row['Unidad/Servicio'],
+                numeroFicha: row.numeroFicha || row['Número de Ficha'] || row['Ficha'],
+                telefono1: row.telefono1 || row['Teléfono 1'],
+                telefono2: row.telefono2 || row['Teléfono 2'],
+                email: row.email || row['Email'],
+                direccion: row.direccion || row['Dirección']
+            };
+
+            const personName = `${data.primerNombre} ${data.primerApellido}`.trim() || `Fila ${index + 1}`;
+
+            // Required fields check
+            const missingFields = [];
+            if (!data.primerNombre) missingFields.push('primer nombre');
+            if (!data.primerApellido) missingFields.push('primer apellido');
+            if (!data.fechaNacimiento) missingFields.push('fecha de nacimiento');
+            if (!data.genero) missingFields.push('género');
+            if (!data.unidadServicio) missingFields.push('unidad/servicio');
+
+            if (missingFields.length > 0) {
+                skippedCount++;
+                errorMessages.push(`${personName}: Faltan campos requeridos (${missingFields.join(', ')}).`);
+                continue;
+            }
+
+            // Normalize Cédula
+            let nacionalidad = 'V';
+            let cedulaNumero = data.cedulaNumero.trim();
+
+            if (cedulaNumero.includes('-')) {
+                const parts = cedulaNumero.split('-');
+                if ((parts[0] === 'V' || parts[0] === 'E') && /^\d+$/.test(parts[1])) {
+                    nacionalidad = parts[0];
+                    cedulaNumero = parts[1];
+                } else {
+                    cedulaNumero = cedulaNumero.replace(/\D/g, '');
+                }
+            } else {
+                cedulaNumero = cedulaNumero.replace(/\D/g, '');
+            }
+
+            const isoDate = parseDateToIso(data.fechaNacimiento);
+
+            if (!isoDate) {
+                skippedCount++;
+                errorMessages.push(`${personName}: Fecha '${data.fechaNacimiento}' inválida. Use DD/MM/AAAA.`);
+                continue;
+            }
+
+            if (cedulaNumero) {
+                // Check if already in batch
+                const batchKey = `${nacionalidad}-${cedulaNumero}`;
+                if (seenInBatch.has(batchKey)) {
+                    skippedCount++;
+                    errorMessages.push(`${personName}: Duplicado dentro del archivo (Cédula ${batchKey}).`);
+                    continue;
+                }
+                seenInBatch.add(batchKey);
+
+                // Check if person exists
+                const existingPersona = await db.get<{ id: string }>('SELECT id FROM personas WHERE nacionalidad = ? AND "cedulaNumero" = ?', [nacionalidad, cedulaNumero]);
+                let personaId: string;
+
+                if (existingPersona) {
+                    personaId = existingPersona.id;
+                    
+                    // Sync/Update existing persona data (especially the birth date if it was previously wrong)
+                    await db.run(
+                        'UPDATE personas SET "primerNombre" = ?, "segundoNombre" = ?, "primerApellido" = ?, "segundoApellido" = ?, "fechaNacimiento" = ?, genero = ?, telefono1 = ?, telefono2 = ?, email = ?, direccion = ? WHERE id = ?',
+                        [data.primerNombre, data.segundoNombre, data.primerApellido, data.segundoApellido, isoDate, data.genero, data.telefono1, data.telefono2, data.email, data.direccion, personaId]
+                    );
+                    // Sync date to users table if linked
+                    await db.run('UPDATE users SET "fecha_nacimiento" = ? WHERE "personaId" = ?', [isoDate, personaId]);
+
+                    // Check if already titular
+                    const existingTitular = await db.get<{ id: string }>('SELECT id FROM titulares WHERE "personaId" = ?', [personaId]);
+                    if (existingTitular) {
+                        // Update titular specific info too
+                        await db.run(
+                            'UPDATE titulares SET "unidadServicio" = ?, "numeroFicha" = ? WHERE id = ?',
+                            [data.unidadServicio, data.numeroFicha || null, existingTitular.id]
+                        );
+                        importedCount++;
+                        continue;
+                    }
+                } else {
+                    // Create Persona
+                    personaId = generateId('p');
+                    
+                    await db.run(
+                        'INSERT INTO personas (id, "primerNombre", "segundoNombre", "primerApellido", "segundoApellido", nacionalidad, "cedulaNumero", "fechaNacimiento", genero, telefono1, telefono2, email, direccion, "createdAt") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                        [personaId, data.primerNombre, data.segundoNombre, data.primerApellido, data.segundoApellido, nacionalidad, cedulaNumero, isoDate, data.genero, data.telefono1, data.telefono2, data.email, data.direccion, new Date().toISOString()]
+                    );
+                    
+                    // Ensure they are also in the patients table
+                    await getOrCreatePaciente(db, personaId);
+                }
+
+                // Create Titular
+                const titularId = generateId('t');
+                await db.run(
+                    'INSERT INTO titulares (id, "personaId", "unidadServicio", "numeroFicha") VALUES (?, ?, ?, ?)',
+                    [titularId, personaId, data.unidadServicio, data.numeroFicha || null]
+                );
+                
+                importedCount++;
+            } else {
+                skippedCount++;
+                errorMessages.push(`${personName}: Cédula es requerida para el proceso de importación masiva.`);
+            }
+        }
+
+        await db.exec('COMMIT');
+        revalidatePath('/dashboard/pacientes');
+        return { imported: importedCount, skipped: skippedCount, errors: errorMessages };
+    } catch (error: any) {
+        await db.exec('ROLLBACK');
+        console.error("Error bulk creating titulares:", error);
+        throw new Error(`Error masivo al insertar titulares: ${error.message || 'Error desconocido'}.`);
+    }
 }
 
 

@@ -21,6 +21,9 @@ import { Skeleton } from './ui/skeleton';
 import { DataTable, type ColumnDef } from '@/components/ui/data-table';
 import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
+import { TitularImportDialog } from './titular-import-dialog';
+import { Upload } from 'lucide-react';
+import { calculateAge } from '@/lib/utils';
 
 const PatientForm = dynamic(() => import('./patient-form').then(mod => mod.PatientForm), {
   loading: () => <div className="p-8"><Skeleton className="h-48 w-full" /></div>,
@@ -38,6 +41,7 @@ export function PatientManagement() {
   const [titulares, setTitulares] = React.useState<Titular[]>([]);
   const [selectedTitular, setSelectedTitular] = React.useState<Titular | null>(null);
   const [isFormOpen, setIsFormOpen] = React.useState(false);
+  const [isImportOpen, setIsImportOpen] = React.useState(false);
 
   const [currentPage, setCurrentPage] = React.useState(1);
   const [totalCount, setTotalCount] = React.useState(0);
@@ -166,6 +170,34 @@ export function PatientManagement() {
         </div>
       )
     },
+    {
+      accessorKey: "numeroFicha",
+      header: "Ficha",
+      cell: ({ row }) => row.original.numeroFicha
+        ? <Badge variant="outline" className="bg-amber-100/10 text-amber-600 border-amber-500/20 font-bold rounded-lg px-2 py-0.5"># {row.original.numeroFicha}</Badge>
+        : <span className="text-muted-foreground text-xs italic">—</span>
+    },
+    {
+      accessorKey: "persona.fechaNacimiento",
+      header: "F. Nacimiento / Edad",
+      cell: ({ row }: { row: any }) => {
+        const fecha = row.original.persona?.fechaNacimiento;
+        if (!fecha) return <span className="text-muted-foreground text-xs italic">No registrada</span>;
+        const fechaDate = new Date(fecha);
+        if (isNaN(fechaDate.getTime())) return <span className="text-muted-foreground text-xs italic">Inválida</span>;
+        const age = calculateAge(fechaDate);
+        return (
+          <div className="flex flex-col">
+            <span className="font-medium text-xs">
+              {fechaDate.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' })}
+            </span>
+            <span className="text-[10px] font-extrabold text-indigo-600 bg-indigo-50 dark:bg-indigo-950/30 dark:text-indigo-400 px-1.5 py-0.5 rounded w-fit mt-0.5 uppercase tracking-tighter">
+              {age} años
+            </span>
+          </div>
+        );
+      }
+    },
     { accessorKey: "beneficiariosCount", header: "Benef.", cell: ({ row }) => <div className="text-center">{row.original.beneficiariosCount}</div> },
     {
       id: "actions",
@@ -254,6 +286,10 @@ export function PatientManagement() {
             </div>
             {canManage && (
               <div className="flex gap-2 w-full sm:w-auto">
+                <Button variant="outline" onClick={() => setIsImportOpen(true)} className="rounded-xl border-border flex-1 sm:flex-none">
+                  <Upload className="mr-2 h-4 w-4" />
+                  Importar
+                </Button>
                 <Button variant="outline" onClick={handleExportExcel} className="rounded-xl border-border flex-1 sm:flex-none">
                   <Download className="mr-2 h-4 w-4" />
                   Exportar
@@ -297,6 +333,12 @@ export function PatientManagement() {
           )}
         </DialogContent>
       </Dialog>
+
+      <TitularImportDialog
+        open={isImportOpen}
+        onOpenChange={setIsImportOpen}
+        onImportSuccess={() => refreshTitulares(search, 1)}
+      />
     </>
   );
 }
