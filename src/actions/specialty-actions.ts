@@ -1,7 +1,7 @@
 
 'use server';
 
-import { getDb } from '@/lib/db';
+import { getDb, getNextId } from '@/lib/db';
 import type { Specialty } from '@/lib/types';
 import { revalidatePath } from 'next/cache';
 import { authorize } from '@/lib/auth';
@@ -25,7 +25,7 @@ export async function getSpecialties(query?: string): Promise<Specialty[]> {
 export async function createSpecialty(data: { name: string }): Promise<Specialty> {
   await authorize('specialties.manage');
   const db = await getDb();
-  const newSpecialty = { ...data, id: `spec-${Date.now()}` };
+  const newSpecialty = { ...data, id: await getNextId('specialties') };
   try {
     await db.run(
       'INSERT INTO specialties (id, name) VALUES (?, ?)',
@@ -41,7 +41,7 @@ export async function createSpecialty(data: { name: string }): Promise<Specialty
   return newSpecialty;
 }
 
-export async function updateSpecialty(id: string, data: { name: string }): Promise<Specialty> {
+export async function updateSpecialty(id: number | string, data: { name: string }): Promise<Specialty> {
   await authorize('specialties.manage');
   const db = await getDb();
   try {
@@ -60,7 +60,7 @@ export async function updateSpecialty(id: string, data: { name: string }): Promi
   return { ...data, id };
 }
 
-export async function deleteSpecialty(id: string): Promise<{ success: boolean }> {
+export async function deleteSpecialty(id: number | string): Promise<{ success: boolean }> {
   await authorize('specialties.manage');
   const db = await getDb();
 

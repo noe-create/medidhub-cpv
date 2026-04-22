@@ -82,7 +82,7 @@ export function PatientQueue({ user, patients, onListRefresh }: PatientQueueProp
     return null;
   }
 
-  const canManageStatus = ['superuser', 'administrator', 'admin', 'administradora', 'asistencial', 'secretaria', 'recepcionista', 'doctor', 'dra_pediatra', 'dra_familiar', 'enfermera'].includes(user.role.id);
+  const canManageStatus = [1, 2, 3, 4, 5, 6, 7].includes(Number(user.role.id)) || ['Superusuario', 'Admin', 'Secretaria', 'Enfermera', 'Dra. Pediatra', 'Dra. Familiar', 'Recepcionista'].includes(user.role.name);
 
   const statusOptionsForRole = React.useMemo(() => {
     if (!user) return [];
@@ -92,7 +92,7 @@ export function PatientQueue({ user, patients, onListRefresh }: PatientQueueProp
       return ['Esperando', ...baseOptions];
     }
 
-    if (user.role.id === 'enfermera') {
+    if (user.role.name === 'Enfermera' || Number(user.role.id) === 4) {
       return ['Esperando', 'En Tratamiento', ...baseOptions];
     }
 
@@ -223,7 +223,7 @@ export function PatientQueue({ user, patients, onListRefresh }: PatientQueueProp
     }
 
     // For superuser, admin, and assistant, show all services
-    if (['superuser', 'asistencial', 'administrator', 'admin', 'administradora', 'secretaria', 'recepcionista'].includes(user.role.id)) {
+    if ([1, 2, 3, 7].includes(Number(user.role.id)) || ['Superusuario', 'Admin', 'Secretaria', 'Recepcionista'].includes(user.role.name)) {
       return allServices;
     }
 
@@ -346,7 +346,7 @@ export function PatientQueue({ user, patients, onListRefresh }: PatientQueueProp
 
                         <div className="flex items-center gap-2 pt-2">
                           <div className="flex-1">
-                            {(['superuser', 'doctor', 'dra_pediatra', 'dra_familiar'].includes(user?.role.id || '')) &&
+                            {([1, 2, 5, 6].includes(Number(user?.role.id)) || ['Superusuario', 'Admin', 'Dra. Pediatra', 'Dra. Familiar'].includes(user?.role.name || '')) &&
                               (patient.status === 'Esperando' || patient.status === 'En Consulta' || patient.status === 'Reevaluacion') && (
                                 <Button
                                   onClick={() => handleStartOrContinueConsultation(patient)}

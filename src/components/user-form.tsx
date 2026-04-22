@@ -21,8 +21,8 @@ import { useFormDraft } from '@/hooks/use-form-draft';
 const baseSchema = z.object({
   username: z.string().min(3, { message: 'El nombre de usuario es requerido (mínimo 3 caracteres).' }),
   name: z.string().optional(),
-  roleId: z.string({ required_error: 'El rol es requerido.' }),
-  specialtyId: z.string().optional(),
+  roleId: z.coerce.string({ required_error: 'El rol es requerido.' }),
+  specialtyId: z.coerce.string().optional(),
   fechaNacimiento: z.date({ required_error: 'La fecha de nacimiento es requerida.' }),
 });
 
@@ -77,8 +77,8 @@ export function UserForm({ user, roles, onSubmitted, onCancel }: UserFormProps) 
     defaultValues: {
         username: user?.username || '',
         name: user?.name || '',
-        roleId: user?.role?.id,
-        specialtyId: user?.specialty?.id,
+        roleId: user?.role?.id ? String(user.role.id) : '',
+        specialtyId: user?.specialty?.id ? String(user.specialty.id) : '',
         fechaNacimiento: initialDate,
         password: '',
         confirmPassword: '',
@@ -107,7 +107,7 @@ export function UserForm({ user, roles, onSubmitted, onCancel }: UserFormProps) 
   }, [])
   
   const roleId = form.watch('roleId');
-  const selectedRole = roles.find(r => r.id === roleId);
+  const selectedRole = roles.find(r => String(r.id) === String(roleId));
   const fechaNacimiento = form.watch('fechaNacimiento');
 
   const years = React.useMemo(() => {
@@ -282,7 +282,7 @@ export function UserForm({ user, roles, onSubmitted, onCancel }: UserFormProps) 
                         </FormControl>
                         <SelectContent>
                         {roles.map(role => (
-                            <SelectItem key={role.id} value={role.id} disabled={role.name === 'Superusuario' && currentUser.role.name !== 'Superusuario'}>
+                            <SelectItem key={role.id} value={String(role.id)} disabled={role.name === 'Superusuario' && currentUser.role.name !== 'Superusuario'}>
                             {role.name}
                             </SelectItem>
                         ))}
@@ -308,7 +308,7 @@ export function UserForm({ user, roles, onSubmitted, onCancel }: UserFormProps) 
                         </FormControl>
                         <SelectContent>
                             {specialties.map(s => (
-                                <SelectItem key={s.id} value={s.id} className="capitalize">{s.name}</SelectItem>
+                                <SelectItem key={s.id} value={String(s.id)} className="capitalize">{s.name}</SelectItem>
                             ))}
                         </SelectContent>
                         </Select>

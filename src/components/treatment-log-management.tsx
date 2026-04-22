@@ -46,7 +46,7 @@ export function TreatmentLogManagement() {
   const [selectedItem, setSelectedItem] = React.useState<TreatmentOrderItem | null>(null);
   const [isExecutionFormOpen, setIsExecutionFormOpen] = React.useState(false);
 
-  const canManageOrder = ['doctor', 'dra_pediatra', 'dra_familiar', 'enfermera', 'superuser'].includes(user.role.id);
+  const canManageOrder = [1, 2, 4, 5, 6].includes(Number(user.role.id)) || ['Superusuario', 'Admin', 'Enfermera', 'Dra. Pediatra', 'Dra. Familiar'].includes(user.role.name);
 
   const refreshOrders = React.useCallback(async (currentSearch: string) => {
     setIsLoading(true);

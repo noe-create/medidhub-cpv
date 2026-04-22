@@ -12,7 +12,7 @@ export interface Permission {
 }
 
 export interface Role {
-  id: string;
+  id: number | string;
   name: string;
   description: string;
   hasSpecialty: boolean;
@@ -21,23 +21,23 @@ export interface Role {
 // --- End RBAC Types ---
 
 export interface Specialty {
-  id: string;
+  id: number | string;
   name: string;
 }
 
 export interface User {
-  id: string;
+  id: number | string;
   username: string;
-  role: { id: string, name: string };
+  role: { id: number | string, name: string };
   specialty?: Specialty;
-  personaId?: string;
+  personaId?: number | string;
   name?: string;
   genero?: Genero;
   fechaNacimiento?: Date | string;
 }
 
 export interface Persona {
-  id: string;
+  id: number | string;
   primerNombre: string;
   segundoNombre?: string;
   primerApellido: string;
@@ -50,7 +50,7 @@ export interface Persona {
   telefono2?: string;
   email?: string;
   direccion?: string;
-  representanteId?: string;
+  representanteId?: number | string;
   createdAt?: string;
   // Computed properties, not in DB
   nombreCompleto?: string;
@@ -58,8 +58,8 @@ export interface Persona {
 }
 
 export interface Paciente {
-  id: string; // The specific ID for the patient record in the 'pacientes' table
-  personaId: string;
+  id: number | string;
+  personaId: number | string;
 }
 
 export interface Empresa {
@@ -71,8 +71,8 @@ export interface Empresa {
 }
 
 export interface Titular {
-  id: string;
-  personaId: string;
+  id: number | string;
+  personaId: number | string;
   unidadServicio: string;
   numeroFicha?: string;
   // Denormalized fields for convenience
@@ -81,9 +81,9 @@ export interface Titular {
 }
 
 export interface Beneficiario {
-  id: string; // The ID of the 'beneficiario' relationship record
-  personaId: string;
-  titularId: string;
+  id: number | string;
+  personaId: number | string;
+  titularId: number | string;
   persona: Persona;
   titular?: {
     id: string,
@@ -100,11 +100,11 @@ export interface SearchResult {
   persona: Persona & { nombreCompleto: string; cedula: string; };
   // A person can be a titular, a beneficiary of one or more titulares, or both.
   titularInfo?: {
-    id: string; // titular record id
+    id: number | string; // titular record id
     unidadServicio: string;
   };
   beneficiarioDe?: {
-    titularId: string;
+    titularId: number | string;
     titularNombre: string;
   }[];
 }
@@ -124,9 +124,9 @@ export type PatientStatus =
 
 
 export interface Patient {
-  id: string; // Unique ID for the queue entry
-  personaId: string;
-  pacienteId: string;
+  id: number | string; // Unique ID for the queue entry
+  personaId: number | string;
+  pacienteId: number | string;
   name: string;
   kind: PatientKind;
   serviceType: ServiceType;
@@ -153,8 +153,8 @@ export interface Diagnosis {
 export type DocumentType = 'laboratorio' | 'imagenologia' | 'informe medico' | 'otro';
 
 export interface ConsultationDocument {
-  id: string;
-  consultationId: string;
+  id: number | string;
+  consultationId: number | string;
   fileName: string;
   fileType: string;
   documentType: DocumentType;

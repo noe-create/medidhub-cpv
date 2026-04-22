@@ -55,7 +55,7 @@ export function RoleManagement() {
 
   const handleOpenForm = async (role: Role | null) => {
     if (role) {
-      const roleWithPerms = await getRoleWithPermissions(role.id);
+      const roleWithPerms = await getRoleWithPermissions(String(role.id));
       setSelectedRole(roleWithPerms);
     } else {
       setSelectedRole(null);
@@ -71,7 +71,7 @@ export function RoleManagement() {
   const handleFormSubmitted = async (values: any) => {
     try {
       if (selectedRole) {
-        await updateRole(selectedRole.id, values);
+        await updateRole(String(selectedRole.id), values);
         toast({ title: '¡Rol Actualizado!', description: `El rol ${values.name} ha sido guardado.` });
       } else {
         await createRole(values);
@@ -180,7 +180,7 @@ export function RoleManagement() {
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
                                   <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                  <AlertDialogAction onClick={() => handleDeleteRole(role.id)} className="bg-destructive hover:bg-destructive/90">
+                                  <AlertDialogAction onClick={() => handleDeleteRole(String(role.id))} className="bg-destructive hover:bg-destructive/90">
                                     Sí, eliminar
                                   </AlertDialogAction>
                                 </AlertDialogFooter>

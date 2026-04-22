@@ -2,7 +2,7 @@
 
 'use server';
 
-import { getDb } from '@/lib/db';
+import { getDb, getNextId } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import * as bcrypt from 'bcryptjs';
@@ -11,13 +11,13 @@ import type { User, Persona, Genero } from '@/lib/types';
 import 'server-only';
 
 interface UserRow {
-    id: string;
+    id: number;
     username: string;
     password: string;
-    roleId: string;
-    specialtyId?: string;
+    roleId: number;
+    specialtyId?: number;
     name?: string;
-    personaId?: string;
+    personaId?: number;
 }
 
 export async function login(
@@ -58,7 +58,7 @@ export async function login(
 
         const { password: _, ...userRow } = userWithPassword;
 
-        const role = await db.get<{ id: string; name: string }>('SELECT id, name FROM roles WHERE id = ?', [userRow.roleId]);
+        const role = await db.get<{ id: number; name: string }>('SELECT id, name FROM roles WHERE id = ?', [userWithPassword.roleId]);
         if (!role) {
             console.error(`[AUTH] Critical error: Role with ID ${userRow.roleId} not found for user ${username}`);
             return { error: 'Error de configuración de cuenta: Rol no encontrado.' };
@@ -69,7 +69,7 @@ export async function login(
             persona = await db.get<{ genero: Genero }>('SELECT genero FROM personas WHERE id = ?', [userRow.personaId]);
         }
 
-        const specialty = userRow.specialtyId ? await db.get<{ id: string; name: string }>('SELECT id, name FROM specialties WHERE id = ?', [userRow.specialtyId]) : undefined;
+        const specialty = userRow.specialtyId ? await db.get<{ id: number; name: string }>('SELECT id, name FROM specialties WHERE id = ?', [userRow.specialtyId]) : undefined;
 
         const permissionRows = await db.all<{ permissionId: string }>(
             'SELECT "permissionId" FROM role_permissions WHERE "roleId" = ?',
@@ -158,12 +158,12 @@ export async function getUsers(query?: string, page: number = 1, pageSize: numbe
     params.push(pageSize, offset);
 
     interface UserDataFromDb {
-        id: string;
+        id: number;
         username: string;
         name: string;
-        roleId: string;
-        specialtyId?: string;
-        personaId?: string;
+        roleId: number;
+        specialtyId?: number;
+        personaId?: number;
     }
 
     const usersData = await db.all<any[]>(`
@@ -175,8 +175,8 @@ export async function getUsers(query?: string, page: number = 1, pageSize: numbe
     LIMIT ? OFFSET ?
         `, params);
 
-    const roles = await db.all<{ id: string; name: string }>('SELECT id, name FROM roles');
-    const specialties = await db.all<{ id: string; name: string }>('SELECT id, name FROM specialties');
+    const roles = await db.all<{ id: number; name: string }>('SELECT id, name FROM roles');
+    const specialties = await db.all<{ id: number; name: string }>('SELECT id, name FROM specialties');
 
     const rolesMap = new Map(roles.map(r => [r.id, r.name]));
     const specialtiesMap = new Map(specialties.map(s => [s.id, s.name]));
@@ -184,7 +184,7 @@ export async function getUsers(query?: string, page: number = 1, pageSize: numbe
     // Treat data from DB as 'any' to be safe, as db.all returns Promise<any[]>
     const users: User[] = usersData.map((u: any) => {
         // Ensure essential properties exist to prevent runtime errors
-        const roleId = u.roleId || 'unknown';
+        const roleId = u.roleId || 0;
         return {
             id: u.id,
             username: u.username,
@@ -205,8 +205,8 @@ interface UserCreationData {
     username: string;
     password?: string;
     name: string;
-    roleId: string;
-    specialtyId?: string;
+    roleId: number;
+    specialtyId?: number;
     fechaNacimiento?: string;
 }
 
@@ -220,10 +220,10 @@ export async function createUser(data: UserCreationData) {
             throw new Error('La contraseña debe tener al menos 6 caracteres.');
         }
         const hashedPassword = await bcrypt.hash(data.password, 10);
-        const userId = `usr-${uuidv4()}`;
+        const userId = await getNextId('users');
         await db.run(
             'INSERT INTO users (id, username, password, "roleId", "specialtyId", name, "fecha_nacimiento") VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [userId, data.username, hashedPassword, data.roleId, data.specialtyId || null, data.name || null, data.fechaNacimiento || null]
+            [userId, data.username, hashedPassword, Number(data.roleId), data.specialtyId ? Number(data.specialtyId) : null, data.name || null, data.fechaNacimiento || null]
         );
     } catch (error: any) {
         // Handle unique constraint violation for both SQLite and PostgreSQL
@@ -238,12 +238,12 @@ interface UserUpdateData {
     username: string;
     password?: string;
     name: string;
-    roleId: string;
-    specialtyId?: string;
+    roleId: number;
+    specialtyId?: number;
     fechaNacimiento?: string;
 }
 
-export async function updateUser(id: string, data: UserUpdateData) {
+export async function updateUser(id: number | string, data: UserUpdateData) {
     const db = await getDb();
     // Use a transaction to ensure atomicity of DB update and session update
     try {
@@ -253,12 +253,12 @@ export async function updateUser(id: string, data: UserUpdateData) {
             const hashedPassword = await bcrypt.hash(data.password, 10);
             await db.run(
                 'UPDATE users SET username = ?, password = ?, "roleId" = ?, "specialtyId" = ?, name = ?, "fecha_nacimiento" = ? WHERE id = ?',
-                [data.username, hashedPassword, data.roleId, data.specialtyId || null, data.name || null, data.fechaNacimiento || null, id]
+                [data.username, hashedPassword, Number(data.roleId), data.specialtyId ? Number(data.specialtyId) : null, data.name || null, data.fechaNacimiento || null, id]
             );
         } else {
             await db.run(
                 'UPDATE users SET username = ?, "roleId" = ?, "specialtyId" = ?, name = ?, "fecha_nacimiento" = ? WHERE id = ?',
-                [data.username, data.roleId, data.specialtyId || null, data.name || null, data.fechaNacimiento || null, id]
+                [data.username, Number(data.roleId), data.specialtyId ? Number(data.specialtyId) : null, data.name || null, data.fechaNacimiento || null, id]
             );
         }
 
@@ -267,13 +267,13 @@ export async function updateUser(id: string, data: UserUpdateData) {
             session.user.username = data.username;
             session.user.name = data.name || data.username;
 
-            const role = await db.get<{ id: string; name: string }>('SELECT id, name FROM roles WHERE id = ?', [data.roleId]);
+            const role = await db.get<{ id: number; name: string }>('SELECT id, name FROM roles WHERE id = ?', [data.roleId]);
             session.user.role = role
                 ? { id: role.id, name: role.name }
                 : { id: data.roleId, name: 'Rol no encontrado' };
 
             if (data.specialtyId) {
-                const specialty = await db.get<{ id: string; name: string }>('SELECT id, name FROM specialties WHERE id = ?', [data.specialtyId]);
+                const specialty = await db.get<{ id: number; name: string }>('SELECT id, name FROM specialties WHERE id = ?', [data.specialtyId]);
                 session.user.specialty = specialty
                     ? { id: specialty.id, name: specialty.name }
                     : { id: data.specialtyId, name: 'Especialidad no encontrada' };
@@ -293,7 +293,7 @@ export async function updateUser(id: string, data: UserUpdateData) {
 }
 
 
-export async function deleteUser(id: string) {
+export async function deleteUser(id: number | string) {
     const db = await getDb();
     const result = await db.run('DELETE FROM users WHERE id = ?', [id]);
     if (result.changes === 0) {

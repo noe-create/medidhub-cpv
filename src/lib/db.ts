@@ -89,6 +89,25 @@ class PostgresWrapper implements Database {
     }
 }
 
+/**
+ * Generates the next sequential ID for a given sequence name.
+ * Uses a database table 'sequences' to maintain counters.
+ * @param name The name of the sequence (e.g., 'personas', 'titulares')
+ * @returns A numeric ID (1, 2, 3...)
+ */
+export async function getNextId(name: string): Promise<number> {
+    const db = await getDb();
+    
+    const result = await db.all<{ current_value: number }>(
+        'INSERT INTO sequences (name, current_value) VALUES (?, 1) ' +
+        'ON CONFLICT (name) DO UPDATE SET current_value = sequences.current_value + 1 ' +
+        'RETURNING current_value',
+        [name]
+    );
+
+    return result[0]?.current_value ?? 1;
+}
+
 
 
 
@@ -99,7 +118,7 @@ async function createTables(client: PoolClient): Promise<void> {
 
     await client.query(`
         CREATE TABLE IF NOT EXISTS roles (
-            id TEXT PRIMARY KEY,
+            id INTEGER PRIMARY KEY,
             name TEXT NOT NULL UNIQUE,
             description TEXT,
             "hasSpecialty" INTEGER NOT NULL DEFAULT 0
@@ -107,8 +126,15 @@ async function createTables(client: PoolClient): Promise<void> {
     `);
 
     await client.query(`
+        CREATE TABLE IF NOT EXISTS sequences (
+            name TEXT PRIMARY KEY,
+            current_value INTEGER NOT NULL DEFAULT 0
+        );
+    `);
+
+    await client.query(`
         CREATE TABLE IF NOT EXISTS role_permissions (
-            "roleId" TEXT NOT NULL,
+            "roleId" INTEGER NOT NULL,
             "permissionId" TEXT NOT NULL,
             PRIMARY KEY ("roleId", "permissionId"),
             FOREIGN KEY ("roleId") REFERENCES roles(id) ON DELETE CASCADE
@@ -117,14 +143,14 @@ async function createTables(client: PoolClient): Promise<void> {
 
     await client.query(`
         CREATE TABLE IF NOT EXISTS specialties (
-            id TEXT PRIMARY KEY,
+            id INTEGER PRIMARY KEY,
             name TEXT NOT NULL UNIQUE
         );
     `);
 
     await client.query(`
         CREATE TABLE IF NOT EXISTS personas (
-            id TEXT PRIMARY KEY,
+            id INTEGER PRIMARY KEY,
             "primerNombre" TEXT NOT NULL,
             "segundoNombre" TEXT,
             "primerApellido" TEXT NOT NULL,
@@ -137,7 +163,7 @@ async function createTables(client: PoolClient): Promise<void> {
             telefono2 TEXT,
             email TEXT,
             direccion TEXT,
-            "representanteId" TEXT,
+            "representanteId" INTEGER,
             "createdAt" TEXT,
             UNIQUE(nacionalidad, "cedulaNumero"),
             FOREIGN KEY ("representanteId") REFERENCES personas(id) ON DELETE SET NULL
@@ -146,12 +172,12 @@ async function createTables(client: PoolClient): Promise<void> {
 
     await client.query(`
         CREATE TABLE IF NOT EXISTS users (
-            id TEXT PRIMARY KEY,
+            id INTEGER PRIMARY KEY,
             username TEXT NOT NULL UNIQUE,
             password TEXT NOT NULL,
-            "roleId" TEXT NOT NULL,
-            "specialtyId" TEXT,
-            "personaId" TEXT UNIQUE,
+            "roleId" INTEGER NOT NULL,
+            "specialtyId" INTEGER,
+            "personaId" INTEGER UNIQUE,
             "fecha_nacimiento" TEXT,
             FOREIGN KEY ("roleId") REFERENCES roles(id) ON DELETE RESTRICT,
             FOREIGN KEY ("specialtyId") REFERENCES specialties(id) ON DELETE SET NULL,
@@ -177,7 +203,7 @@ async function createTables(client: PoolClient): Promise<void> {
 
     await client.query(`
         CREATE TABLE IF NOT EXISTS empresas (
-            id TEXT PRIMARY KEY,
+            id INTEGER PRIMARY KEY,
             name TEXT NOT NULL,
             rif TEXT NOT NULL UNIQUE,
             telefono TEXT NOT NULL,
@@ -187,16 +213,16 @@ async function createTables(client: PoolClient): Promise<void> {
 
     await client.query(`
         CREATE TABLE IF NOT EXISTS pacientes (
-            id TEXT PRIMARY KEY,
-            "personaId" TEXT NOT NULL UNIQUE,
+            id INTEGER PRIMARY KEY,
+            "personaId" INTEGER NOT NULL UNIQUE,
             FOREIGN KEY ("personaId") REFERENCES personas(id) ON DELETE CASCADE
         );
     `);
 
     await client.query(`
         CREATE TABLE IF NOT EXISTS titulares (
-            id TEXT PRIMARY KEY,
-            "personaId" TEXT NOT NULL UNIQUE,
+            id INTEGER PRIMARY KEY,
+            "personaId" INTEGER NOT NULL UNIQUE,
             "unidadServicio" TEXT NOT NULL,
             "numeroFicha" TEXT,
             FOREIGN KEY ("personaId") REFERENCES personas(id) ON DELETE CASCADE
@@ -205,9 +231,9 @@ async function createTables(client: PoolClient): Promise<void> {
 
     await client.query(`
         CREATE TABLE IF NOT EXISTS beneficiarios (
-            id TEXT PRIMARY KEY,
-            "personaId" TEXT NOT NULL,
-            "titularId" TEXT NOT NULL,
+            id INTEGER PRIMARY KEY,
+            "personaId" INTEGER NOT NULL,
+            "titularId" INTEGER NOT NULL,
             UNIQUE("personaId", "titularId"),
             FOREIGN KEY ("personaId") REFERENCES personas(id) ON DELETE CASCADE,
             FOREIGN KEY ("titularId") REFERENCES titulares(id) ON DELETE CASCADE
@@ -216,9 +242,9 @@ async function createTables(client: PoolClient): Promise<void> {
 
     await client.query(`
         CREATE TABLE IF NOT EXISTS waitlist (
-            id TEXT PRIMARY KEY,
-            "personaId" TEXT NOT NULL,
-            "pacienteId" TEXT NOT NULL,
+            id INTEGER PRIMARY KEY,
+            "personaId" INTEGER NOT NULL,
+            "pacienteId" INTEGER NOT NULL,
             name TEXT NOT NULL,
             kind TEXT NOT NULL,
             "serviceType" TEXT NOT NULL,
@@ -244,9 +270,9 @@ async function createTables(client: PoolClient): Promise<void> {
 
     await client.query(`
         CREATE TABLE IF NOT EXISTS consultations (
-            id TEXT PRIMARY KEY,
-            "pacienteId" TEXT NOT NULL,
-            "waitlistId" TEXT,
+            id INTEGER PRIMARY KEY,
+            "pacienteId" INTEGER NOT NULL,
+            "waitlistId" INTEGER,
             "consultationDate" TEXT NOT NULL,
             "motivoConsulta" TEXT,
             "enfermedadActual" TEXT,
@@ -288,8 +314,8 @@ async function createTables(client: PoolClient): Promise<void> {
 
     await client.query(`
         CREATE TABLE IF NOT EXISTS consultation_diagnoses (
-            id TEXT PRIMARY KEY,
-            "consultationId" TEXT NOT NULL,
+            id INTEGER PRIMARY KEY,
+            "consultationId" INTEGER NOT NULL,
             "cie10Code" TEXT NOT NULL,
             "cie10Description" TEXT NOT NULL,
             FOREIGN KEY ("consultationId") REFERENCES consultations(id) ON DELETE CASCADE
@@ -298,8 +324,8 @@ async function createTables(client: PoolClient): Promise<void> {
 
     await client.query(`
         CREATE TABLE IF NOT EXISTS consultation_documents (
-            id TEXT PRIMARY KEY,
-            "consultationId" TEXT NOT NULL,
+            id INTEGER PRIMARY KEY,
+            "consultationId" INTEGER NOT NULL,
             "fileName" TEXT NOT NULL,
             "fileType" TEXT NOT NULL,
             "documentType" TEXT NOT NULL,
@@ -319,9 +345,9 @@ async function createTables(client: PoolClient): Promise<void> {
 
     await client.query(`
         CREATE TABLE IF NOT EXISTS treatment_orders (
-            id TEXT PRIMARY KEY,
-            "pacienteId" TEXT NOT NULL,
-            "consultationId" TEXT NOT NULL,
+            id INTEGER PRIMARY KEY,
+            "pacienteId" INTEGER NOT NULL,
+            "consultationId" INTEGER NOT NULL,
             status TEXT NOT NULL DEFAULT 'Pendiente', 
             "createdAt" TEXT NOT NULL,
             FOREIGN KEY ("pacienteId") REFERENCES pacientes(id) ON DELETE CASCADE,
@@ -331,8 +357,8 @@ async function createTables(client: PoolClient): Promise<void> {
 
     await client.query(`
         CREATE TABLE IF NOT EXISTS treatment_order_items (
-            id TEXT PRIMARY KEY,
-            "treatmentOrderId" TEXT NOT NULL,
+            id INTEGER PRIMARY KEY,
+            "treatmentOrderId" INTEGER NOT NULL,
             "medicamentoProcedimiento" TEXT NOT NULL,
             dosis TEXT,
             via TEXT,
@@ -346,8 +372,8 @@ async function createTables(client: PoolClient): Promise<void> {
 
     await client.query(`
         CREATE TABLE IF NOT EXISTS treatment_executions (
-            id TEXT PRIMARY KEY,
-            "treatmentOrderItemId" TEXT NOT NULL,
+            id INTEGER PRIMARY KEY,
+            "treatmentOrderItemId" INTEGER NOT NULL,
             "executionTime" TEXT NOT NULL,
             observations TEXT NOT NULL,
             "executedBy" TEXT NOT NULL,
@@ -357,9 +383,9 @@ async function createTables(client: PoolClient): Promise<void> {
 
     await client.query(`
         CREATE TABLE IF NOT EXISTS lab_orders (
-            id TEXT PRIMARY KEY,
-            "pacienteId" TEXT NOT NULL,
-            "consultationId" TEXT NOT NULL,
+            id INTEGER PRIMARY KEY,
+            "pacienteId" INTEGER NOT NULL,
+            "consultationId" INTEGER NOT NULL,
             "orderDate" TEXT NOT NULL,
             status TEXT NOT NULL DEFAULT 'Pendiente',
             FOREIGN KEY ("pacienteId") REFERENCES pacientes(id) ON DELETE CASCADE,
@@ -369,8 +395,8 @@ async function createTables(client: PoolClient): Promise<void> {
 
     await client.query(`
         CREATE TABLE IF NOT EXISTS lab_order_items (
-            id TEXT PRIMARY KEY,
-            "labOrderId" TEXT NOT NULL,
+            id INTEGER PRIMARY KEY,
+            "labOrderId" INTEGER NOT NULL,
             "testName" TEXT NOT NULL,
             FOREIGN KEY ("labOrderId") REFERENCES lab_orders(id) ON DELETE CASCADE
         );
@@ -378,7 +404,7 @@ async function createTables(client: PoolClient): Promise<void> {
 
     await client.query(`
         CREATE TABLE IF NOT EXISTS surveys (
-            id TEXT PRIMARY KEY,
+            id INTEGER PRIMARY KEY,
             title TEXT NOT NULL,
             description TEXT,
             "isActive" INTEGER NOT NULL DEFAULT 1,
@@ -388,8 +414,8 @@ async function createTables(client: PoolClient): Promise<void> {
 
     await client.query(`
         CREATE TABLE IF NOT EXISTS survey_questions (
-            id TEXT PRIMARY KEY,
-            "surveyId" TEXT NOT NULL,
+            id INTEGER PRIMARY KEY,
+            "surveyId" INTEGER NOT NULL,
             "questionText" TEXT NOT NULL,
             "questionType" TEXT NOT NULL,
             "displayOrder" INTEGER NOT NULL,
@@ -400,8 +426,8 @@ async function createTables(client: PoolClient): Promise<void> {
     await client.query(`
         CREATE TABLE IF NOT EXISTS survey_invitations (
             token TEXT PRIMARY KEY,
-            "consultationId" TEXT NOT NULL UNIQUE,
-            "surveyId" TEXT NOT NULL,
+            "consultationId" INTEGER NOT NULL UNIQUE,
+            "surveyId" INTEGER NOT NULL,
             "isCompleted" INTEGER NOT NULL DEFAULT 0,
             "createdAt" TEXT NOT NULL,
             FOREIGN KEY ("consultationId") REFERENCES consultations(id) ON DELETE CASCADE,
@@ -411,9 +437,9 @@ async function createTables(client: PoolClient): Promise<void> {
 
     await client.query(`
         CREATE TABLE IF NOT EXISTS survey_responses (
-            id TEXT PRIMARY KEY,
+            id INTEGER PRIMARY KEY,
             "invitationToken" TEXT NOT NULL,
-            "questionId" TEXT NOT NULL,
+            "questionId" INTEGER NOT NULL,
             "answerValue" TEXT,
             "submittedAt" TEXT NOT NULL,
             FOREIGN KEY ("invitationToken") REFERENCES survey_invitations(token) ON DELETE CASCADE,
@@ -423,7 +449,7 @@ async function createTables(client: PoolClient): Promise<void> {
 
     await client.query(`
         CREATE TABLE IF NOT EXISTS services (
-            id TEXT PRIMARY KEY,
+            id INTEGER PRIMARY KEY,
             name TEXT NOT NULL UNIQUE,
             description TEXT,
             price REAL NOT NULL
@@ -432,8 +458,8 @@ async function createTables(client: PoolClient): Promise<void> {
 
     await client.query(`
         CREATE TABLE IF NOT EXISTS invoices (
-            id TEXT PRIMARY KEY,
-            "consultationId" TEXT NOT NULL UNIQUE,
+            id INTEGER PRIMARY KEY,
+            "consultationId" INTEGER NOT NULL UNIQUE,
             "totalAmount" REAL NOT NULL,
             status TEXT NOT NULL DEFAULT 'Pendiente',
             "createdAt" TEXT NOT NULL,
@@ -443,9 +469,9 @@ async function createTables(client: PoolClient): Promise<void> {
 
     await client.query(`
         CREATE TABLE IF NOT EXISTS invoice_items (
-            id TEXT PRIMARY KEY,
-            "invoiceId" TEXT NOT NULL,
-            "serviceId" TEXT NOT NULL,
+            id INTEGER PRIMARY KEY,
+            "invoiceId" INTEGER NOT NULL,
+            "serviceId" INTEGER NOT NULL,
             "serviceName" TEXT NOT NULL,
             price REAL NOT NULL,
             FOREIGN KEY ("invoiceId") REFERENCES invoices(id) ON DELETE CASCADE,
@@ -456,7 +482,7 @@ async function createTables(client: PoolClient): Promise<void> {
 
     await client.query(`
         CREATE TABLE IF NOT EXISTS job_positions (
-            id TEXT PRIMARY KEY,
+            id INTEGER PRIMARY KEY,
             name TEXT NOT NULL,
             description TEXT,
             "riskLevel" TEXT,
@@ -466,9 +492,9 @@ async function createTables(client: PoolClient): Promise<void> {
 
     await client.query(`
         CREATE TABLE IF NOT EXISTS occupational_incidents (
-            id TEXT PRIMARY KEY,
-            "personaId" TEXT NOT NULL,
-            "companyId" TEXT NOT NULL,
+            id INTEGER PRIMARY KEY,
+            "personaId" INTEGER NOT NULL,
+            "companyId" INTEGER NOT NULL,
             "incidentDate" TEXT NOT NULL,
             "incidentType" TEXT NOT NULL,
             description TEXT NOT NULL,
@@ -484,11 +510,11 @@ async function createTables(client: PoolClient): Promise<void> {
 
     await client.query(`
         CREATE TABLE IF NOT EXISTS occupational_health_evaluations (
-            id TEXT PRIMARY KEY,
-            "personaId" TEXT NOT NULL,
-            "pacienteId" TEXT,
-            "jobPositionId" TEXT,
-            "companyId" TEXT,
+            id INTEGER PRIMARY KEY,
+            "personaId" INTEGER NOT NULL,
+            "pacienteId" INTEGER,
+            "jobPositionId" INTEGER,
+            "companyId" INTEGER,
             "companyName" TEXT,
             "evaluationDate" TEXT NOT NULL,
             "patientType" TEXT NOT NULL,
@@ -552,13 +578,13 @@ async function seedDb(client: PoolClient): Promise<void> {
         await client.query('BEGIN');
 
         const rolesToCreate = [
-            { id: 'superuser', name: 'Superusuario', description: 'Acceso total a todas las funciones del sistema.', hasSpecialty: 1, permissions: ALL_PERMISSIONS.map(p => p.id) },
-            { id: 'admin', name: 'Admin', description: 'Puede gestionar usuarios, roles y configuraciones.', hasSpecialty: 0, permissions: ['users.manage', 'roles.manage', 'settings.manage', 'companies.manage', 'specialties.manage', 'reports.view'] },
-            { id: 'secretaria', name: 'Secretaria', description: 'Acceso a módulos de admisión y reportes básicos.', hasSpecialty: 0, permissions: ['waitlist.manage', 'people.manage', 'titulars.manage', 'beneficiaries.manage', 'patientlist.view', 'reports.view'] },
-            { id: 'enfermera', name: 'Enfermera', description: 'Puede gestionar la bitácora de tratamiento y asistir en consultas.', hasSpecialty: 0, permissions: ['treatmentlog.manage', 'waitlist.manage'] },
-            { id: 'dra_pediatra', name: 'Dra. Pediatra', description: 'Rol para médico pediatra.', hasSpecialty: 1, permissions: ['consultation.perform', 'hce.view', 'waitlist.manage', 'patientlist.view', 'treatmentlog.manage'] },
-            { id: 'dra_familiar', name: 'Dra. Familiar', description: 'Rol para médico familiar.', hasSpecialty: 1, permissions: ['consultation.perform', 'hce.view', 'waitlist.manage', 'patientlist.view', 'treatmentlog.manage'] },
-            { id: 'recepcionista', name: 'Recepcionista', description: 'Gestiona la sala de espera y el registro de pacientes.', hasSpecialty: 0, permissions: ['waitlist.manage', 'people.manage', 'titulars.manage', 'beneficiaries.manage'] },
+            { id: 1, name: 'Superusuario', description: 'Acceso total a todas las funciones del sistema.', hasSpecialty: 1, permissions: ALL_PERMISSIONS.map(p => p.id) },
+            { id: 2, name: 'Admin', description: 'Puede gestionar usuarios, roles y configuraciones.', hasSpecialty: 0, permissions: ['users.manage', 'roles.manage', 'settings.manage', 'companies.manage', 'specialties.manage', 'reports.view'] },
+            { id: 3, name: 'Secretaria', description: 'Acceso a módulos de admisión y reportes básicos.', hasSpecialty: 0, permissions: ['waitlist.manage', 'people.manage', 'titulars.manage', 'beneficiaries.manage', 'patientlist.view', 'reports.view'] },
+            { id: 4, name: 'Enfermera', description: 'Puede gestionar la bitácora de tratamiento y asistir en consultas.', hasSpecialty: 0, permissions: ['treatmentlog.manage', 'waitlist.manage'] },
+            { id: 5, name: 'Dra. Pediatra', description: 'Rol para médico pediatra.', hasSpecialty: 1, permissions: ['consultation.perform', 'hce.view', 'waitlist.manage', 'patientlist.view', 'treatmentlog.manage'] },
+            { id: 6, name: 'Dra. Familiar', description: 'Rol para médico familiar.', hasSpecialty: 1, permissions: ['consultation.perform', 'hce.view', 'waitlist.manage', 'patientlist.view', 'treatmentlog.manage'] },
+            { id: 7, name: 'Recepcionista', description: 'Gestiona la sala de espera y el registro de pacientes.', hasSpecialty: 0, permissions: ['waitlist.manage', 'people.manage', 'titulars.manage', 'beneficiaries.manage'] },
         ];
 
         for (const role of rolesToCreate) {
@@ -580,7 +606,7 @@ async function seedDb(client: PoolClient): Promise<void> {
             const hashedPassword = await bcrypt.hash('password123', 10);
             await client.query(
                 'INSERT INTO users (id, username, password, "roleId", name) VALUES ($1, $2, $3, $4, $5)',
-                ['usr-super', 'superuser', hashedPassword, 'superuser', 'Super Administrador']
+                [1, 'superuser', hashedPassword, 1, 'Super Administrador']
             );
             console.log("Superuser created.");
         }
@@ -590,7 +616,7 @@ async function seedDb(client: PoolClient): Promise<void> {
             const hashedPassword = await bcrypt.hash('password123', 10);
             await client.query(
                 'INSERT INTO users (id, username, password, "roleId", name) VALUES ($1, $2, $3, $4, $5)',
-                ['usr-asist', 'asistente', hashedPassword, 'recepcionista', 'Asistente de Recepción']
+                [2, 'asistente', hashedPassword, 7, 'Asistente de Recepción']
             );
             console.log("Assistant user created.");
         }

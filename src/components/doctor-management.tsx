@@ -52,7 +52,7 @@ export function DoctorManagement({ roles }: DoctorManagementProps) {
     setIsLoading(true);
     try {
       const { users: data, totalCount } = await getUsers(currentSearch, page, PAGE_SIZE);
-      const filteredDoctors = data.filter(u => doctorRoleIds.includes(u.role.id));
+      const filteredDoctors = data.filter(u => doctorRoleIds.some(drId => Number(drId) === Number(u.role.id)));
       setDoctors(filteredDoctors);
       setTotalCount(filteredDoctors.length);
     } catch (error: any) {

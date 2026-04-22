@@ -36,7 +36,7 @@ export function SpecialtyManagement() {
   const [currentPage, setCurrentPage] = React.useState(1);
   const [totalCount, setTotalCount] = React.useState(0);
 
-  const canManage = ['superuser', 'administrator', 'admin'].includes(user.role.id);
+  const canManage = [1, 2].includes(Number(user.role.id)) || ['Superusuario', 'Admin'].includes(user.role.name);
 
   const refreshSpecialties = React.useCallback(async (currentSearch: string) => {
     setIsLoading(true);
@@ -137,7 +137,7 @@ export function SpecialtyManagement() {
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => handleDelete(specialty.id)} className="bg-destructive hover:bg-destructive/90">
+                  <AlertDialogAction onClick={() => handleDelete(String(specialty.id))} className="bg-destructive hover:bg-destructive/90">
                     Sí, eliminar
                   </AlertDialogAction>
                 </AlertDialogFooter>

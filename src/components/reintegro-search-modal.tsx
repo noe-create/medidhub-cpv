@@ -75,19 +75,19 @@ export function ReintegroSearchModal({ isOpen, onOpenChange, onSuccess }: Reinte
             return;
         }
 
-        setIsSubmitting(result.persona.id);
+        setIsSubmitting(String(result.persona.id));
         try {
             let accountType: any = 'Privado';
 
             if (result.titularInfo) {
-                accountType = await getAccountTypeByTitularId(result.titularInfo.id) || 'Privado';
+                accountType = await getAccountTypeByTitularId(String(result.titularInfo.id)) || 'Privado';
             } else if (result.beneficiarioDe && result.beneficiarioDe.length > 0) {
                 const titularId = result.beneficiarioDe[0].titularId;
-                accountType = await getAccountTypeByTitularId(titularId) || 'Privado';
+                accountType = await getAccountTypeByTitularId(String(titularId)) || 'Privado';
             }
 
             await addPatientToWaitlist({
-                personaId: result.persona.id,
+                personaId: String(result.persona.id),
                 name: result.persona.nombreCompleto!,
                 kind: result.titularInfo ? 'titular' : 'beneficiario',
                 serviceType: serviceType,
@@ -212,10 +212,10 @@ export function ReintegroSearchModal({ isOpen, onOpenChange, onSuccess }: Reinte
 
                                                     <Button
                                                         onClick={() => handleIngresar(result)}
-                                                        disabled={isSubmitting === result.persona.id || !selectedServices[result.persona.id]}
+                                                        disabled={isSubmitting === String(result.persona.id) || !selectedServices[result.persona.id]}
                                                         className="w-full sm:w-auto h-11 px-6 rounded-xl font-black bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-200 transition-all hover:scale-[1.02] active:scale-[0.98]"
                                                     >
-                                                        {isSubmitting === result.persona.id ? (
+                                                        {isSubmitting === String(result.persona.id) ? (
                                                             <Loader2 className="h-4 w-4 animate-spin" />
                                                         ) : (
                                                             <><UserPlus className="mr-2 h-4 w-4" /> Ingresar a Espera</>

@@ -2,7 +2,7 @@
 
 'use server';
 
-import { getDb, type Database } from '@/lib/db';
+import { getDb, getNextId, type Database } from '@/lib/db';
 import type {
     Persona,
     Titular,
@@ -40,7 +40,6 @@ import { startOfDay, endOfDay, startOfWeek, endOfWeek } from 'date-fns';
 
 
 // --- Helpers ---
-const generateId = (prefix: string) => `${prefix}${Date.now()}${Math.random().toString(36).substring(2, 6)}`;
 const fullNameSql = `TRIM(p."primerNombre" || ' ' || COALESCE(p."segundoNombre", '') || ' ' || p."primerApellido" || ' ' || COALESCE(p."segundoApellido", ''))`;
 const titularNameSql = `TRIM(p_titular."primerNombre" || ' ' || COALESCE(p_titular."segundoNombre", '') || ' ' || p_titular."primerApellido" || ' ' || COALESCE(p_titular."segundoApellido", ''))`;
 const fullCedulaSql = `CASE WHEN p.nacionalidad IS NOT NULL AND p."cedulaNumero" IS NOT NULL THEN p.nacionalidad || '-' || p."cedulaNumero" ELSE NULL END`;
@@ -95,24 +94,34 @@ function parseDateToIso(dateStr: any): string | null {
 // --- Authorization Helpers ---
 async function ensureAdminPermission() {
     const session = await getSession();
-    if (!session.isLoggedIn || !session.user || !['superuser', 'administrator', 'admin', 'administradora'].includes(session.user.role.id)) {
+    // 1: superuser, 2: admin
+    const adminRoles = [1, 2];
+    const roleId = Number(session.user?.role.id);
+    const roleName = session.user?.role.name;
+    
+    if (!session.isLoggedIn || !session.user || (!adminRoles.includes(roleId) && roleName !== 'Superusuario' && roleName !== 'Admin')) {
         throw new Error('Acción no autorizada. Se requiere rol de administrador o superusuario.');
     }
 }
 
 async function ensureDataEntryPermission() {
     const session = await getSession();
-    if (!session.isLoggedIn || !session.user || !['superuser', 'administrator', 'admin', 'administradora', 'asistencial', 'secretaria', 'recepcionista', 'dra_pediatra', 'dra_familiar', 'doctor', 'enfermera'].includes(session.user.role.id)) {
+    // 1-7: All seeded roles have some data entry permission or clinical role
+    const allowedRoles = [1, 2, 3, 4, 5, 6, 7];
+    const roleId = Number(session.user?.role.id);
+    const roleName = session.user?.role.name;
+
+    if (!session.isLoggedIn || !session.user || (!allowedRoles.includes(roleId) && roleName !== 'Superusuario')) {
         throw new Error('Acción no autorizada. Se requiere permiso para ingreso de datos.');
     }
 }
 
 // --- Persona Actions (Centralized Person Management) ---
 
-async function getOrCreatePersona(client: Database, personaData: Omit<Persona, 'id' | 'fechaNacimiento'> & { fechaNacimiento: string; representanteId?: string; }) {
+async function getOrCreatePersona(client: Database, personaData: Omit<Persona, 'id' | 'fechaNacimiento'> & { fechaNacimiento: string; representanteId?: number; }) {
     let existingPersona;
     if (personaData.nacionalidad && personaData.cedulaNumero) {
-        existingPersona = await client.get<{ id: string }>('SELECT id FROM personas WHERE nacionalidad = ? AND "cedulaNumero" = ?', [personaData.nacionalidad, personaData.cedulaNumero]);
+        existingPersona = await client.get<{ id: number }>('SELECT id FROM personas WHERE nacionalidad = ? AND "cedulaNumero" = ?', [personaData.nacionalidad, personaData.cedulaNumero]);
     }
 
     if (existingPersona) {
@@ -124,7 +133,7 @@ async function getOrCreatePersona(client: Database, personaData: Omit<Persona, '
         throw new Error('Un menor de edad sin cédula debe tener un representante asignado.');
     }
 
-    const personaId = generateId('p');
+    const personaId = await getNextId('personas');
     await client.run(
         'INSERT INTO personas (id, "primerNombre", "segundoNombre", "primerApellido", "segundoApellido", nacionalidad, "cedulaNumero", "fechaNacimiento", genero, telefono1, telefono2, email, direccion, "representanteId", "createdAt") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [personaId, personaData.primerNombre, personaData.segundoNombre, personaData.primerApellido, personaData.segundoApellido, personaData.nacionalidad, personaData.cedulaNumero, personaData.fechaNacimiento, personaData.genero, personaData.telefono1, personaData.telefono2, personaData.email, personaData.direccion, personaData.representanteId || null, new Date().toISOString()]
@@ -136,7 +145,7 @@ async function getOrCreatePersona(client: Database, personaData: Omit<Persona, '
 
 
 // --- NEW: Full Persona Profile ---
-export async function getFullPersonaProfile(personaId: string) {
+export async function getFullPersonaProfile(personaId: number | string) {
     const db = await getDb();
     const persona = await db.get<any>(`
         SELECT p.*, ${fullNameSql} as "nombreCompleto", ${fullCedulaSql} as cedula
@@ -359,7 +368,7 @@ export async function createTitular(data: {
             throw new Error('Esta persona ya tiene el rol de titular.');
         }
 
-        const titularId = generateId('t');
+        const titularId = await getNextId('t');
         await db.run(
             'INSERT INTO titulares (id, "personaId", "unidadServicio", "numeroFicha") VALUES (?, ?, ?, ?)',
             [titularId, personaId, data.unidadServicio, data.numeroFicha || null]
@@ -494,7 +503,7 @@ export async function getAllBeneficiarios(query?: string): Promise<BeneficiarioC
 export async function createBeneficiario(titularId: string, data: { persona: Omit<Persona, 'id' | 'fechaNacimiento' | 'nombreCompleto' | 'cedula'> & { fechaNacimiento: Date } } | { personaId: string }): Promise<Beneficiario> {
     await ensureDataEntryPermission();
     const db = await getDb();
-    const beneficiarioId = generateId('b');
+    const beneficiarioId = await getNextId('b');
     let personaId: string = '';
 
     try {
@@ -655,7 +664,7 @@ async function getOrCreatePaciente(client: any, personaId: string): Promise<stri
     if (existingPatient) {
         return existingPatient.id;
     }
-    const pacienteId = generateId('pac');
+    const pacienteId = await getNextId('pac');
     await client.run('INSERT INTO pacientes (id, "personaId") VALUES (?, ?)', [pacienteId, personaId]);
     return pacienteId;
 }
@@ -688,7 +697,7 @@ export async function addPatientToWaitlist(data: Omit<Patient, 'id' | 'pacienteI
 
         const newPatient: Patient = {
             ...data,
-            id: generateId('q'),
+            id: await getNextId('w'),
             pacienteId: pacienteId,
         };
 
@@ -878,9 +887,9 @@ export async function createConsultation(data: CreateConsultationInput): Promise
     }
 
     const db = await getDb();
-    const consultationId = generateId('c');
+    const consultationId = await getNextId('consultations');
     const consultationDate = new Date();
-    const surveyInvitationToken = generateId('inv');
+    const surveyInvitationToken = await getNextId('inv');
 
     try {
         await db.exec('BEGIN');
@@ -897,18 +906,18 @@ export async function createConsultation(data: CreateConsultationInput): Promise
 
         if (data.diagnoses && data.diagnoses.length > 0) {
             for (const diagnosis of data.diagnoses) {
-                await db.run('INSERT INTO consultation_diagnoses (id, "consultationId", "cie10Code", "cie10Description") VALUES (?, ?, ?, ?)', [generateId('d'), consultationId, diagnosis.cie10Code, diagnosis.cie10Description]);
+                await db.run('INSERT INTO consultation_diagnoses (id, "consultationId", "cie10Code", "cie10Description") VALUES (?, ?, ?, ?)', [await getNextId('diag'), consultationId, diagnosis.cie10Code, diagnosis.cie10Description]);
             }
         }
 
         if (data.documents && data.documents.length > 0) {
             for (const doc of data.documents) {
-                await db.run('INSERT INTO consultation_documents (id, "consultationId", "fileName", "fileType", "documentType", description, "fileData", "uploadedAt") VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [generateId('doc'), consultationId, doc.fileName, doc.fileType, doc.documentType, doc.description, doc.fileData, new Date().toISOString()]);
+                await db.run('INSERT INTO consultation_documents (id, "consultationId", "fileName", "fileType", "documentType", description, "fileData", "uploadedAt") VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [await getNextId('doc'), consultationId, doc.fileName, doc.fileType, doc.documentType, doc.description, doc.fileData, new Date().toISOString()]);
             }
         }
 
         if (data.treatmentItems && data.treatmentItems.length > 0) {
-            const orderId = generateId('to');
+            const orderId = await getNextId('order');
             await db.run(
                 'INSERT INTO treatment_orders (id, "pacienteId", "consultationId", status, "createdAt") VALUES (?, ?, ?, ?, ?)',
                 [orderId, data.pacienteId, consultationId, 'Pendiente', new Date().toISOString()]
@@ -916,10 +925,8 @@ export async function createConsultation(data: CreateConsultationInput): Promise
 
             for (const item of data.treatmentItems) {
                 await db.run(`
-                    INSERT INTO treatment_order_items 
-                    (id, "treatmentOrderId", "medicamentoProcedimiento", dosis, via, frecuencia, duracion, instrucciones, status) 
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                `, [generateId('toi'), orderId, item.medicamentoProcedimiento, item.dosis, item.via, item.frecuencia, item.duracion, item.instrucciones, 'Pendiente']);
+                `, [await getNextId('item'), orderId, item.medicamentoProcedimiento, item.dosis, item.via, item.frecuencia, item.duracion, item.instrucciones, 'Pendiente']);
             }
         }
 
@@ -986,7 +993,7 @@ export async function getEmpresas(query?: string, page: number = 1, pageSize: nu
 export async function createEmpresa(data: Omit<Empresa, 'id'>): Promise<Empresa> {
     await ensureDataEntryPermission();
     const db = await getDb();
-    const newEmpresaData = { ...data, id: generateId('emp') };
+    const newEmpresaData = { ...data, id: await getNextId('emp') };
     await db.run(
         'INSERT INTO empresas (id, name, rif, telefono, direccion) VALUES (?, ?, ?, ?, ?)',
         [newEmpresaData.id, newEmpresaData.name, newEmpresaData.rif, newEmpresaData.telefono, newEmpresaData.direccion]
@@ -1040,7 +1047,7 @@ export async function createPersona(data: Omit<Persona, 'id' | 'fechaNacimiento'
             }
         }
 
-        const personaId = generateId('p');
+        const personaId = await getNextId('personas');
 
         await db.run(
             'INSERT INTO personas (id, "primerNombre", "segundoNombre", "primerApellido", "segundoApellido", nacionalidad, "cedulaNumero", "fechaNacimiento", genero, telefono1, telefono2, email, direccion, "representanteId", "createdAt") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
@@ -1050,7 +1057,7 @@ export async function createPersona(data: Omit<Persona, 'id' | 'fechaNacimiento'
         await getOrCreatePaciente(db, personaId);
         await db.exec('COMMIT');
         revalidatePath('/dashboard/personas');
-        return personaId;
+        return personaId as any;
     } catch (e) {
         await db.exec('ROLLBACK');
         throw e;
@@ -1130,7 +1137,7 @@ export async function bulkCreatePersonas(
                 seenInBatch.add(batchKey);
             }
 
-            const personaId = generateId('p');
+            const personaId = await getNextId('personas');
 
             await db.run(
                 'INSERT INTO personas (id, "primerNombre", "segundoNombre", "primerApellido", "segundoApellido", nacionalidad, "cedulaNumero", "fechaNacimiento", genero, telefono1, telefono2, email, direccion, "createdAt") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
@@ -1260,7 +1267,7 @@ export async function bulkCreateTitulares(
                     }
                 } else {
                     // Create Persona
-                    personaId = generateId('p');
+                    personaId = await getNextId('personas');
                     
                     await db.run(
                         'INSERT INTO personas (id, "primerNombre", "segundoNombre", "primerApellido", "segundoApellido", nacionalidad, "cedulaNumero", "fechaNacimiento", genero, telefono1, telefono2, email, direccion, "createdAt") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
@@ -1272,7 +1279,7 @@ export async function bulkCreateTitulares(
                 }
 
                 // Create Titular
-                const titularId = generateId('t');
+                const titularId = await getNextId('titulares');
                 await db.run(
                     'INSERT INTO titulares (id, "personaId", "unidadServicio", "numeroFicha") VALUES (?, ?, ?, ?)',
                     [titularId, personaId, data.unidadServicio, data.numeroFicha || null]
@@ -1589,12 +1596,21 @@ export async function getTreatmentOrders(query?: string): Promise<TreatmentOrder
 
 export async function createTreatmentExecution(data: CreateTreatmentExecutionInput): Promise<TreatmentExecution> {
     const session = await getSession();
-    if (!session.isLoggedIn || !session.user || !['doctor', 'dra_pediatra', 'dra_familiar', 'enfermera', 'superuser'].includes(session.user.role.id)) {
+    const db = await getDb();
+    
+    if (!session.isLoggedIn || !session.user) {
+        throw new Error('Acción no autorizada.');
+    }
+
+    const roleId = Number(session.user.role.id);
+    const roleName = session.user.role.name;
+    const allowedClinicalRoles = [1, 5, 6, 4]; // Superuser, Pediatrician, Family, Nurse
+    
+    if (!allowedClinicalRoles.includes(roleId) && roleName !== 'Superusuario') {
         throw new Error('Acción no autorizada.');
     }
     const executedBy = session.user.name || session.user.username;
-    const db = await getDb();
-    const executionId = generateId('te');
+    const executionId = await getNextId('treatment_executions');
     const executionTime = new Date();
 
     try {
@@ -1631,7 +1647,11 @@ export async function createTreatmentExecution(data: CreateTreatmentExecutionInp
 
 export async function updateTreatmentOrderStatus(orderId: string, status: 'En Progreso' | 'Completado' | 'Cancelado'): Promise<{ success: boolean }> {
     const session = await getSession();
-    if (!session.isLoggedIn || !session.user || !['doctor', 'dra_pediatra', 'dra_familiar', 'enfermera', 'superuser'].includes(session.user.role.id)) {
+    const roleId = Number(session.user?.role.id);
+    const roleName = session.user?.role.name;
+    const allowedClinicalRoles = [1, 5, 6, 4];
+
+    if (!session.isLoggedIn || !session.user || (!allowedClinicalRoles.includes(roleId) && roleName !== 'Superusuario')) {
         throw new Error('Acción no autorizada.');
     }
     const db = await getDb();
@@ -1669,11 +1689,15 @@ export async function updateTreatmentOrderStatus(orderId: string, status: 'En Pr
 // --- Lab Order Actions ---
 export async function createLabOrder(consultationId: string, pacienteId: string, tests: string[]): Promise<LabOrder> {
     const session = await getSession();
-    if (!session.isLoggedIn || !session.user || !['superuser', 'doctor', 'dra_pediatra', 'dra_familiar'].includes(session.user.role.id)) {
+    const roleId = Number(session.user?.role.id);
+    const roleName = session.user?.role.name;
+    const allowedDocRoles = [1, 5, 6];
+
+    if (!session.isLoggedIn || !session.user || (!allowedDocRoles.includes(roleId) && roleName !== 'Superusuario')) {
         throw new Error('Acción no autorizada.');
     }
     const db = await getDb();
-    const orderId = generateId('lab');
+    const orderId = await getNextId('lab_orders');
     const orderDate = new Date();
 
     try {
@@ -1685,7 +1709,7 @@ export async function createLabOrder(consultationId: string, pacienteId: string,
         );
 
         for (const testName of tests) {
-            await db.run('INSERT INTO lab_order_items (id, "labOrderId", "testName") VALUES (?, ?, ?)', [generateId('lab_item'), orderId, testName]);
+            await db.run('INSERT INTO lab_order_items (id, "labOrderId", "testName") VALUES (?, ?, ?)', [await getNextId('lab_order_items'), orderId, testName]);
         }
 
         await db.exec('COMMIT');
@@ -1826,7 +1850,7 @@ export async function getPatientSummary(personaId: string): Promise<PatientSumma
 // --- Occupational Health Actions ---
 export async function createOccupationalHealthEvaluation(personaId: string, data: Omit<OccupationalHealthEvaluation, 'id' | 'personaId' | 'evaluationDate'>): Promise<OccupationalHealthEvaluation> {
     const db = await getDb();
-    const evaluationId = generateId('occ');
+    const evaluationId = await getNextId('occ');
     const evaluationDate = new Date();
 
     const newEvaluation: OccupationalHealthEvaluation = {
@@ -1900,8 +1924,8 @@ export async function getServices(query?: string): Promise<Service[]> {
 export async function createService(data: Omit<Service, 'id'>): Promise<Service> {
     await ensureAdminPermission();
     const db = await getDb();
-    const newService = { ...data, id: generateId('srv') };
-    await db.run('INSERT INTO services (id, name, description, price) VALUES (?, ?, ?, ?)', [newService.id, newService.name, newService.description, newService.price]);
+    const newService = { ...data, id: await getNextId('services') };
+    await db.run('INSERT INTO services (id, name, description, price) VALUES (?, ?, ?, ?)', [newService.id as any, newService.name, newService.description, newService.price]);
     revalidatePath('/dashboard/servicios');
     return newService;
 }

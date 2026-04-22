@@ -1,9 +1,5 @@
 
-
 'use client';
-
-import { calculateAge } from '@/lib/utils';
-
 
 import * as React from 'react';
 import type { Persona } from '@/lib/types';
@@ -11,7 +7,7 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
 import { getPersonas, createPersona, updatePersona, deletePersona, bulkCreatePersonas } from '@/actions/patient-actions';
-import { MoreHorizontal, Pencil, PlusCircle, Trash2, Upload, Contact, Download } from 'lucide-react';
+import { MoreHorizontal, Pencil, PlusCircle, Trash2, Upload, Contact, Download, Search } from 'lucide-react';
 import { Button } from './ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from './ui/alert-dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from './ui/dropdown-menu';
@@ -26,6 +22,7 @@ import { Input } from './ui/input';
 import { DataTable } from '@/components/ui/data-table';
 import { type ColumnDef } from '@tanstack/react-table';
 import { useDebounce } from '@/hooks/use-debounce';
+import { calculateAge } from '@/lib/utils';
 
 const PersonForm = dynamic(() => import('./person-form').then(mod => mod.PersonForm), {
     loading: () => <div className="p-8"><Skeleton className="h-48 w-full" /></div>,
@@ -51,7 +48,10 @@ export function PeopleList() {
     const [importResult, setImportResult] = React.useState<{ imported: number, skipped: number, errors: string[] } | null>(null);
     const [isResultDialogOpen, setIsResultDialogOpen] = React.useState(false);
 
-    const canManage = ['superuser', 'administrator', 'admin', 'administradora', 'asistencial', 'secretaria', 'recepcionista'].includes(user.role.id);
+    const isSuperUser = Number(user.role.id) === 1 || user.role.name === 'Superusuario';
+    const isAdmin = [1, 2].includes(Number(user.role.id)) || ['Superusuario', 'Admin'].includes(user.role.name);
+    const canCreate = [1, 2].includes(Number(user.role.id)) || ['Superusuario', 'Admin'].includes(user.role.name);
+    const canManage = isAdmin || [3, 7].includes(Number(user.role.id)) || ['Secretaria', 'Recepcionista'].includes(user.role.name);
 
     const refreshPersonas = React.useCallback(async (currentSearch: string, page: number) => {
         setIsLoading(true);
@@ -95,7 +95,7 @@ export function PeopleList() {
                 toast({ title: '¡Persona Creada!', description: `${values.primerNombre} ${values.primerApellido} ha sido añadida.` });
             }
             handleCloseDialog();
-            await refreshPersonas(search, 1); // Go to first page after creation/update
+            await refreshPersonas(search, 1);
         } catch (error: any) {
             console.error("Error saving persona:", error);
             toast({ title: 'Error', description: error.message || 'No se pudo guardar la persona.', variant: 'destructive' });
@@ -294,128 +294,92 @@ export function PeopleList() {
                     colIndices.idxGenero = 9;    // J
                 }
 
+                const processedRows = rows.slice(startIndex).filter(row => row.length > 0 && row.some(cell => cell !== null && cell !== undefined && cell !== ''));
                 
-                // Security Check: If header exists, we MUST have found critical columns
-                if (isHeader) {
-                    const missing = [];
-                    if (colIndices.idxNombre1 === -1 && colIndices.idxNombreFull === -1) missing.push('Nombre');
-                    if (colIndices.idxCedula === -1) missing.push('Cédula');
-                    if (colIndices.idxFecha === -1) missing.push('Fecha de Nacimiento');
-                    if (colIndices.idxGenero === -1) missing.push('Género');
-
-                    if (missing.length > 0) {
-                        toast({ 
-                            title: 'Columnas no encontradas', 
-                            description: `No pudimos identificar las columnas: ${missing.join(', ')}. Por favor revisa los encabezados de tu archivo.`, 
-                            variant: 'destructive' 
-                        });
-                        setIsUploading(false);
-                        return;
+                const results = await bulkCreatePersonas(processedRows.map(row => {
+                    const cedulaStr = String(row[colIndices.idxCedula] || '');
+                    let nacionalidad = null;
+                    let cedulaNumero = null;
+                    if (cedulaStr.includes('-')) {
+                        const parts = cedulaStr.split('-');
+                        nacionalidad = parts[0];
+                        cedulaNumero = parts[1];
+                    } else {
+                        nacionalidad = 'V';
+                        cedulaNumero = cedulaStr;
                     }
-                }
 
-                const mappedData = rows.slice(startIndex)
-                    .filter(row => row.length > 0 && row.some(cell => cell !== null && cell !== ''))
-                    .map((row) => {
-                        // Extract Name
-                        let primerNombre = '';
-                        let primerApellido = '';
-                        
-                        if (colIndices.idxNombre1 !== -1) {
-                            primerNombre = String(row[colIndices.idxNombre1] || '').trim();
-                            primerApellido = String(row[colIndices.idxApellido1] !== -1 ? row[colIndices.idxApellido1] : '').trim();
-                        } else if (colIndices.idxNombreFull !== -1) {
-                            const full = String(row[colIndices.idxNombreFull] || '').trim();
-                            const parts = full.split(/\s+/);
-                            if (parts.length >= 2) {
-                                // If it looks like "LAST FIRST" or "FIRST LAST" we try to split.
-                                // Common format in exported lists is "APELLIDO NOMBRE"
-                                primerApellido = parts[0];
-                                primerNombre = parts.slice(1).join(' ');
+                    let rawFecha = row[colIndices.idxFecha];
+                    let fechaNacimiento = null;
+                    if (rawFecha) {
+                        try {
+                            if (typeof rawFecha === 'string') {
+                                const [day, month, year] = rawFecha.split('/').map(Number);
+                                fechaNacimiento = new Date(year, month - 1, day);
                             } else {
-                                primerNombre = full;
+                                fechaNacimiento = new Date(rawFecha);
                             }
+                        } catch (e) {
+                            console.error("Error parsing date", e);
                         }
+                    }
 
-                        // Robust Date Parsing
-                        let fechaNac = '';
-                        const dateVal = row[colIndices.idxFecha];
-                        if (dateVal) {
-                            if (dateVal instanceof Date) {
-                                fechaNac = `${dateVal.getDate()}/${dateVal.getMonth() + 1}/${dateVal.getFullYear()}`;
-                            } else if (typeof dateVal === 'number') {
-                                try {
-                                    const date = XLSX.SSF.parse_date_code(dateVal);
-                                    fechaNac = `${date.d}/${date.m}/${date.y}`;
-                                } catch (e) { fechaNac = String(dateVal); }
-                            } else { fechaNac = String(dateVal).trim(); }
-                        }
+                    return {
+                        primerNombre: String(row[colIndices.idxNombre1] || row[colIndices.idxNombreFull]?.split(' ')[0] || ''),
+                        segundoNombre: String(row[colIndices.idxNombre2] || ''),
+                        primerApellido: String(row[colIndices.idxApellido1] || row[colIndices.idxNombreFull]?.split(' ').slice(1).join(' ') || ''),
+                        segundoApellido: String(row[colIndices.idxApellido2] || ''),
+                        nacionalidad,
+                        cedulaNumero,
+                        fechaNacimiento: fechaNacimiento?.toISOString() || null,
+                        genero: String(row[colIndices.idxGenero] || ''),
+                        telefono1: String(row[colIndices.idxTel1] || ''),
+                        telefono2: String(row[colIndices.idxTel2] || ''),
+                        email: String(row[colIndices.idxEmail] || ''),
+                        direccion: String(row[colIndices.idxDireccion] || '')
+                    };
+                }));
 
-                        // Gender mapping
-                        let genero = String(row[colIndices.idxGenero] || '').trim().toLowerCase();
-                        if (genero.startsWith('m')) genero = 'Masculino';
-                        else if (genero.startsWith('f')) genero = 'Femenino';
-                        else genero = 'Masculino'; // Default or keep as is
-
-                        return {
-                            primerNombre,
-                            segundoNombre: colIndices.idxNombre2 !== -1 ? String(row[colIndices.idxNombre2] || '').trim() : '',
-                            primerApellido,
-                            segundoApellido: colIndices.idxApellido2 !== -1 ? String(row[colIndices.idxApellido2] || '').trim() : '',
-                            cedula: colIndices.idxCedula !== -1 ? String(row[colIndices.idxCedula] || '').trim() : '',
-                            telefono1: colIndices.idxTel1 !== -1 ? String(row[colIndices.idxTel1] || '').trim() : '',
-                            telefono2: colIndices.idxTel2 !== -1 ? String(row[colIndices.idxTel2] || '').trim() : '',
-                            direccion: colIndices.idxDireccion !== -1 ? String(row[colIndices.idxDireccion] || '').trim() : '',
-                            fechaNacimiento: fechaNac,
-                            genero: genero as any,
-                            email: colIndices.idxEmail !== -1 ? String(row[colIndices.idxEmail] || '').trim() : '',
-                        };
-                    });
-
-                const result = await bulkCreatePersonas(mappedData);
-                setImportResult(result);
+                setImportResult(results);
                 setIsResultDialogOpen(true);
-                await refreshPersonas(search, 1);
-            } catch (error) {
-                console.error('Error:', error);
-                toast({ title: 'Error Crítico', description: 'Ocurrió un fallo al procesar el archivo.', variant: 'destructive' });
+                refreshPersonas(search, 1);
+
+            } catch (error: any) {
+                console.error("Error during import:", error);
+                toast({ title: 'Error', description: error.message || 'Error al procesar el archivo.', variant: 'destructive' });
             } finally {
                 setIsUploading(false);
                 if (fileInputRef.current) fileInputRef.current.value = '';
             }
         };
+
         reader.readAsArrayBuffer(file);
     };
 
-
     return (
         <>
-            <div className="space-y-6">
-                <div className="flex flex-col gap-1">
-                    <h2 className="text-2xl font-extrabold tracking-tight text-foreground mb-2">Repositorio de Personas</h2>
-                    <p className="text-sm text-muted-foreground">
-                        Busque, cree y gestione el registro central de todas las personas en el sistema.
-                    </p>
-                </div>
+            <div className="bg-card rounded-3xl shadow-sm p-8 border border-border/50 min-h-[calc(100vh-10rem)]">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8 border-b border-border/50 pb-6">
+                    <div>
+                        <h2 className="text-2xl font-extrabold text-foreground flex items-center gap-2">
+                            <Contact className="h-7 w-7 text-primary" />
+                            Gente / Personas
+                        </h2>
+                        <p className="text-muted-foreground mt-1">Gestione la base de datos de personas del sistema.</p>
+                    </div>
+                    
+                    {canCreate && (
+                        <div className="flex flex-col sm:flex-row gap-3 items-center w-full md:w-auto">
+                            <div className="relative w-full sm:w-80">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/80" />
+                                <Input
+                                    placeholder="Buscar por nombre o cédula..."
+                                    value={search}
+                                    onChange={(e) => setSearch(e.target.value)}
+                                    className="pl-10 h-11 rounded-full bg-muted/50 border-border focus:bg-card focus:ring-blue-100 transition-all"
+                                />
+                            </div>
 
-                <div className="flex justify-between items-center bg-card p-1 rounded-2xl">
-                    <Input
-                        placeholder="Buscar por nombre, cédula o email..."
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        className="max-w-sm border-none shadow-none focus-visible:ring-0 bg-transparent"
-                    />
-                </div>
-
-                <div className="flex justify-between items-center mb-6 gap-4">
-                    <Input
-                        placeholder="Buscar por nombre, cédula o email..."
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        className="max-w-sm bg-card"
-                    />
-                    {canManage && (
-                        <div className="flex gap-2">
                             <input
                                 type="file"
                                 ref={fileInputRef}
@@ -423,6 +387,7 @@ export function PeopleList() {
                                 accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
                                 className="hidden"
                             />
+                            
                             <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                     <Button variant="outline" disabled={isUploading} className="rounded-xl border-border">
@@ -460,10 +425,12 @@ export function PeopleList() {
                                     </AlertDialogFooter>
                                 </AlertDialogContent>
                             </AlertDialog>
+
                             <Button variant="outline" onClick={handleExportExcel} className="rounded-xl border-border">
                                 <Download className="mr-2 h-4 w-4" />
                                 Exportar
                             </Button>
+                            
                             <Button onClick={() => handleOpenForm(null)} className="rounded-xl bg-primary hover:bg-primary/90 shadow-md shadow-primary/20">
                                 <PlusCircle className="mr-2 h-4 w-4" />
                                 Crear Persona
@@ -471,6 +438,7 @@ export function PeopleList() {
                         </div>
                     )}
                 </div>
+
                 <div className="rounded-2xl border border-border/50 overflow-hidden shadow-sm bg-card">
                     <DataTable
                         columns={columns}

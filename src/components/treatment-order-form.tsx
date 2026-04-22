@@ -63,7 +63,7 @@ export function TreatmentOrderForm({ onSubmitted, onCancel }: TreatmentOrderForm
   React.useEffect(() => {
     const fetchPacienteId = async () => {
       if (selectedPersona) {
-        const paciente = await getPacienteByPersonaId(selectedPersona.id);
+        const paciente = await getPacienteByPersonaId(String(selectedPersona.id));
         if (paciente) {
           form.setValue('pacienteId', paciente.id, { shouldValidate: true });
         } else {

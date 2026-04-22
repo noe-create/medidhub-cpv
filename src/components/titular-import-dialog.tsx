@@ -28,7 +28,7 @@ interface TitularImportDialogProps {
 export function TitularImportDialog({ open, onOpenChange, onImportSuccess }: TitularImportDialogProps) {
   const { toast } = useToast();
   const user = useUser();
-  const isSuperUser = user.role.id === 'superuser';
+  const isSuperUser = Number(user.role.id) === 1 || user.role.name === 'Superusuario';
   
   const [file, setFile] = React.useState<File | null>(null);
   const [isProcessing, setIsProcessing] = React.useState(false);

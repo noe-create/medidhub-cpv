@@ -1,6 +1,6 @@
 'use server';
 
-import { getDb } from '@/lib/db';
+import { getDb, getNextId } from '@/lib/db';
 import { CompanySchema, JobPositionSchema, OccupationalEvaluationSchema, OccupationalIncidentSchema } from '@/lib/zod-schemas/occupational';
 import { revalidatePath } from 'next/cache';
 import { v4 as uuidv4 } from 'uuid';
@@ -27,7 +27,7 @@ export async function createCompany(data: any) {
 
     try {
         const db = await getDb();
-        const id = uuidv4();
+        const id = await getNextId('empresas');
         await db.run(
             `INSERT INTO empresas (id, name, rif, telefono, direccion) VALUES (?, ?, ?, ?, ?)`,
             [id, result.data.name, result.data.rif, result.data.telefono || '', result.data.direccion || '']
@@ -48,7 +48,7 @@ export async function createJobPosition(data: any) {
 
     try {
         const db = await getDb();
-        const id = uuidv4();
+        const id = await getNextId('job_positions');
         // Serialize risks array to string for DB storage
         const risksString = result.data.risks ? JSON.stringify(result.data.risks) : '[]';
 
@@ -106,7 +106,7 @@ export async function updateJobPosition(data: any) {
         return { success: false, error: result.error.errors[0].message };
     }
 
-    if (!data.id) {
+    if (data.id === undefined) {
         return { success: false, error: "ID is required for update" };
     }
 
@@ -146,7 +146,7 @@ export async function createOccupationalEvaluation(data: any) {
 
     try {
         const db = await getDb();
-        const id = uuidv4();
+        const id = await getNextId('occupational_health_evaluations');
 
         // Ensure patient exists or create simplistic link (assuming personaId refers to personas table)
         // Note: The schema for occupational_health_evaluations has personaId NOT NULL.
@@ -193,7 +193,7 @@ export async function createOccupationalEvaluation(data: any) {
     }
 }
 
-export async function getOccupationalEvaluationsByPerson(personaId: string) {
+export async function getOccupationalEvaluationsByPerson(personaId: number | string) {
     try {
         const db = await getDb();
         const evaluations = await db.all(
@@ -212,7 +212,7 @@ export async function getOccupationalEvaluationsByPerson(personaId: string) {
     }
 }
 
-export async function getOccupationalEvaluationsByCompany(companyId: string) {
+export async function getOccupationalEvaluationsByCompany(companyId: number | string) {
     try {
         const db = await getDb();
         const evaluations = await db.all(
@@ -239,7 +239,7 @@ export async function createOccupationalIncident(data: any) {
 
     try {
         const db = await getDb();
-        const id = uuidv4();
+        const id = await getNextId('occupational_incidents');
         const now = new Date().toISOString();
 
         await db.run(
@@ -269,7 +269,7 @@ export async function createOccupationalIncident(data: any) {
     }
 }
 
-export async function getOccupationalIncidentsByCompany(companyId: string) {
+export async function getOccupationalIncidentsByCompany(companyId: number | string) {
     try {
         const db = await getDb();
         const incidents = await db.all(
@@ -287,7 +287,7 @@ export async function getOccupationalIncidentsByCompany(companyId: string) {
     }
 }
 
-export async function getOccupationalIncidentsByPerson(personaId: string) {
+export async function getOccupationalIncidentsByPerson(personaId: number | string) {
     try {
         const db = await getDb();
         const incidents = await db.all(

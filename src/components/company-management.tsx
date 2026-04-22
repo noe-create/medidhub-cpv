@@ -39,7 +39,7 @@ export function CompanyManagement() {
   const [currentPage, setCurrentPage] = React.useState(1);
   const [totalCount, setTotalCount] = React.useState(0);
 
-  const canCreate = ['superuser', 'administrator', 'admin'].includes(user.role.id);
+  const canCreate = [1, 2].includes(Number(user.role.id)) || ['Superusuario', 'Admin'].includes(user.role.name);
 
   const refreshEmpresas = React.useCallback(async (currentSearch: string, page: number) => {
     setIsLoading(true);
