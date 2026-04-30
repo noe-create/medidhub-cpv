@@ -31,6 +31,7 @@ export interface User {
   role: { id: number | string, name: string };
   specialty?: Specialty;
   personaId?: number | string;
+  persona?: Persona;
   name?: string;
   genero?: Genero;
   fechaNacimiento?: Date | string;
@@ -63,18 +64,26 @@ export interface Paciente {
 }
 
 export interface Empresa {
-  id: string;
+  id: number | string;
   name: string;
   rif: string;
   telefono: string;
   direccion: string;
 }
 
+export interface UnidadServicio {
+  id: number | string;
+  name: string;
+  category?: string | null;
+  isActive?: boolean;
+}
+
 export interface Titular {
   id: number | string;
   personaId: number | string;
   unidadServicio: string;
-  numeroFicha?: string;
+  unidadServicioId?: number | string | null;
+  numeroFicha?: string | null;
   // Denormalized fields for convenience
   persona: Persona;
   beneficiariosCount?: number;
@@ -86,7 +95,7 @@ export interface Beneficiario {
   titularId: number | string;
   persona: Persona;
   titular?: {
-    id: string,
+    id: number | string,
     persona: Persona,
   }
 }
@@ -225,7 +234,7 @@ export interface MotivoConsulta {
 }
 
 // For Treatment Log (Refactored)
-export type TreatmentOrderItemStatus = 'Pendiente' | 'Administrado' | 'Omitido';
+export type TreatmentOrderItemStatus = 'Pendiente' | 'Administrado' | 'Omitido' | 'Solo Récipe';
 export type TreatmentOrderStatus = 'Pendiente' | 'En Progreso' | 'Completado' | 'Cancelado';
 
 export interface TreatmentExecution {
@@ -262,7 +271,9 @@ export interface TreatmentOrder {
   orderedBy?: string;
 }
 
-export interface CreateTreatmentItemInput extends Omit<TreatmentOrderItem, 'id' | 'treatmentOrderId' | 'status' | 'executions'> { }
+export interface CreateTreatmentItemInput extends Omit<TreatmentOrderItem, 'id' | 'treatmentOrderId' | 'status' | 'executions'> {
+  requiereAplicacionInmediata?: boolean;
+}
 
 export interface Consultation {
   id: string;
@@ -279,7 +290,12 @@ export interface Consultation {
   antecedentesPediatricos?: AntecedentesPediatricos;
   signosVitales?: SignosVitales;
   examenFisicoGeneral?: string;
+  enfermedadActualNinguno?: boolean;
+  revisionPorSistemasNinguno?: boolean;
   treatmentPlan: string;
+  treatmentPlanNotApplicable?: boolean;
+  diagnosticoLibre?: string;
+  diagnosticoLibreNinguno?: boolean;
   reposo?: string;
   diagnoses: Diagnosis[];
   documents?: ConsultationDocument[];
@@ -300,6 +316,11 @@ export interface CreateConsultationInput extends Omit<Consultation, 'id' | 'cons
   reposo?: string;
   isReintegro?: boolean;
   occupationalReferral?: any;
+  enfermedadActualNinguno?: boolean;
+  revisionPorSistemasNinguno?: boolean;
+  treatmentPlanNotApplicable?: boolean;
+  diagnosticoLibre?: string;
+  diagnosticoLibreNinguno?: boolean;
 }
 
 export interface PacienteConInfo extends Persona {
@@ -380,10 +401,10 @@ export interface PublicSurveyData {
 
 // --- Billing ---
 export interface Service {
-  id: string;
+  id: number | string;
   name: string;
-  description: string;
-  price: number;
+  description: string | null;
+  price: number | any; // Prisma returns Decimal
 }
 
 export interface InvoiceItem {

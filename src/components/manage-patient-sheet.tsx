@@ -31,17 +31,29 @@ interface ManagePatientDialogProps {
 }
 
 export function ManagePatientDialog({ patient, isOpen, onOpenChange, onConsultationComplete }: ManagePatientDialogProps) {
-  
+  const [activeTab, setActiveTab] = React.useState('consultation');
   const isNursingService = patient.serviceType === 'servicio de enfermeria';
+
+  // Reset tab when dialog opens/closes
+  React.useEffect(() => {
+    if (isOpen) {
+      setActiveTab('consultation');
+    }
+  }, [isOpen]);
+
+  const handleConsultationCompleteLocal = (consultation: Consultation) => {
+    setActiveTab('history');
+    onConsultationComplete(consultation);
+  };
 
   const renderConsultationContent = () => {
     if (!isOpen) return null;
 
     if (isNursingService) {
-      return <NursingConsultationForm patient={patient} onProcedureComplete={onConsultationComplete} />;
+      return <NursingConsultationForm patient={patient} onProcedureComplete={handleConsultationCompleteLocal} />;
     }
     
-    return <ConsultationForm patient={patient} onConsultationComplete={onConsultationComplete} />;
+    return <ConsultationForm patient={patient} onConsultationComplete={handleConsultationCompleteLocal} />;
   }
 
   return (
@@ -54,7 +66,7 @@ export function ManagePatientDialog({ patient, isOpen, onOpenChange, onConsultat
           </DialogDescription>
         </DialogHeader>
         <div className="py-4 flex-1 overflow-y-auto">
-          <Tabs defaultValue="consultation" className="w-full">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="consultation">{isNursingService ? 'Consulta de Enfermería' : 'Nueva Consulta'}</TabsTrigger>
               <TabsTrigger value="history">Historial</TabsTrigger>

@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -6,30 +5,24 @@ import { ChevronsUpDown, Loader2, User, UserX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { getPersonas } from '@/actions/patient-actions';
-import type { Persona } from '@/lib/types';
+import { getTitulares } from '@/actions/patient-actions';
+import type { Titular } from '@/lib/types';
 import { useDebounce } from '@/hooks/use-debounce';
 import { cn } from '@/lib/utils';
 
-interface PersonaSearchProps {
-    onPersonaSelect: (persona: Persona | null) => void;
-    excludeIds?: string[];
+interface TitularSearchProps {
+    onTitularSelect: (titular: Titular | null) => void;
     placeholder?: string;
     className?: string;
-    onCreateNew?: (name: string) => void;
 }
 
-export function PersonaSearch({ onPersonaSelect, excludeIds = [], placeholder = "Buscar persona...", className, onCreateNew }: PersonaSearchProps) {
+export function TitularSearch({ onTitularSelect, placeholder = "Buscar titular por nombre o cédula...", className }: TitularSearchProps) {
     const [query, setQuery] = React.useState('');
     const debouncedQuery = useDebounce(query, 300);
-    const [results, setResults] = React.useState<Persona[]>([]);
+    const [results, setResults] = React.useState<Titular[]>([]);
     const [isLoading, setIsLoading] = React.useState(false);
     const [isPopoverOpen, setIsPopoverOpen] = React.useState(false);
-    const [selectedPersona, setSelectedPersona] = React.useState<Persona | null>(null);
-
-    // By stringifying the `excludeIds` array with useMemo, we create a stable dependency for the useEffect hook.
-    // This prevents the infinite re-render loop caused by the parent component creating a new array reference on every render.
-    const stableExcludeIds = React.useMemo(() => JSON.stringify(excludeIds.sort()), [excludeIds]);
+    const [selectedTitular, setSelectedTitular] = React.useState<Titular | null>(null);
 
     React.useEffect(() => {
         if (debouncedQuery.trim().length < 2 && !isPopoverOpen) {
@@ -45,23 +38,22 @@ export function PersonaSearch({ onPersonaSelect, excludeIds = [], placeholder = 
         async function search() {
             setIsLoading(true);
             try {
-                const currentExcludeIds = JSON.parse(stableExcludeIds);
-                const data = await getPersonas(debouncedQuery);
-                const filteredData = data.personas.filter(p => !currentExcludeIds.includes(p.id));
-                setResults(filteredData);
+                // getTitulares returns { titulares, totalCount }
+                const data = await getTitulares(debouncedQuery, 1, 20);
+                setResults(data.titulares);
             } catch (e) {
-                console.error("Error searching people:", e);
+                console.error("Error searching titulares:", e);
                 setResults([]);
             } finally {
                 setIsLoading(false);
             }
         }
         search();
-    }, [debouncedQuery, stableExcludeIds, isPopoverOpen]);
+    }, [debouncedQuery, isPopoverOpen]);
 
-    const handleSelect = (persona: Persona | null) => {
-        setSelectedPersona(persona);
-        onPersonaSelect(persona);
+    const handleSelect = (titular: Titular | null) => {
+        setSelectedTitular(titular);
+        onTitularSelect(titular);
         setIsPopoverOpen(false);
         setQuery('');
     };
@@ -76,18 +68,18 @@ export function PersonaSearch({ onPersonaSelect, excludeIds = [], placeholder = 
                         aria-expanded={isPopoverOpen}
                         className="w-full justify-between font-normal text-left h-auto"
                     >
-                        {selectedPersona ? (
+                        {selectedTitular ? (
                             <div className="flex items-center gap-2">
                                 <div>
-                                    <p className="text-sm font-medium">{selectedPersona.nombreCompleto}</p>
-                                    <p className="text-xs text-muted-foreground">{selectedPersona.cedula}</p>
+                                    <p className="text-sm font-medium">{selectedTitular.persona.nombreCompleto}</p>
+                                    <p className="text-xs text-muted-foreground">{selectedTitular.persona.cedula}</p>
                                 </div>
                             </div>
                         ) : placeholder}
                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
                 </PopoverTrigger>
-                {selectedPersona && (
+                {selectedTitular && (
                     <Button variant="ghost" size="icon" onClick={() => handleSelect(null)} aria-label="Limpiar selección">
                         <UserX className="h-4 w-4" />
                     </Button>
@@ -108,40 +100,24 @@ export function PersonaSearch({ onPersonaSelect, excludeIds = [], placeholder = 
                             <CommandEmpty>No se encontraron resultados.</CommandEmpty>
                             {results.length > 0 && !isLoading && debouncedQuery.trim().length >= 2 && (
                                 <CommandGroup>
-                                    {results.map((persona) => (
+                                    {results.map((titular) => (
                                         <CommandItem
-                                            key={persona.id}
-                                            value={`${persona.nombreCompleto} ${persona.id}`}
-                                            onSelect={() => handleSelect(persona)}
+                                            key={titular.id}
+                                            value={`${titular.persona.nombreCompleto} ${titular.id}`}
+                                            onSelect={() => handleSelect(titular)}
                                             className="cursor-pointer"
                                         >
                                             <div className="flex items-center gap-2 w-full">
                                                 <User className="h-4 w-4 text-muted-foreground" />
                                                 <div>
-                                                    <p className="text-sm">{persona.nombreCompleto}</p>
+                                                    <p className="text-sm">{titular.persona.nombreCompleto}</p>
                                                     <p className="text-xs text-muted-foreground">
-                                                        {persona.cedula}
+                                                        {titular.persona.cedula}
                                                     </p>
                                                 </div>
                                             </div>
                                         </CommandItem>
                                     ))}
-                                </CommandGroup>
-                            )}
-                            
-                            {onCreateNew && debouncedQuery.trim().length >= 2 && !isLoading && (
-                                <CommandGroup>
-                                    <CommandItem
-                                        value={`create-new-${query}`}
-                                        onSelect={() => {
-                                            onCreateNew(query);
-                                            setIsPopoverOpen(false);
-                                            setQuery('');
-                                        }}
-                                        className="cursor-pointer text-blue-600 font-medium flex items-center justify-center py-3 border-t mt-1"
-                                    >
-                                        + Crear nueva persona "{query}"
-                                    </CommandItem>
                                 </CommandGroup>
                             )}
                         </CommandList>

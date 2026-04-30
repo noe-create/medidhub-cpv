@@ -1,7 +1,6 @@
-
 'use server';
 
-import { getDb } from '@/lib/db';
+import { prisma } from '@/lib/prisma';
 import { authorize } from '@/lib/auth';
 
 /**
@@ -10,11 +9,13 @@ import { authorize } from '@/lib/auth';
  */
 export async function getTables(): Promise<string[]> {
   await authorize('database.view');
-  const db = await getDb();
-  const tables = await db.all<{ name: string }>(
-    "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
+  
+  // PostgreSQL query to get table names
+  const tables = await prisma.$queryRawUnsafe<{ tablename: string }[]>(
+    "SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = 'public' ORDER BY tablename"
   );
-  return tables.map((t) => t.name);
+  
+  return tables.map((t) => t.tablename);
 }
 
 /**
@@ -29,11 +30,13 @@ export async function getTableData(tableName: string): Promise<{ columns: string
     throw new Error('Nombre de tabla inválido.');
   }
 
-  const db = await getDb();
+  // Get columns from information_schema
+  const columnsResult = await prisma.$queryRawUnsafe<{ column_name: string }[]>(
+    "SELECT column_name FROM information_schema.columns WHERE table_name = $1 AND table_schema = 'public' ORDER BY ordinal_position",
+    tableName
+  );
   
-  // Using PRAGMA to get column names is safer
-  const columnsResult = await db.all(`PRAGMA table_info(${tableName})`);
-  const columns = columnsResult.map((col: any) => col.name);
+  const columns = columnsResult.map((col) => col.column_name);
 
   if (columns.length === 0) {
       return { columns: [], rows: [] };
@@ -42,7 +45,7 @@ export async function getTableData(tableName: string): Promise<{ columns: string
   // Sanitize column names for the SELECT query to be safe
   const sanitizedColumns = columns.map(c => `"${c}"`).join(', ');
 
-  const rows = await db.all(`SELECT ${sanitizedColumns} FROM ${tableName}`);
+  const rows = await prisma.$queryRawUnsafe<any[]>(`SELECT ${sanitizedColumns} FROM "${tableName}"`);
   
   return { columns, rows };
 }

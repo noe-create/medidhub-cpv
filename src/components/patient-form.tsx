@@ -17,7 +17,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, User, Globe, CreditCard, CalendarDays, Users as UsersIcon, Smartphone, Mail, MapPin, Hash, Briefcase } from 'lucide-react';
-import type { Persona, Titular } from '@/lib/types';
+import type { Persona, Titular, UnidadServicio } from '@/lib/types';
 import { RadioGroup, RadioGroupItem } from './ui/radio-group';
 import { Label } from './ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
@@ -25,7 +25,7 @@ import { useToast } from '@/hooks/use-toast';
 import { PersonaSearch } from './persona-search';
 import { Textarea } from './ui/textarea';
 import { calculateAge } from '@/lib/utils';
-import { DEPARTMENTS_GROUPED, DEPARTMENTS } from '@/lib/departments';
+import { getUnidadesServicio } from '@/actions/patient-actions';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './ui/accordion';
 import { ScrollArea } from './ui/scroll-area';
 import { useDebounce } from '@/hooks/use-debounce';
@@ -95,6 +95,14 @@ export function PatientForm({ titular, onSubmitted, onCancel, excludeIds = [] }:
     const { toast } = useToast();
     const [isSubmitting, setIsSubmitting] = React.useState(false);
     const [selectedPersona, setSelectedPersona] = React.useState<Persona | null>(null);
+    const [unidades, setUnidades] = React.useState<UnidadServicio[]>([]);
+
+    // Load unidades de servicio from database
+    React.useEffect(() => {
+        getUnidadesServicio().then(setUnidades).catch(err => {
+            console.error('Error loading unidades de servicio:', err);
+        });
+    }, []);
 
     const personaToLoad = selectedPersona || titular?.persona || null;
 
@@ -142,15 +150,15 @@ export function PatientForm({ titular, onSubmitted, onCancel, excludeIds = [] }:
         if (['Afiliado Corporativo', 'Privado'].includes(unit)) {
             return { unidadServicio: unit as any, departamento: '', otroDepartamento: '', numeroFicha: titular.numeroFicha || '' };
         }
-        // It's an Empleado
-        const isKnownDept = DEPARTMENTS.includes(unit);
+        // It's an Empleado — check if we know the department from DB
+        const isKnownDept = unidades.some(u => u.name === unit);
         return {
             unidadServicio: 'Empleado' as any,
-            departamento: isKnownDept ? unit : 'Otro...',
+            departamento: isKnownDept ? unit : (unit ? 'Otro...' : ''),
             otroDepartamento: isKnownDept ? '' : unit,
             numeroFicha: titular.numeroFicha || '',
         };
-    }, [titular]);
+    }, [titular, unidades]);
 
     const form = useForm<PatientFormValues>({
         resolver: zodResolver(patientSchema),
@@ -170,6 +178,7 @@ export function PatientForm({ titular, onSubmitted, onCancel, excludeIds = [] }:
             otroDepartamento: initialTitularValues.otroDepartamento,
             numeroFicha: initialTitularValues.numeroFicha,
             fechaNacimiento: initialDate,
+            genero: personaToLoad?.genero as any || undefined,
             representanteId: personaToLoad?.representanteId || undefined
         },
     });
@@ -226,6 +235,7 @@ export function PatientForm({ titular, onSubmitted, onCancel, excludeIds = [] }:
         if (personaToLoad) {
             form.reset({
                 ...form.getValues(),
+                ...initialTitularValues,
                 primerNombre: personaToLoad.primerNombre || '',
                 segundoNombre: personaToLoad.segundoNombre || '',
                 primerApellido: personaToLoad.primerApellido || '',
@@ -242,8 +252,21 @@ export function PatientForm({ titular, onSubmitted, onCancel, excludeIds = [] }:
             });
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selectedPersona, titular, initialDate]);
+    }, [selectedPersona, titular, initialDate, initialTitularValues]);
 
+    const handleCreateNew = (name: string) => {
+        const parts = name.trim().split(' ').filter(Boolean);
+        if (parts.length > 0) {
+            form.setValue('primerNombre', parts[0] || '', { shouldValidate: true });
+            if (parts.length > 1) {
+                form.setValue('primerApellido', parts[parts.length - 1] || '', { shouldValidate: true });
+                if (parts.length > 2) {
+                    form.setValue('segundoNombre', parts.slice(1, -1).join(' '), { shouldValidate: true });
+                }
+            }
+        }
+        setSelectedPersona(null);
+    };
 
     const handleCancel = () => {
         clearDraft();
@@ -293,7 +316,8 @@ export function PatientForm({ titular, onSubmitted, onCancel, excludeIds = [] }:
                         <PersonaSearch
                             onPersonaSelect={setSelectedPersona}
                             excludeIds={excludeIds}
-                            placeholder="Buscar para vincular..."
+                            placeholder="Buscar persona para convertir en titular..."
+                            onCreateNew={handleCreateNew}
                         />
                         <p className="text-xs text-muted-foreground text-center">O llene los campos de abajo para crear una nueva persona.</p>
                     </div>
@@ -495,9 +519,26 @@ export function PatientForm({ titular, onSubmitted, onCancel, excludeIds = [] }:
                                             </FormControl>
                                             <SelectContent>
                                                 <ScrollArea className="h-72">
-                                                    {DEPARTMENTS.sort().map((dept) => (
-                                                        <SelectItem key={dept} value={dept}>{dept}</SelectItem>
-                                                    ))}
+                                                    {/* Group unidades by category for better UX */}
+                                                    {(() => {
+                                                        // Filter to only departments (not Afiliado Corporativo / Privado)
+                                                        const departmentUnidades = unidades.filter(u => u.category !== 'Tipos de Cuenta');
+                                                        const grouped = departmentUnidades.reduce((acc, u) => {
+                                                            const cat = u.category || 'Otros';
+                                                            if (!acc[cat]) acc[cat] = [];
+                                                            acc[cat].push(u);
+                                                            return acc;
+                                                        }, {} as Record<string, UnidadServicio[]>);
+                                                        
+                                                        return Object.entries(grouped).map(([category, items]) => (
+                                                            <React.Fragment key={category}>
+                                                                <div className="px-2 py-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground bg-muted/50 sticky top-0">{category}</div>
+                                                                {items.sort((a, b) => a.name.localeCompare(b.name)).map((u) => (
+                                                                    <SelectItem key={u.id} value={u.name}>{u.name}</SelectItem>
+                                                                ))}
+                                                            </React.Fragment>
+                                                        ));
+                                                    })()}
                                                     <SelectItem value="Otro...">Otro...</SelectItem>
                                                 </ScrollArea>
                                             </SelectContent>

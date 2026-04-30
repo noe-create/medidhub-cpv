@@ -1,7 +1,6 @@
-
 'use server';
 
-import { getDb } from '@/lib/db';
+import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { authorize } from '@/lib/auth';
 import type { Role, Permission } from '@/lib/types';
@@ -9,28 +8,31 @@ import { ALL_PERMISSIONS } from '@/lib/permissions';
 
 export async function getRoles(): Promise<Role[]> {
   await authorize('roles.manage');
-  const db = await getDb();
-  const rows = await db.all<any>('SELECT id, name, description, "hasSpecialty" FROM roles ORDER BY name');
-  return rows.map((role: any) => ({ ...role, hasSpecialty: !!role.hasSpecialty }));
+  const rows = await prisma.role.findMany({
+    orderBy: { name: 'asc' }
+  });
+  return rows.map((role: any) => ({ ...role, hasSpecialty: !!role.hasSpecialty })) as any[];
 }
 
-export async function getRoleWithPermissions(roleId: string): Promise<(Omit<Role, 'permissions'> & { permissions: string[] }) | null> {
+export async function getRoleWithPermissions(roleId: string | number): Promise<(Omit<Role, 'permissions'> & { permissions: string[] }) | null> {
   await authorize('roles.manage');
-  const db = await getDb();
-  const roleRow = await db.get<any>('SELECT id, name, description, "hasSpecialty" FROM roles WHERE id = ?', [roleId]);
+  
+  const roleRow = await prisma.role.findUnique({
+    where: { id: Number(roleId) },
+    include: {
+      permissions: true
+    }
+  });
+
   if (!roleRow) return null;
 
-  const role: Role = { ...roleRow, hasSpecialty: !!roleRow.hasSpecialty } as Role;
-
-  const rows = await db.all<{ permissionId: string }>(
-    'SELECT "permissionId" FROM role_permissions WHERE "roleId" = ?',
-    [roleId]
-  );
-
   return {
-    ...role,
-    permissions: rows.map(p => p.permissionId),
-  };
+    id: roleRow.id,
+    name: roleRow.name,
+    description: roleRow.description || undefined,
+    hasSpecialty: roleRow.hasSpecialty,
+    permissions: roleRow.permissions.map(p => p.permissionId),
+  } as any;
 }
 
 export async function getAllPermissions(): Promise<Permission[]> {
@@ -39,28 +41,34 @@ export async function getAllPermissions(): Promise<Permission[]> {
 
 export async function createRole(data: { name: string; description: string; hasSpecialty?: boolean; permissions: string[] }) {
   await authorize('roles.manage');
-  const db = await getDb();
 
   try {
-    const roleId = `role-${Date.now()}`;
+    const role = await prisma.$transaction(async (tx) => {
+      const created = await tx.role.create({
+        data: {
+          name: data.name,
+          description: data.description,
+          hasSpecialty: !!data.hasSpecialty,
+        }
+      });
 
-    await db.exec('BEGIN');
+      if (data.permissions.length > 0) {
+        await tx.rolePermission.createMany({
+          data: data.permissions.map(permissionId => ({
+            roleId: created.id,
+            permissionId
+          }))
+        });
+      }
 
-    await db.run('INSERT INTO roles (id, name, description, "hasSpecialty") VALUES (?, ?, ?, ?)', [roleId, data.name, data.description, data.hasSpecialty ? 1 : 0]);
-
-    for (const permissionId of data.permissions) {
-      await db.run('INSERT INTO role_permissions ("roleId", "permissionId") VALUES (?, ?)', [roleId, permissionId]);
-    }
-
-    await db.exec('COMMIT');
+      return created;
+    });
 
     revalidatePath('/dashboard/seguridad/roles');
-    const newRole = await db.get('SELECT * FROM roles WHERE id = ?', [roleId]);
-    return newRole;
+    return role;
 
-  } catch (error) {
-    await db.exec('ROLLBACK');
-    if ((error as any).code === '23505' || (error as any).code === 'SQLITE_CONSTRAINT') {
+  } catch (error: any) {
+    if (error.code === 'P2002') {
       throw new Error('Ya existe un rol con ese nombre.');
     }
     console.error("Error creating role:", error);
@@ -68,47 +76,70 @@ export async function createRole(data: { name: string; description: string; hasS
   }
 }
 
-export async function updateRole(id: string, data: { name: string; description: string; hasSpecialty?: boolean; permissions: string[] }) {
+export async function updateRole(id: string | number, data: { name: string; description: string; hasSpecialty?: boolean; permissions: string[] }) {
   await authorize('roles.manage');
-  const db = await getDb();
 
-  await db.exec('BEGIN');
   try {
-    await db.run('UPDATE roles SET name = ?, description = ?, "hasSpecialty" = ? WHERE id = ?', [data.name, data.description, data.hasSpecialty ? 1 : 0, id]);
+    const updated = await prisma.$transaction(async (tx) => {
+      const role = await tx.role.update({
+        where: { id: Number(id) },
+        data: {
+          name: data.name,
+          description: data.description,
+          hasSpecialty: !!data.hasSpecialty,
+        }
+      });
 
-    await db.run('DELETE FROM role_permissions WHERE "roleId" = ?', [id]);
-    for (const permissionId of data.permissions) {
-      await db.run('INSERT INTO role_permissions ("roleId", "permissionId") VALUES (?, ?)', [id, permissionId]);
-    }
+      // Simple way: delete and recreate permissions
+      await tx.rolePermission.deleteMany({
+        where: { roleId: role.id }
+      });
 
-    await db.exec('COMMIT');
-  } catch (error) {
-    await db.exec('ROLLBACK');
-    if ((error as any).code === '23505' || (error as any).code === 'SQLITE_CONSTRAINT') {
+      if (data.permissions.length > 0) {
+        await tx.rolePermission.createMany({
+          data: data.permissions.map(permissionId => ({
+            roleId: role.id,
+            permissionId
+          }))
+        });
+      }
+
+      return role;
+    });
+
+    revalidatePath('/dashboard/seguridad/roles');
+    return updated;
+  } catch (error: any) {
+    if (error.code === 'P2002') {
       throw new Error('Ya existe un rol con ese nombre.');
     }
     throw error;
   }
-
-  revalidatePath('/dashboard/seguridad/roles');
-  const updatedRole = await db.get('SELECT * FROM roles WHERE id = ?', [id]);
-  return updatedRole;
 }
 
-export async function deleteRole(id: string) {
+export async function deleteRole(id: string | number) {
   await authorize('roles.manage');
-  const db = await getDb();
 
-  if (id === 'superuser') {
+  const roleIdNum = Number(id);
+
+  // Hardcoded check for superuser (assuming it has a specific ID or we check by name)
+  const role = await prisma.role.findUnique({ where: { id: roleIdNum } });
+  if (role?.name === 'Superusuario') {
     throw new Error('El rol de Superusuario no puede ser eliminado.');
   }
 
-  const userCountResult = await db.get<any>('SELECT COUNT(*) as count FROM users WHERE "roleId" = ?', [id]);
-  if (userCountResult && userCountResult.count > 0) {
+  const userCount = await prisma.user.count({
+    where: { roleId: roleIdNum }
+  });
+  
+  if (userCount > 0) {
     throw new Error('No se puede eliminar el rol porque está asignado a uno o más usuarios.');
   }
 
-  await db.run('DELETE FROM roles WHERE id = ?', [id]);
+  await prisma.role.delete({
+    where: { id: roleIdNum }
+  });
+  
   revalidatePath('/dashboard/seguridad/roles');
   return { success: true };
 }

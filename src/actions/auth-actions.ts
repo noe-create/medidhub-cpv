@@ -1,31 +1,18 @@
-
-
 'use server';
 
-import { getDb, getNextId } from '@/lib/db';
+import { prisma } from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import * as bcrypt from 'bcryptjs';
-import { v4 as uuidv4 } from 'uuid';
-import type { User, Persona, Genero } from '@/lib/types';
+import type { User, Genero } from '@/lib/types';
 import 'server-only';
-
-interface UserRow {
-    id: number;
-    username: string;
-    password: string;
-    roleId: number;
-    specialtyId?: number;
-    name?: string;
-    personaId?: number;
-}
+import { revalidatePath } from 'next/cache';
 
 export async function login(
     prevState: any,
     formData: FormData
 ): Promise<{ error?: string; success?: boolean }> {
 
-    const db = await getDb();
     const username = formData.get('username') as string;
     const password = formData.get('password') as string;
 
@@ -36,11 +23,23 @@ export async function login(
     }
 
     try {
-        const userWithPassword = await db.get<UserRow>(`
-        SELECT id, username, password, "roleId", "specialtyId", name, "personaId"
-        FROM users 
-        WHERE username = ?
-    `, [username]);
+        const userWithPassword = await prisma.user.findUnique({
+            where: { username },
+            include: {
+                role: {
+                    include: {
+                        permissions: true
+                    }
+                },
+                persona: {
+                    include: {
+                        doctor: {
+                            include: { specialty: true }
+                        }
+                    }
+                }
+            }
+        });
 
         if (!userWithPassword) {
             console.log(`[AUTH] Login failed: User not found for username '${username}'`);
@@ -56,37 +55,22 @@ export async function login(
 
         console.log(`[AUTH] Password match for ${username}: ${passwordMatch}`);
 
-        const { password: _, ...userRow } = userWithPassword;
-
-        const role = await db.get<{ id: number; name: string }>('SELECT id, name FROM roles WHERE id = ?', [userWithPassword.roleId]);
-        if (!role) {
-            console.error(`[AUTH] Critical error: Role with ID ${userRow.roleId} not found for user ${username}`);
-            return { error: 'Error de configuración de cuenta: Rol no encontrado.' };
-        }
-
-        let persona: Pick<Persona, 'genero'> | undefined;
-        if (userRow.personaId) {
-            persona = await db.get<{ genero: Genero }>('SELECT genero FROM personas WHERE id = ?', [userRow.personaId]);
-        }
-
-        const specialty = userRow.specialtyId ? await db.get<{ id: number; name: string }>('SELECT id, name FROM specialties WHERE id = ?', [userRow.specialtyId]) : undefined;
-
-        const permissionRows = await db.all<{ permissionId: string }>(
-            'SELECT "permissionId" FROM role_permissions WHERE "roleId" = ?',
-            [userRow.roleId]
-        );
-
         const session = await getSession();
         session.isLoggedIn = true;
+        const { buildNombreCompleto } = await import('@/lib/prisma-helpers');
+        
         session.user = {
-            id: userRow.id,
-            username: userRow.username,
-            role: { id: role.id, name: role.name },
-            specialty: specialty ? { id: specialty.id, name: specialty.name } : undefined,
-            name: userRow.name || userRow.username,
-            genero: persona?.genero
+            id: userWithPassword.id,
+            username: userWithPassword.username,
+            role: { id: userWithPassword.role.id, name: userWithPassword.role.name },
+            specialty: userWithPassword.persona?.doctor?.specialty ? { 
+                id: userWithPassword.persona.doctor.specialty.id, 
+                name: userWithPassword.persona.doctor.specialty.name 
+            } : undefined,
+            name: userWithPassword.persona ? buildNombreCompleto(userWithPassword.persona) : userWithPassword.username,
+            genero: userWithPassword.persona?.genero as Genero | undefined
         };
-        session.permissions = permissionRows.map(p => p.permissionId);
+        session.permissions = userWithPassword.role.permissions.map(p => p.permissionId);
 
         await session.save();
         console.log(`[AUTH] Session saved successfully for user: ${username}`);
@@ -116,87 +100,80 @@ export async function changePasswordForCurrentUser(data: { currentPassword?: str
         throw new Error('Todos los campos son requeridos.');
     }
 
-    const db = await getDb();
+    const user = await prisma.user.findUnique({
+        where: { id: Number(session.user.id) },
+        select: { password: true }
+    });
 
-    const userWithPassword = await db.get<{ password: string }>('SELECT password FROM users WHERE id = ?', [session.user.id]);
-    if (!userWithPassword) {
+    if (!user) {
         throw new Error('No se pudo encontrar al usuario actual.');
     }
 
-    const isMatch = await bcrypt.compare(data.currentPassword, userWithPassword.password);
+    const isMatch = await bcrypt.compare(data.currentPassword, user.password);
     if (!isMatch) {
         throw new Error('La contraseña actual es incorrecta.');
     }
 
     const newHashedPassword = await bcrypt.hash(data.newPassword, 10);
 
-    await db.run('UPDATE users SET password = ? WHERE id = ?', [newHashedPassword, session.user.id]);
+    await prisma.user.update({
+        where: { id: Number(session.user.id) },
+        data: { password: newHashedPassword }
+    });
 }
 
 
 export async function getUsers(query?: string, page: number = 1, pageSize: number = 20) {
-    const db = await getDb();
-
-    let whereClause = `WHERE 1=1`;
-    const params: any[] = [];
+    const where: any = {};
     if (query && query.trim().length > 1) {
-        const searchQuery = `%${query.trim()}%`;
-        whereClause += ` AND (u.username ILIKE ? OR u.name ILIKE ?)`;
-        params.push(searchQuery, searchQuery);
+        const q = query.trim();
+        where.OR = [
+            { username: { contains: q, mode: 'insensitive' } },
+            { name: { contains: q, mode: 'insensitive' } },
+        ];
     }
 
-    const countResult = await db.get<{ count: number }>(`
-        SELECT COUNT(*) as count 
-        FROM users u 
-        ${whereClause}
-    `, params);
-    const totalCount = countResult?.count || 0;
-
-    const offset = (page - 1) * pageSize;
-
-    // Add params for LIMIT and OFFSET *after* the count query
-    params.push(pageSize, offset);
-
-    interface UserDataFromDb {
-        id: number;
-        username: string;
-        name: string;
-        roleId: number;
-        specialtyId?: number;
-        personaId?: number;
-    }
-
-    const usersData = await db.all<any[]>(`
-    SELECT
-    u.id, u.username, u.name, u."roleId", u."specialtyId", u."personaId", u.fecha_nacimiento as "fechaNacimiento"
-        FROM users u
-        ${whereClause}
-        ORDER BY u.username
-    LIMIT ? OFFSET ?
-        `, params);
-
-    const roles = await db.all<{ id: number; name: string }>('SELECT id, name FROM roles');
-    const specialties = await db.all<{ id: number; name: string }>('SELECT id, name FROM specialties');
-
-    const rolesMap = new Map(roles.map(r => [r.id, r.name]));
-    const specialtiesMap = new Map(specialties.map(s => [s.id, s.name]));
-
-    // Treat data from DB as 'any' to be safe, as db.all returns Promise<any[]>
-    const users: User[] = usersData.map((u: any) => {
-        // Ensure essential properties exist to prevent runtime errors
-        const roleId = u.roleId || 0;
-        return {
-            id: u.id,
-            username: u.username,
-            name: u.name,
-            role: {
-                id: roleId,
-                name: rolesMap.get(roleId) || 'Rol no encontrado'
+    const [usersData, totalCount] = await Promise.all([
+        prisma.user.findMany({
+            where,
+            include: {
+                role: true,
+                persona: {
+                    include: {
+                        doctor: {
+                            include: { specialty: true }
+                        }
+                    }
+                }
             },
-            specialty: u.specialtyId ? { id: u.specialtyId, name: specialtiesMap.get(u.specialtyId) || 'Especialidad no encontrada' } : undefined,
-            fechaNacimiento: u.fechaNacimiento,
-        };
-    });
+            orderBy: { username: 'asc' },
+            take: pageSize,
+            skip: (page - 1) * pageSize,
+        }),
+        prisma.user.count({ where })
+    ]);
+
+    const { buildNombreCompleto } = await import('@/lib/prisma-helpers');
+
+    const users: User[] = usersData.map((u) => ({
+        id: u.id,
+        username: u.username,
+        name: u.persona ? buildNombreCompleto(u.persona) : u.username,
+        personaId: u.personaId || undefined,
+        fechaNacimiento: u.persona?.fechaNacimiento || undefined,
+        persona: u.persona ? {
+            ...u.persona,
+            nombreCompleto: buildNombreCompleto(u.persona)
+        } : undefined,
+        role: {
+            id: u.role.id,
+            name: u.role.name
+        },
+        specialty: u.persona?.doctor?.specialty ? { 
+            id: u.persona.doctor.specialty.id, 
+            name: u.persona.doctor.specialty.name 
+        } : undefined,
+    }));
 
     return { users, totalCount };
 }
@@ -208,10 +185,10 @@ interface UserCreationData {
     roleId: number;
     specialtyId?: number;
     fechaNacimiento?: string;
+    personaId?: string | number;
 }
 
 export async function createUser(data: UserCreationData) {
-    const db = await getDb();
     try {
         if (!data.password || data.password.trim().length === 0) {
             throw new Error('La contraseña es requerida para crear un usuario.');
@@ -220,14 +197,47 @@ export async function createUser(data: UserCreationData) {
             throw new Error('La contraseña debe tener al menos 6 caracteres.');
         }
         const hashedPassword = await bcrypt.hash(data.password, 10);
-        const userId = await getNextId('users');
-        await db.run(
-            'INSERT INTO users (id, username, password, "roleId", "specialtyId", name, "fecha_nacimiento") VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [userId, data.username, hashedPassword, Number(data.roleId), data.specialtyId ? Number(data.specialtyId) : null, data.name || null, data.fechaNacimiento || null]
-        );
+
+        let personaId = data.personaId ? Number(data.personaId) : null;
+
+        // If no personaId provided, create one from the name/date fields
+        if (!personaId && data.name) {
+            const names = data.name.trim().split(' ');
+            const persona = await prisma.persona.create({
+                data: {
+                    primerNombre: names[0] || '',
+                    primerApellido: names[1] || names[names.length - 1] || '',
+                    fechaNacimiento: data.fechaNacimiento ? new Date(data.fechaNacimiento) : new Date(1990, 0, 1),
+                    genero: 'Masculino', // Default
+                }
+            });
+            personaId = persona.id;
+        }
+        
+        const user = await prisma.user.create({
+            data: {
+                username: data.username,
+                password: hashedPassword,
+                roleId: Number(data.roleId),
+                personaId: personaId,
+            }
+        });
+
+        // If role is clinical and specialty is provided, ensure Doctor record exists
+        const clinicalRoleIds = [3, 4, 5, 6]; // Medico, Especialista, etc.
+        if (clinicalRoleIds.includes(Number(data.roleId)) && personaId) {
+            await prisma.doctor.upsert({
+                where: { personaId: personaId },
+                update: { specialtyId: data.specialtyId ? Number(data.specialtyId) : undefined },
+                create: {
+                    personaId: personaId,
+                    specialtyId: data.specialtyId ? Number(data.specialtyId) : 1, // Default or selected
+                }
+            });
+        }
+        revalidatePath('/dashboard/configuracion/usuarios');
     } catch (error: any) {
-        // Handle unique constraint violation for both SQLite and PostgreSQL
-        if (error.code === 'SQLITE_CONSTRAINT' || (error.code === '23505' && error.constraint === 'users_username_key')) {
+        if (error.code === 'P2002') {
             throw new Error('El nombre de usuario ya existe. Por favor, elija otro.');
         }
         throw error;
@@ -244,59 +254,90 @@ interface UserUpdateData {
 }
 
 export async function updateUser(id: number | string, data: UserUpdateData) {
-    const db = await getDb();
-    // Use a transaction to ensure atomicity of DB update and session update
     try {
-        await db.exec('BEGIN');
+        const updateData: any = {
+            username: data.username,
+            roleId: Number(data.roleId),
+        };
 
         if (data.password && data.password.length > 0) {
-            const hashedPassword = await bcrypt.hash(data.password, 10);
-            await db.run(
-                'UPDATE users SET username = ?, password = ?, "roleId" = ?, "specialtyId" = ?, name = ?, "fecha_nacimiento" = ? WHERE id = ?',
-                [data.username, hashedPassword, Number(data.roleId), data.specialtyId ? Number(data.specialtyId) : null, data.name || null, data.fechaNacimiento || null, id]
-            );
-        } else {
-            await db.run(
-                'UPDATE users SET username = ?, "roleId" = ?, "specialtyId" = ?, name = ?, "fecha_nacimiento" = ? WHERE id = ?',
-                [data.username, Number(data.roleId), data.specialtyId ? Number(data.specialtyId) : null, data.name || null, data.fechaNacimiento || null, id]
-            );
+            updateData.password = await bcrypt.hash(data.password, 10);
         }
 
-        const session = await getSession();
-        if (session.user && session.user.id === id) {
-            session.user.username = data.username;
-            session.user.name = data.name || data.username;
-
-            const role = await db.get<{ id: number; name: string }>('SELECT id, name FROM roles WHERE id = ?', [data.roleId]);
-            session.user.role = role
-                ? { id: role.id, name: role.name }
-                : { id: data.roleId, name: 'Rol no encontrado' };
-
-            if (data.specialtyId) {
-                const specialty = await db.get<{ id: number; name: string }>('SELECT id, name FROM specialties WHERE id = ?', [data.specialtyId]);
-                session.user.specialty = specialty
-                    ? { id: specialty.id, name: specialty.name }
-                    : { id: data.specialtyId, name: 'Especialidad no encontrada' };
-            } else {
-                session.user.specialty = undefined;
+        const updatedUser = await prisma.user.update({
+            where: { id: Number(id) },
+            data: updateData,
+            include: {
+                role: true,
+                persona: {
+                    include: {
+                        doctor: {
+                            include: { specialty: true }
+                        }
+                    }
+                }
             }
+        });
+
+        // Update Persona name/date if linked
+        if (updatedUser.personaId) {
+            const personaData: any = {};
+            if (data.name) {
+                const names = data.name.split(' ');
+                personaData.primerNombre = names[0] || '';
+                personaData.primerApellido = names[1] || names[names.length - 1] || '';
+            }
+            if (data.fechaNacimiento) {
+                personaData.fechaNacimiento = new Date(data.fechaNacimiento);
+            }
+
+            if (Object.keys(personaData).length > 0) {
+                await prisma.persona.update({
+                    where: { id: updatedUser.personaId },
+                    data: personaData
+                });
+            }
+        }
+
+        // Update Doctor specialty if linked
+        if (updatedUser.persona?.doctor && data.specialtyId) {
+            await prisma.doctor.update({
+                where: { id: updatedUser.persona.doctor.id },
+                data: { specialtyId: Number(data.specialtyId) }
+            });
+        }
+
+        const { buildNombreCompleto } = await import('@/lib/prisma-helpers');
+
+        const session = await getSession();
+        if (session.user && session.user.id === Number(id)) {
+            session.user.username = updatedUser.username;
+            session.user.name = updatedUser.persona ? buildNombreCompleto(updatedUser.persona) : updatedUser.username;
+            session.user.role = { id: updatedUser.role.id, name: updatedUser.role.name };
+            session.user.specialty = updatedUser.persona?.doctor?.specialty 
+                ? { id: updatedUser.persona.doctor.specialty.id, name: updatedUser.persona.doctor.specialty.name } 
+                : undefined;
 
             await session.save();
         }
-
-        await db.exec('COMMIT');
-    } catch (error) {
-        await db.exec('ROLLBACK');
+        revalidatePath('/dashboard/configuracion/usuarios');
+    } catch (error: any) {
         console.error(`[AUTH] Failed to update user ${id}: `, error);
-        throw error; // Re-throw the error to be handled by the caller
+        throw error;
     }
 }
 
 
 export async function deleteUser(id: number | string) {
-    const db = await getDb();
-    const result = await db.run('DELETE FROM users WHERE id = ?', [id]);
-    if (result.changes === 0) {
-        throw new Error('No se pudo eliminar el usuario. Es posible que ya haya sido eliminado.');
+    try {
+        await prisma.user.delete({
+            where: { id: Number(id) }
+        });
+        revalidatePath('/dashboard/configuracion/usuarios');
+    } catch (error: any) {
+        if (error.code === 'P2025') {
+            throw new Error('No se pudo eliminar el usuario. Es posible que ya haya sido eliminado.');
+        }
+        throw error;
     }
 }

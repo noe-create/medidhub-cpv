@@ -23,6 +23,98 @@ import { Checkbox } from '../ui/checkbox';
 import { RadiologyOrderForm } from '../radiology-order-form';
 
 
+const DiagnosisSelector = ({ form }: { form: any }) => {
+    const [searchTerm, setSearchTerm] = React.useState('');
+    const [results, setResults] = React.useState<Cie10Code[]>([]);
+    const [isSearching, setIsSearching] = React.useState(false);
+    const { fields, append, remove } = useFieldArray({
+        control: form.control,
+        name: "diagnoses"
+    });
+
+    const handleSearch = async (val: string) => {
+        setSearchTerm(val);
+        if (val.length < 3) {
+            setResults([]);
+            return;
+        }
+
+        setIsSearching(true);
+        try {
+            const data = await searchCie10Codes(val);
+            setResults(data);
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setIsSearching(false);
+        }
+    };
+
+    const addDiagnosis = (code: Cie10Code) => {
+        if (fields.some((f: any) => f.cie10Code === code.codigo)) return;
+        append({
+            cie10Code: code.codigo,
+            cie10Description: code.descripcion
+        });
+        setSearchTerm('');
+        setResults([]);
+    };
+
+    return (
+        <FormSection icon={<Stethoscope className="h-5 w-5 text-primary" />} title="Diagnósticos (CIE-10)">
+            <div className="space-y-4">
+                <div className="relative">
+                    <Command className="border rounded-md shadow-sm">
+                        <CommandInput 
+                            placeholder="Buscar por código o descripción (ej: E11, Gripe)..." 
+                            value={searchTerm}
+                            onValueChange={handleSearch}
+                        />
+                        <CommandList>
+                            {isSearching && <div className="p-4 text-center text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin inline mr-2" /> Buscando...</div>}
+                            {searchTerm.length >= 3 && results.length === 0 && !isSearching && <CommandEmpty>No se encontraron diagnósticos.</CommandEmpty>}
+                            <CommandGroup>
+                                {results.map((res) => (
+                                    <CommandItem
+                                        key={res.codigo}
+                                        value={`${res.codigo} ${res.descripcion}`}
+                                        onSelect={() => addDiagnosis(res)}
+                                        className="cursor-pointer"
+                                    >
+                                        <Check className={cn("mr-2 h-4 w-4", fields.some((f: any) => f.cie10Code === res.codigo) ? "opacity-100" : "opacity-0")} />
+                                        <span className="font-mono font-bold text-primary mr-2">{res.codigo}</span>
+                                        {res.descripcion}
+                                    </CommandItem>
+                                ))}
+                            </CommandGroup>
+                        </CommandList>
+                    </Command>
+                </div>
+
+                {fields.length > 0 && (
+                    <div className="flex flex-wrap gap-2 pt-2">
+                        {fields.map((field, index) => (
+                            <Badge key={field.id} variant="secondary" className="pl-3 pr-1 py-1 h-auto flex items-center gap-2 border-primary/20 bg-primary/5">
+                                <span className="font-mono font-black text-primary">{ (field as any).cie10Code }</span>
+                                <span className="text-xs max-w-[200px] truncate">{ (field as any).cie10Description }</span>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-5 w-5 rounded-full hover:bg-destructive hover:text-white transition-colors"
+                                    onClick={() => remove(index)}
+                                >
+                                    <X className="h-3 w-3" />
+                                </Button>
+                            </Badge>
+                        ))}
+                    </div>
+                )}
+            </div>
+        </FormSection>
+    );
+};
+
 const TreatmentOrderBuilder = ({ form }: { form: any }) => {
     const { fields, append, remove, update } = useFieldArray({
         control: form.control,
@@ -30,7 +122,7 @@ const TreatmentOrderBuilder = ({ form }: { form: any }) => {
     });
 
     const [currentItem, setCurrentItem] = React.useState<CreateTreatmentItemInput>({
-        medicamentoProcedimiento: '', dosis: '', via: '', frecuencia: '', duracion: '', instrucciones: ''
+        medicamentoProcedimiento: '', dosis: '', via: '', frecuencia: '', duracion: '', instrucciones: '', requiereAplicacionInmediata: false
     });
     const [editingIndex, setEditingIndex] = React.useState<number | null>(null);
 
@@ -46,7 +138,7 @@ const TreatmentOrderBuilder = ({ form }: { form: any }) => {
         } else {
             append(currentItem);
         }
-        setCurrentItem({ medicamentoProcedimiento: '', dosis: '', via: '', frecuencia: '', duracion: '', instrucciones: '' });
+        setCurrentItem({ medicamentoProcedimiento: '', dosis: '', via: '', frecuencia: '', duracion: '', instrucciones: '', requiereAplicacionInmediata: false });
     };
 
     const handleEditItem = (index: number) => {
@@ -55,7 +147,7 @@ const TreatmentOrderBuilder = ({ form }: { form: any }) => {
     };
 
     const handleCancelEdit = () => {
-        setCurrentItem({ medicamentoProcedimiento: '', dosis: '', via: '', frecuencia: '', duracion: '', instrucciones: '' });
+        setCurrentItem({ medicamentoProcedimiento: '', dosis: '', via: '', frecuencia: '', duracion: '', instrucciones: '', requiereAplicacionInmediata: false });
         setEditingIndex(null);
     }
 
@@ -87,6 +179,19 @@ const TreatmentOrderBuilder = ({ form }: { form: any }) => {
                         <Label htmlFor="instrucciones">Instrucciones Especiales (opcional)</Label>
                         <Textarea name="instrucciones" value={currentItem.instrucciones} onChange={handleInputChange} placeholder="Ej: Tomar con las comidas" />
                     </div>
+                    <div className="md:col-span-2 pt-2 border-t mt-2">
+                        <div className="flex items-center space-x-2">
+                            <Checkbox 
+                                id="requiereAplicacionInmediata" 
+                                checked={currentItem.requiereAplicacionInmediata} 
+                                onCheckedChange={(checked) => setCurrentItem({ ...currentItem, requiereAplicacionInmediata: !!checked })}
+                            />
+                            <Label htmlFor="requiereAplicacionInmediata" className="text-sm font-semibold cursor-pointer">
+                                Requiere aplicación en clínica / inmediata
+                            </Label>
+                        </div>
+                        <p className="text-xs text-muted-foreground ml-6 mt-1">Si marca esta opción, el medicamento se enviará a la Bitácora de Tratamiento para que la enfermera lo administre.</p>
+                    </div>
                 </div>
                 <div className="flex justify-end gap-2">
                     {editingIndex !== null && <Button type="button" variant="ghost" onClick={handleCancelEdit}>Cancelar Edición</Button>}
@@ -101,7 +206,12 @@ const TreatmentOrderBuilder = ({ form }: { form: any }) => {
                         {fields.map((field, index) => (
                             <div key={field.id} className="p-3 flex justify-between items-start">
                                 <div className="text-sm">
-                                    <p className="font-semibold">{(field as any).medicamentoProcedimiento}</p>
+                                    <div className="flex items-center gap-2">
+                                        <p className="font-semibold">{(field as any).medicamentoProcedimiento}</p>
+                                        {(field as any).requiereAplicacionInmediata && (
+                                            <Badge variant="default" className="text-[10px] h-5">Aplicación Inmediata</Badge>
+                                        )}
+                                    </div>
                                     <p className="text-muted-foreground">
                                         {(field as any).dosis && <span>{(field as any).dosis}</span>}
                                         {(field as any).via && <span> &bull; Vía {(field as any).via}</span>}
@@ -189,6 +299,8 @@ export const StepDiagnosticoPlan = ({ form, patient, onLabOrderChange }: { form:
 
     return (
         <div className="space-y-6">
+            <DiagnosisSelector form={form} />
+            
             {patient.isReintegro && (
                 <FormSection icon={<RefreshCw className="h-5 w-5 text-blue-600 animate-spin-slow" />} title="Orden de Reintegro Laboral">
                     <div className="p-6 bg-blue-50/50 border-2 border-blue-100 rounded-2xl space-y-4">

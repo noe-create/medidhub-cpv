@@ -48,10 +48,9 @@ export function PeopleList() {
     const [importResult, setImportResult] = React.useState<{ imported: number, skipped: number, errors: string[] } | null>(null);
     const [isResultDialogOpen, setIsResultDialogOpen] = React.useState(false);
 
-    const isSuperUser = Number(user.role.id) === 1 || user.role.name === 'Superusuario';
-    const isAdmin = [1, 2].includes(Number(user.role.id)) || ['Superusuario', 'Admin'].includes(user.role.name);
-    const canCreate = [1, 2].includes(Number(user.role.id)) || ['Superusuario', 'Admin'].includes(user.role.name);
-    const canManage = isAdmin || [3, 7].includes(Number(user.role.id)) || ['Secretaria', 'Recepcionista'].includes(user.role.name);
+    const isSuperUser = user.role.name === 'Superusuario' || user.permissions.includes('*');
+    const canManage = isSuperUser || user.permissions.includes('people.manage');
+    const canCreate = canManage; // In this module, create is part of manage
 
     const refreshPersonas = React.useCallback(async (currentSearch: string, page: number) => {
         setIsLoading(true);
@@ -126,10 +125,12 @@ export function PeopleList() {
             cell: ({ row }: { row: any }) => {
                 const p = row.original;
                 if (!p.fechaNacimiento) return <span className="text-muted-foreground text-xs italic">No registrada</span>;
-                const age = calculateAge(new Date(p.fechaNacimiento));
+                const d = new Date(p.fechaNacimiento);
+                const age = calculateAge(d);
+                const formattedDate = format(new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()), 'dd MMM yyyy', { locale: es });
                 return (
                     <div className="flex flex-col">
-                        <span className="font-medium text-xs">{new Date(p.fechaNacimiento).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                        <span className="font-medium text-xs">{formattedDate}</span>
                         <span className="text-[10px] font-extrabold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded w-fit mt-0.5 uppercase tracking-tighter">
                             {age} años
                         </span>
@@ -203,7 +204,10 @@ export function PeopleList() {
             const dataToExport = personas.map(p => ({
                 'Nombre Completo': p.nombreCompleto,
                 'Cédula': p.cedula,
-                'Fecha de Nacimiento': format(new Date(p.fechaNacimiento), 'dd/MM/yyyy'),
+                'Fecha de Nacimiento': (() => {
+                    const d = new Date(p.fechaNacimiento);
+                    return format(new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()), 'dd/MM/yyyy');
+                })(),
                 'Género': p.genero,
                 'Email': p.email || 'N/A',
                 'Teléfono 1': p.telefono1 || '',

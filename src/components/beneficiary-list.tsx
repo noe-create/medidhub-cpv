@@ -12,6 +12,7 @@ import { es } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
 import { getAllBeneficiarios } from '@/actions/patient-actions';
 import { Loader2, Users } from 'lucide-react';
+import { GlobalBeneficiaryCreator } from './global-beneficiary-creator';
 
 export function BeneficiaryList() {
   const { toast } = useToast();
@@ -19,18 +20,22 @@ export function BeneficiaryList() {
   const [search, setSearch] = React.useState('');
   const [beneficiarios, setBeneficiarios] = React.useState<BeneficiarioConTitular[]>([]);
 
+  const fetchBeneficiarios = async () => {
+    setIsLoading(true);
+    try {
+      const data = await getAllBeneficiarios(search);
+      setBeneficiarios(data);
+    } catch (error) {
+      console.error("Error al buscar beneficiarios:", error);
+      toast({ title: 'Error', description: 'No se pudieron cargar los beneficiarios.', variant: 'destructive' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   React.useEffect(() => {
-    const timer = setTimeout(async () => {
-      setIsLoading(true);
-      try {
-        const data = await getAllBeneficiarios(search);
-        setBeneficiarios(data);
-      } catch (error) {
-        console.error("Error al buscar beneficiarios:", error);
-        toast({ title: 'Error', description: 'No se pudieron cargar los beneficiarios.', variant: 'destructive' });
-      } finally {
-        setIsLoading(false);
-      }
+    const timer = setTimeout(() => {
+      fetchBeneficiarios();
     }, 300);
 
     return () => clearTimeout(timer);
@@ -58,6 +63,9 @@ export function BeneficiaryList() {
             className="pl-10 h-11 rounded-full bg-muted/50 border-border focus:bg-card focus:ring-blue-100 transition-all shadow-sm"
           />
         </div>
+        <div>
+          <GlobalBeneficiaryCreator onSuccess={fetchBeneficiarios} />
+        </div>
       </div>
 
       {isLoading ? (
@@ -80,7 +88,12 @@ export function BeneficiaryList() {
               <TableRow key={beneficiario.id} className="hover:bg-blue-50/30 border-border/50">
                 <TableCell className="font-extrabold text-foreground">{beneficiario.persona.nombreCompleto}</TableCell>
                 <TableCell className="text-foreground/80 font-medium">{beneficiario.persona.cedula}</TableCell>
-                <TableCell className="text-foreground/80">{format(beneficiario.persona.fechaNacimiento, 'PPP', { locale: es })}</TableCell>
+                <TableCell className="text-foreground/80">
+                  {(() => {
+                    const d = new Date(beneficiario.persona.fechaNacimiento);
+                    return format(new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()), 'PPP', { locale: es });
+                  })()}
+                </TableCell>
                 <TableCell className="text-foreground/80">{beneficiario.persona.genero}</TableCell>
                 <TableCell>
                   <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 rounded-lg px-3 py-1 font-medium">{beneficiario.titularNombre}</Badge>

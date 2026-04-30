@@ -63,6 +63,7 @@ const allMenuOptions: MenuItem[] = [
 
   { href: '/dashboard/sala-de-espera', icon: 'solar:clock-circle-bold-duotone', title: 'Sala de espera', permission: 'waitlist.view', group: 'Atención' },
   { href: '/dashboard/consulta', icon: 'solar:stethoscope-bold-duotone', title: 'Consulta', permission: 'consultation.perform', group: 'Atención' },
+  { href: '/dashboard/consultas', icon: 'solar:clipboard-list-bold-duotone', title: 'Consultas Realizadas', permission: 'consultation.perform', group: 'Atención' },
   { href: '/dashboard/hce', icon: 'solar:heart-pulse-bold-duotone', title: 'Historia Clínica', permission: 'hce.view', group: 'Atención' },
   { href: '/dashboard/bitacora', icon: 'solar:syringe-bold-duotone', title: 'Bitácora Tratamiento', permission: 'treatmentlog.manage', group: 'Atención' },
   { href: '/dashboard/reintegros', icon: 'solar:document-medicine-bold-duotone', title: 'Evaluación Médica (Reintegro)', permission: 'consultation.perform', group: 'Atención' },
@@ -80,7 +81,9 @@ const allMenuOptions: MenuItem[] = [
   { href: '/dashboard/empresas', icon: 'solar:city-bold-duotone', title: 'Empresas', permission: 'companies.manage', group: 'Parametrización' },
   { href: '/dashboard/puestos', icon: 'solar:case-minimalistic-bold-duotone', title: 'Puestos de Trabajo', permission: 'jobpositions.manage', group: 'Parametrización' },
   { href: '/dashboard/cie10', icon: 'solar:notebook-bold-duotone', title: 'Catálogo CIE-10', permission: 'cie10.manage', group: 'Parametrización' },
-  { href: '/dashboard/doctores', icon: 'solar:diploma-bold-duotone', title: 'Doctores', permission: 'specialties.manage', group: 'Parametrización' },
+  { href: '/dashboard/servicios', icon: 'solar:server-square-bold-duotone', title: 'Catálogo de Servicios', permission: 'settings.manage', group: 'Parametrización' },
+  { href: '/dashboard/especialidades', icon: 'solar:diploma-bold-duotone', title: 'Especialidades', permission: 'specialties.manage', group: 'Parametrización' },
+  { href: '/dashboard/doctores', icon: 'solar:users-group-rounded-bold-duotone', title: 'Doctores', permission: 'specialties.manage', group: 'Parametrización' },
   { href: '/dashboard/apariencia', icon: 'solar:palette-bold-duotone', title: 'Apariencia', permission: 'settings.manage', group: 'Parametrización' },
 
 

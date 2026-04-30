@@ -68,14 +68,6 @@ export const StepExamenFisico = ({ form }: { form: any }) => {
                         <FormField control={form.control} name="signosVitales.satO2Ambiente" render={({ field }) => (<FormItem className="flex items-center space-x-2 pt-2"><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl><Label className="font-normal text-sm">Aire Ambiente</Label></FormItem>)} />
                         {!satO2Ambiente && <FormField control={form.control} name="signosVitales.satO2Flujo" render={({ field }) => (<FormItem><FormLabel className="text-xs">Flujo O2 (L/min)</FormLabel><FormControl><Input type="number" step="0.5" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)} />}
                     </div>
-                    <div className="lg:col-span-2 space-y-2">
-                        <FormField control={form.control} name="signosVitales.dolor" render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Dolor (0-10): {field.value ?? 'N/A'}</FormLabel>
-                                <FormControl><Slider defaultValue={[0]} value={[field.value ?? 0]} max={10} step={1} onValueChange={(value) => field.onChange(value[0])} /></FormControl>
-                            </FormItem>
-                        )} />
-                    </div>
                 </div>
             </FormSection>
         </div>

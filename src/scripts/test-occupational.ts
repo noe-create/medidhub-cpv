@@ -1,8 +1,10 @@
-import { createCompany, createJobPosition, createOccupationalEvaluation, getOccupationalEvaluationsByPerson } from '../actions/occupational-actions';
+import { createCompany, createJobPosition } from '../actions/occupational-actions';
 import { suggestMedicalExams } from '../ai/flows/occupational';
-import { getDb } from '../lib/db';
+import { PrismaClient } from '@prisma/client';
 import fs from 'fs';
 import path from 'path';
+
+const prisma = new PrismaClient();
 
 // Load .env manually
 const envPath = path.resolve(process.cwd(), '.env');
@@ -23,8 +25,8 @@ async function main() {
     // 1. Test Database Connection
     console.log("\n1. Testing Database Connection...");
     try {
-        const db = await getDb();
-        console.log("Database connected successfully.");
+        await prisma.$connect();
+        console.log("Database connected successfully via Prisma.");
     } catch (error) {
         console.error("Database connection failed:", error);
         return;
@@ -34,7 +36,7 @@ async function main() {
     console.log("\n2. Testing Create Company...");
     const companyRes = await createCompany({
         name: "Test Company " + Date.now(),
-        rif: "J-123456789",
+        rif: "J-" + Math.floor(Math.random() * 1000000000),
         telefono: "555-0000",
         direccion: "Test Address"
     });
@@ -63,6 +65,10 @@ async function main() {
     }
 
     console.log("\nTest Completed.");
+    await prisma.$disconnect();
 }
 
-main().catch(console.error);
+main().catch(async (err) => {
+    console.error(err);
+    await prisma.$disconnect();
+});

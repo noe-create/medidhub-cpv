@@ -1,16 +1,13 @@
 'use server';
 
-import { getDb, getNextId } from '@/lib/db';
+import { prisma } from '@/lib/prisma';
 import { CompanySchema, JobPositionSchema, OccupationalEvaluationSchema, OccupationalIncidentSchema } from '@/lib/zod-schemas/occupational';
 import { revalidatePath } from 'next/cache';
-import { v4 as uuidv4 } from 'uuid';
 import { suggestMedicalExams } from '@/ai/flows/occupational';
 
 export async function generateOccupationalSuggestions(jobTitle: string, jobDescription: string) {
     try {
         const result = await suggestMedicalExams({ jobTitle, jobDescription });
-        // The result likely has { risks, suggestedExams, reasoning }
-        // We might need to map these risks to our checkbox IDs or just return strings.
         return { success: true, data: result };
     } catch (error: any) {
         console.error("AI Suggestion Error:", error);
@@ -26,14 +23,16 @@ export async function createCompany(data: any) {
     }
 
     try {
-        const db = await getDb();
-        const id = await getNextId('empresas');
-        await db.run(
-            `INSERT INTO empresas (id, name, rif, telefono, direccion) VALUES (?, ?, ?, ?, ?)`,
-            [id, result.data.name, result.data.rif, result.data.telefono || '', result.data.direccion || '']
-        );
+        const company = await prisma.empresa.create({
+            data: {
+                name: result.data.name,
+                rif: result.data.rif,
+                telefono: result.data.telefono || '',
+                direccion: result.data.direccion || ''
+            }
+        });
         revalidatePath('/dashboard/ocupacional');
-        return { success: true, id };
+        return { success: true, id: company.id };
     } catch (error: any) {
         console.error("Error creating company:", error);
         return { success: false, error: error.message };
@@ -47,17 +46,18 @@ export async function createJobPosition(data: any) {
     }
 
     try {
-        const db = await getDb();
-        const id = await getNextId('job_positions');
-        // Serialize risks array to string for DB storage
         const risksString = result.data.risks ? JSON.stringify(result.data.risks) : '[]';
 
-        await db.run(
-            `INSERT INTO job_positions (id, name, description, "riskLevel", risks) VALUES (?, ?, ?, ?, ?)`,
-            [id, result.data.name, result.data.description || '', result.data.riskLevel || 'Bajo', risksString]
-        );
+        const position = await prisma.jobPosition.create({
+            data: {
+                name: result.data.name,
+                description: result.data.description || '',
+                riskLevel: result.data.riskLevel || 'Bajo',
+                risks: risksString
+            }
+        });
         revalidatePath('/dashboard/puestos');
-        return { success: true, id };
+        return { success: true, id: position.id };
     } catch (error: any) {
         console.error("Error creating job position:", error);
         return { success: false, error: error.message };
@@ -66,41 +66,38 @@ export async function createJobPosition(data: any) {
 
 export async function getJobPositions(search?: string, page: number = 1, pageSize: number = 10) {
     try {
-        const db = await getDb();
-        const offset = (page - 1) * pageSize;
-        let query = `SELECT * FROM job_positions`;
-        let countQuery = `SELECT COUNT(*) as count FROM job_positions`;
-        const params: any[] = [];
-
+        const where: any = {};
         if (search) {
-            query += ` WHERE name ILIKE ? OR description ILIKE ?`;
-            countQuery += ` WHERE name ILIKE ? OR description ILIKE ?`;
-            params.push(`%${search}%`, `%${search}%`);
+            where.OR = [
+                { name: { contains: search, mode: 'insensitive' } },
+                { description: { contains: search, mode: 'insensitive' } },
+            ];
         }
 
-        query += ` ORDER BY name ASC LIMIT ? OFFSET ?`;
-        params.push(pageSize, offset);
-
-        const positions = await db.all(query, params);
-        const countResult = await db.get<{ count: number }>(countQuery, params.slice(0, params.length - 2));
+        const [positions, totalCount] = await Promise.all([
+            prisma.jobPosition.findMany({
+                where,
+                orderBy: { name: 'asc' },
+                take: pageSize,
+                skip: (page - 1) * pageSize,
+            }),
+            prisma.jobPosition.count({ where })
+        ]);
 
         return {
             jobPositions: positions.map((p: any) => ({
                 ...p,
                 risks: p.risks ? JSON.parse(p.risks) : []
             })),
-            totalCount: countResult?.count || 0
+            totalCount
         };
     } catch (error: any) {
         console.error("Error fetching job positions:", error);
-        // Return empty data instead of throwing to prevent UI crash
         return { jobPositions: [], totalCount: 0 };
     }
 }
 
 export async function updateJobPosition(data: any) {
-    // Validate only partial since ID is required but others might be optional in a full update scenario
-    // but JobPositionSchema requires name.
     const result = JobPositionSchema.safeParse(data);
     if (!result.success) {
         return { success: false, error: result.error.errors[0].message };
@@ -111,15 +108,19 @@ export async function updateJobPosition(data: any) {
     }
 
     try {
-        const db = await getDb();
         const risksString = result.data.risks ? JSON.stringify(result.data.risks) : '[]';
 
-        await db.run(
-            `UPDATE job_positions SET name = ?, description = ?, "riskLevel" = ?, risks = ? WHERE id = ?`,
-            [result.data.name, result.data.description || '', result.data.riskLevel || 'Bajo', risksString, data.id]
-        );
+        const updated = await prisma.jobPosition.update({
+            where: { id: Number(data.id) },
+            data: {
+                name: result.data.name,
+                description: result.data.description || '',
+                riskLevel: result.data.riskLevel || 'Bajo',
+                risks: risksString
+            }
+        });
         revalidatePath('/dashboard/puestos');
-        return { success: true, ...result.data };
+        return { success: true, ...updated };
     } catch (error: any) {
         console.error("Error updating job position:", error);
         return { success: false, error: error.message };
@@ -128,8 +129,9 @@ export async function updateJobPosition(data: any) {
 
 export async function deleteJobPosition(id: string) {
     try {
-        const db = await getDb();
-        await db.run(`DELETE FROM job_positions WHERE id = ?`, [id]);
+        await prisma.jobPosition.delete({
+            where: { id: Number(id) }
+        });
         revalidatePath('/dashboard/puestos');
         return { success: true };
     } catch (error: any) {
@@ -145,48 +147,36 @@ export async function createOccupationalEvaluation(data: any) {
     }
 
     try {
-        const db = await getDb();
-        const id = await getNextId('occupational_health_evaluations');
-
-        // Ensure patient exists or create simplistic link (assuming personaId refers to personas table)
-        // Note: The schema for occupational_health_evaluations has personaId NOT NULL.
-
-        await db.run(
-            `INSERT INTO occupational_health_evaluations (
-                id, "personaId", "jobPositionId", "companyId", "evaluationDate", "patientType", "consultationPurpose",
-                "occupationalRisks", "riskDetails", "personalHistory", "familyHistory", "lifestyle", "mentalHealth",
-                "vitalSigns", "anthropometry", "physicalExamFindings", "diagnoses", "fitnessForWork",
-                "occupationalRecommendations", "generalHealthPlan", "interconsultation", "nextFollowUp"
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
-                id,
-                result.data.personaId,
-                result.data.jobPositionId,
-                result.data.companyId,
-                result.data.evaluationDate,
-                result.data.patientType,
-                result.data.consultationPurpose,
-                result.data.occupationalRisks || '',
-                result.data.riskDetails || '',
-                result.data.personalHistory || '',
-                result.data.familyHistory || '',
-                result.data.lifestyle || '',
-                result.data.mentalHealth || '',
-                result.data.vitalSigns || '{}',
-                result.data.anthropometry || '{}',
-                result.data.physicalExamFindings || '',
-                result.data.diagnoses || '',
-                result.data.fitnessForWork,
-                result.data.occupationalRecommendations || '',
-                result.data.generalHealthPlan || '',
-                result.data.interconsultation || '',
-                result.data.nextFollowUp || ''
-            ]
-        );
+        const evaluation = await prisma.occupationalHealthEvaluation.create({
+            data: {
+                personaId: Number(result.data.personaId),
+                jobPositionId: result.data.jobPositionId ? Number(result.data.jobPositionId) : null,
+                companyId: result.data.companyId ? Number(result.data.companyId) : null,
+                evaluationDate: new Date(result.data.evaluationDate),
+                patientType: result.data.patientType,
+                consultationPurpose: result.data.consultationPurpose,
+                jobDescription: result.data.jobDescription || '',
+                occupationalRisks: result.data.occupationalRisks || '',
+                riskDetails: result.data.riskDetails || '',
+                personalHistory: result.data.personalHistory || '',
+                familyHistory: result.data.familyHistory || '',
+                lifestyle: result.data.lifestyle || '',
+                mentalHealth: result.data.mentalHealth || '',
+                vitalSigns: result.data.vitalSigns || '{}',
+                anthropometry: result.data.anthropometry || '{}',
+                physicalExamFindings: result.data.physicalExamFindings || '',
+                diagnoses: result.data.diagnoses || '',
+                fitnessForWork: result.data.fitnessForWork,
+                occupationalRecommendations: result.data.occupationalRecommendations || '',
+                generalHealthPlan: result.data.generalHealthPlan || '',
+                interconsultation: result.data.interconsultation || '',
+                nextFollowUp: result.data.nextFollowUp ? new Date(result.data.nextFollowUp) : null,
+            }
+        });
 
         revalidatePath('/dashboard/ocupacional');
         revalidatePath(`/dashboard/pacientes/${result.data.personaId}`);
-        return { success: true, id };
+        return { success: true, id: evaluation.id };
     } catch (error: any) {
         console.error("Error creating occupational evaluation:", error);
         return { success: false, error: error.message };
@@ -195,17 +185,23 @@ export async function createOccupationalEvaluation(data: any) {
 
 export async function getOccupationalEvaluationsByPerson(personaId: number | string) {
     try {
-        const db = await getDb();
-        const evaluations = await db.all(
-            `SELECT oe.*, jp.name as "jobPositionName", e.name as "companyName" 
-             FROM occupational_health_evaluations oe
-             LEFT JOIN job_positions jp ON oe."jobPositionId" = jp.id
-             LEFT JOIN empresas e ON oe."companyId" = e.id
-             WHERE oe."personaId" = ?
-             ORDER BY oe."evaluationDate" DESC`,
-            [personaId]
-        );
-        return { success: true, data: evaluations };
+        const evaluations = await prisma.occupationalHealthEvaluation.findMany({
+            where: { personaId: Number(personaId) },
+            include: {
+                jobPosition: true,
+                company: true,
+            },
+            orderBy: { evaluationDate: 'desc' },
+        });
+
+        // Map to include flattened names for backward compatibility if needed
+        const mapped = evaluations.map(oe => ({
+            ...oe,
+            jobPositionName: oe.jobPosition?.name,
+            companyName: oe.company?.name,
+        }));
+
+        return { success: true, data: mapped };
     } catch (error: any) {
         console.error("Error fetching occupational evaluations:", error);
         return { success: false, error: error.message };
@@ -214,17 +210,24 @@ export async function getOccupationalEvaluationsByPerson(personaId: number | str
 
 export async function getOccupationalEvaluationsByCompany(companyId: number | string) {
     try {
-        const db = await getDb();
-        const evaluations = await db.all(
-            `SELECT oe.*, p."primerNombre", p."primerApellido", p."cedulaNumero", jp.name as "jobPositionName"
-             FROM occupational_health_evaluations oe
-             JOIN personas p ON oe."personaId" = p.id
-             LEFT JOIN job_positions jp ON oe."jobPositionId" = jp.id
-             WHERE oe."companyId" = ?
-             ORDER BY oe."evaluationDate" DESC`,
-            [companyId]
-        );
-        return { success: true, data: evaluations };
+        const evaluations = await prisma.occupationalHealthEvaluation.findMany({
+            where: { companyId: Number(companyId) },
+            include: {
+                persona: true,
+                jobPosition: true,
+            },
+            orderBy: { evaluationDate: 'desc' },
+        });
+
+        const mapped = evaluations.map(oe => ({
+            ...oe,
+            primerNombre: oe.persona.primerNombre,
+            primerApellido: oe.persona.primerApellido,
+            cedulaNumero: oe.persona.cedulaNumero,
+            jobPositionName: oe.jobPosition?.name,
+        }));
+
+        return { success: true, data: mapped };
     } catch (error: any) {
         console.error("Error fetching company evaluations:", error);
         return { success: false, error: error.message };
@@ -238,31 +241,22 @@ export async function createOccupationalIncident(data: any) {
     }
 
     try {
-        const db = await getDb();
-        const id = await getNextId('occupational_incidents');
-        const now = new Date().toISOString();
-
-        await db.run(
-            `INSERT INTO occupational_incidents (
-                id, "personaId", "companyId", "incidentDate", "incidentType", description, severity, witnesses, "actionsTaken", "reportedBy", "createdAt"
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
-                id,
-                result.data.personaId,
-                result.data.companyId,
-                result.data.incidentDate,
-                result.data.incidentType,
-                result.data.description,
-                result.data.severity,
-                result.data.witnesses || '',
-                result.data.actionsTaken || '',
-                result.data.reportedBy,
-                now
-            ]
-        );
+        const incident = await prisma.occupationalIncident.create({
+            data: {
+                personaId: Number(result.data.personaId),
+                companyId: Number(result.data.companyId),
+                incidentDate: new Date(result.data.incidentDate),
+                incidentType: result.data.incidentType,
+                description: result.data.description,
+                severity: result.data.severity,
+                witnesses: result.data.witnesses || '',
+                actionsTaken: result.data.actionsTaken || '',
+                reportedBy: result.data.reportedBy,
+            }
+        });
 
         revalidatePath('/dashboard/salud-ocupacional');
-        return { success: true, id };
+        return { success: true, id: incident.id };
     } catch (error: any) {
         console.error("Error creating occupational incident:", error);
         return { success: false, error: error.message };
@@ -271,16 +265,22 @@ export async function createOccupationalIncident(data: any) {
 
 export async function getOccupationalIncidentsByCompany(companyId: number | string) {
     try {
-        const db = await getDb();
-        const incidents = await db.all(
-            `SELECT oi.*, p."primerNombre", p."primerApellido", p."cedulaNumero"
-             FROM occupational_incidents oi
-             JOIN personas p ON oi."personaId" = p.id
-             WHERE oi."companyId" = ?
-             ORDER BY oi."incidentDate" DESC`,
-            [companyId]
-        );
-        return { success: true, data: incidents };
+        const incidents = await prisma.occupationalIncident.findMany({
+            where: { companyId: Number(companyId) },
+            include: {
+                persona: true,
+            },
+            orderBy: { incidentDate: 'desc' },
+        });
+
+        const mapped = incidents.map(oi => ({
+            ...oi,
+            primerNombre: oi.persona.primerNombre,
+            primerApellido: oi.persona.primerApellido,
+            cedulaNumero: oi.persona.cedulaNumero,
+        }));
+
+        return { success: true, data: mapped };
     } catch (error: any) {
         console.error("Error fetching company incidents:", error);
         return { success: false, error: error.message };
@@ -289,16 +289,20 @@ export async function getOccupationalIncidentsByCompany(companyId: number | stri
 
 export async function getOccupationalIncidentsByPerson(personaId: number | string) {
     try {
-        const db = await getDb();
-        const incidents = await db.all(
-            `SELECT oi.*, e.name as "companyName"
-             FROM occupational_incidents oi
-             JOIN empresas e ON oi."companyId" = e.id
-             WHERE oi."personaId" = ?
-             ORDER BY oi."incidentDate" DESC`,
-            [personaId]
-        );
-        return { success: true, data: incidents };
+        const incidents = await prisma.occupationalIncident.findMany({
+            where: { personaId: Number(personaId) },
+            include: {
+                company: true,
+            },
+            orderBy: { incidentDate: 'desc' },
+        });
+
+        const mapped = incidents.map(oi => ({
+            ...oi,
+            companyName: oi.company.name,
+        }));
+
+        return { success: true, data: mapped };
     } catch (error: any) {
         console.error("Error fetching person incidents:", error);
         return { success: false, error: error.message };

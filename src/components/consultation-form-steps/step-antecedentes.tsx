@@ -127,11 +127,11 @@ const StepPediatrico = ({ form }: { form: any }) => {
 
     return (
         <FormSection title="Antecedentes Pediátricos">
-            <FormField control={form.control} name="antecedentesPediatricos.prenatales" render={({ field }) => ( <FormItem><div className="flex justify-between items-center"><FormLabel>Prenatales</FormLabel>{prenatales.control}</div><FormControl><Textarea placeholder="Control del embarazo, complicaciones..." {...field} rows={2} disabled={prenatales.disabled} /></FormControl></FormItem> )} />
-            <FormField control={form.control} name="antecedentesPediatricos.natales" render={({ field }) => ( <FormItem><div className="flex justify-between items-center"><FormLabel>Natales</FormLabel>{natales.control}</div><FormControl><Textarea placeholder="Tipo de parto, peso/talla al nacer..." {...field} rows={2} disabled={natales.disabled} /></FormControl></FormItem> )} />
-            <FormField control={form.control} name="antecedentesPediatricos.postnatales" render={({ field }) => ( <FormItem><div className="flex justify-between items-center"><FormLabel>Postnatales</FormLabel>{postnatales.control}</div><FormControl><Textarea placeholder="Complicaciones neonatales, lactancia..." {...field} rows={2} disabled={postnatales.disabled} /></FormControl></FormItem> )} />
-            <FormField control={form.control} name="antecedentesPediatricos.inmunizaciones" render={({ field }) => ( <FormItem><div className="flex justify-between items-center"><FormLabel>Inmunizaciones</FormLabel>{inmunizaciones.control}</div><FormControl><Textarea placeholder="Esquema de vacunación, vacunas pendientes..." {...field} rows={2} disabled={inmunizaciones.disabled} /></FormControl></FormItem> )} />
-            <FormField control={form.control} name="antecedentesPediatricos.desarrolloPsicomotor" render={({ field }) => ( <FormItem><div className="flex justify-between items-center"><FormLabel>Desarrollo Psicomotor</FormLabel>{desarrolloPsicomotor.control}</div><FormControl><Textarea placeholder="Hitos del desarrollo, lenguaje, socialización..." {...field} rows={2} disabled={desarrolloPsicomotor.disabled} /></FormControl></FormItem> )} />
+            <FormField control={form.control} name="antecedentesPediatricos.prenatales" render={({ field }) => ( <FormItem><div className="flex justify-between items-center"><FormLabel>Prenatales</FormLabel>{prenatales.control}</div><FormControl><Textarea placeholder="Control del embarazo, complicaciones..." {...field} value={field.value ?? ''} rows={2} disabled={prenatales.disabled} /></FormControl></FormItem> )} />
+            <FormField control={form.control} name="antecedentesPediatricos.natales" render={({ field }) => ( <FormItem><div className="flex justify-between items-center"><FormLabel>Natales</FormLabel>{natales.control}</div><FormControl><Textarea placeholder="Tipo de parto, peso/talla al nacer..." {...field} value={field.value ?? ''} rows={2} disabled={natales.disabled} /></FormControl></FormItem> )} />
+            <FormField control={form.control} name="antecedentesPediatricos.postnatales" render={({ field }) => ( <FormItem><div className="flex justify-between items-center"><FormLabel>Postnatales</FormLabel>{postnatales.control}</div><FormControl><Textarea placeholder="Complicaciones neonatales, lactancia..." {...field} value={field.value ?? ''} rows={2} disabled={postnatales.disabled} /></FormControl></FormItem> )} />
+            <FormField control={form.control} name="antecedentesPediatricos.inmunizaciones" render={({ field }) => ( <FormItem><div className="flex justify-between items-center"><FormLabel>Inmunizaciones</FormLabel>{inmunizaciones.control}</div><FormControl><Textarea placeholder="Esquema de vacunación, vacunas pendientes..." {...field} value={field.value ?? ''} rows={2} disabled={inmunizaciones.disabled} /></FormControl></FormItem> )} />
+            <FormField control={form.control} name="antecedentesPediatricos.desarrolloPsicomotor" render={({ field }) => ( <FormItem><div className="flex justify-between items-center"><FormLabel>Desarrollo Psicomotor</FormLabel>{desarrolloPsicomotor.control}</div><FormControl><Textarea placeholder="Hitos del desarrollo, lenguaje, socialización..." {...field} value={field.value ?? ''} rows={2} disabled={desarrolloPsicomotor.disabled} /></FormControl></FormItem> )} />
         </FormSection>
     );
 };
@@ -163,7 +163,7 @@ export const StepAntecedentes = ({ form, isFemale, isPediatric }: { form: any, i
                                     </FormItem>
                                 )} /> ))}
                     </div>
-                    <FormField control={control} name="antecedentesPersonales.patologicosOtros" render={({ field }) => ( <FormItem className="mt-2"><FormControl><Input placeholder="Otras patologías, especificar..." {...field} disabled={watch('antecedentesPersonales.patologicosNinguno')} /></FormControl><FormMessage /></FormItem> )} />
+                    <FormField control={control} name="antecedentesPersonales.patologicosOtros" render={({ field }) => ( <FormItem className="mt-2"><FormControl><Input placeholder="Otras patologías, especificar..." {...field} value={field.value ?? ''} disabled={watch('antecedentesPersonales.patologicosNinguno')} /></FormControl><FormMessage /></FormItem> )} />
                     <FormMessage />
                 </FormItem>
             )} />
@@ -187,7 +187,7 @@ export const StepAntecedentes = ({ form, isFemale, isPediatric }: { form: any, i
                                     </FormItem>
                                 )} /> ))}
                     </div>
-                    <FormField control={control} name="antecedentesPersonales.quirurgicosOtros" render={({ field }) => ( <FormItem className="mt-2"><FormControl><Input placeholder="Otras cirugías, especificar..." {...field} disabled={watch('antecedentesPersonales.quirurgicosNinguno')} /></FormControl><FormMessage /></FormItem> )} />
+                    <FormField control={control} name="antecedentesPersonales.quirurgicosOtros" render={({ field }) => ( <FormItem className="mt-2"><FormControl><Input placeholder="Otras cirugías, especificar..." {...field} value={field.value ?? ''} disabled={watch('antecedentesPersonales.quirurgicosNinguno')} /></FormControl><FormMessage /></FormItem> )} />
                     <FormMessage />
                 </FormItem>
             )} />
@@ -213,13 +213,13 @@ export const StepAntecedentes = ({ form, isFemale, isPediatric }: { form: any, i
                         </div>
                         <FormField control={control} name="antecedentesPersonales.alergicosOtros"
                             render={({ field }) => (
-                                <FormItem className="mt-2"><FormControl><Input placeholder="Otras alergias, especificar..." {...field} disabled={watch('antecedentesPersonales.alergicosNinguno')} /></FormControl><FormMessage /></FormItem>
+                                <FormItem className="mt-2"><FormControl><Input placeholder="Otras alergias, especificar..." {...field} value={field.value ?? ''} disabled={watch('antecedentesPersonales.alergicosNinguno')} /></FormControl><FormMessage /></FormItem>
                             )} />
                         <FormMessage />
                     </FormItem>
                 )} />
 
-            <FormField control={control} name="antecedentesPersonales.medicamentos" render={({ field }) => ( <FormItem><div className="flex justify-between items-center"><FormLabel>Medicamentos Actuales</FormLabel><FormField control={control} name="antecedentesPersonales.medicamentosNinguno" render={({ field: checkField }) => (<FormItem className="flex flex-row items-center space-x-2 space-y-0"><FormControl><Checkbox checked={checkField.value} onCheckedChange={(checked) => { checkField.onChange(checked); if (checked) setValue('antecedentesPersonales.medicamentos', ''); }} /></FormControl><FormLabel className="font-normal text-sm">Ninguno / No Refiere</FormLabel></FormItem>)} /></div><FormControl><Textarea placeholder="Medicamentos que toma regularmente..." {...field} rows={2} disabled={watch('antecedentesPersonales.medicamentosNinguno')} /></FormControl><FormMessage /></FormItem> )} />
+            <FormField control={control} name="antecedentesPersonales.medicamentos" render={({ field }) => ( <FormItem><div className="flex justify-between items-center"><FormLabel>Medicamentos Actuales</FormLabel><FormField control={control} name="antecedentesPersonales.medicamentosNinguno" render={({ field: checkField }) => (<FormItem className="flex flex-row items-center space-x-2 space-y-0"><FormControl><Checkbox checked={checkField.value} onCheckedChange={(checked) => { checkField.onChange(checked); if (checked) setValue('antecedentesPersonales.medicamentos', ''); }} /></FormControl><FormLabel className="font-normal text-sm">Ninguno / No Refiere</FormLabel></FormItem>)} /></div><FormControl><Textarea placeholder="Medicamentos que toma regularmente..." {...field} value={field.value ?? ''} rows={2} disabled={watch('antecedentesPersonales.medicamentosNinguno')} /></FormControl><FormMessage /></FormItem> )} />
 
             <FormField control={control} name="antecedentesPersonales.habitos" render={() => (
                     <FormItem>
@@ -242,7 +242,7 @@ export const StepAntecedentes = ({ form, isFemale, isPediatric }: { form: any, i
                         </div>
                         <FormField control={control} name="antecedentesPersonales.habitosOtros"
                             render={({ field }) => (
-                                <FormItem className="mt-2"><FormControl><Input placeholder="Otros hábitos, especificar..." {...field} disabled={watch('antecedentesPersonales.habitosNinguno')} /></FormControl><FormMessage /></FormItem>
+                                <FormItem className="mt-2"><FormControl><Input placeholder="Otros hábitos, especificar..." {...field} value={field.value ?? ''} disabled={watch('antecedentesPersonales.habitosNinguno')} /></FormControl><FormMessage /></FormItem>
                             )} />
                         <FormMessage />
                     </FormItem>
@@ -253,7 +253,7 @@ export const StepAntecedentes = ({ form, isFemale, isPediatric }: { form: any, i
             title="Antecedentes Familiares"
             action={<FormField control={control} name="antecedentesFamiliaresNinguno" render={({ field }) => (<FormItem className="flex flex-row items-center space-x-2 space-y-0"><FormControl><Checkbox checked={field.value} onCheckedChange={(checked) => { field.onChange(checked); if (checked) setValue('antecedentesFamiliares', ''); }} /></FormControl><FormLabel className="font-normal text-sm">Ninguno / No Refiere</FormLabel></FormItem>)} />}
         >
-             <FormField control={control} name="antecedentesFamiliares" render={({ field }) => ( <FormItem><FormControl><Textarea placeholder="Enfermedades importantes en familiares directos..." {...field} rows={3} disabled={familiaresNinguno} /></FormControl><FormMessage /></FormItem> )} />
+             <FormField control={control} name="antecedentesFamiliares" render={({ field }) => ( <FormItem><FormControl><Textarea placeholder="Enfermedades importantes en familiares directos..." {...field} value={field.value ?? ''} rows={3} disabled={familiaresNinguno} /></FormControl><FormMessage /></FormItem> )} />
         </FormSection>
         
         {isFemale && <StepGineco form={form} />}

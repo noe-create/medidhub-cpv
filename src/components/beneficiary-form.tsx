@@ -132,6 +132,37 @@ export function BeneficiaryForm({ beneficiario, onSubmitted, onCancel, excludeId
     const [showRepresentativeField, setShowRepresentativeField] = React.useState(false);
 
     React.useEffect(() => {
+        if (selectedPersona) {
+            form.reset({
+                primerNombre: selectedPersona.primerNombre || '',
+                segundoNombre: selectedPersona.segundoNombre || '',
+                primerApellido: selectedPersona.primerApellido || '',
+                segundoApellido: selectedPersona.segundoApellido || '',
+                nacionalidad: (selectedPersona.nacionalidad as any) || 'V',
+                cedulaNumero: selectedPersona.cedulaNumero || '',
+                fechaNacimiento: initialDate,
+                genero: (selectedPersona.genero as any) || undefined,
+                telefono1: selectedPersona.telefono1 || '',
+                email: selectedPersona.email || '',
+            });
+        } else if (!beneficiario) {
+            // Only clear if we are not editing an existing beneficiary
+            form.reset({
+                primerNombre: '',
+                segundoNombre: '',
+                primerApellido: '',
+                segundoApellido: '',
+                nacionalidad: 'V',
+                cedulaNumero: '',
+                fechaNacimiento: undefined,
+                genero: undefined,
+                telefono1: '',
+                email: '',
+            });
+        }
+    }, [selectedPersona, initialDate, form, beneficiario]);
+
+    React.useEffect(() => {
         if (isPersonaSelected) {
             setShowRepresentativeField(false);
             return;
@@ -146,6 +177,20 @@ export function BeneficiaryForm({ beneficiario, onSubmitted, onCancel, excludeId
 
     const handleRepresentativeSelect = (p: Persona | null) => {
         form.setValue('representanteId', p?.id || '', { shouldValidate: true });
+    };
+
+    const handleCreateNew = (name: string) => {
+        const parts = name.trim().split(' ').filter(Boolean);
+        if (parts.length > 0) {
+            form.setValue('primerNombre', parts[0] || '', { shouldValidate: true });
+            if (parts.length > 1) {
+                form.setValue('primerApellido', parts[parts.length - 1] || '', { shouldValidate: true });
+                if (parts.length > 2) {
+                    form.setValue('segundoNombre', parts.slice(1, -1).join(' '), { shouldValidate: true });
+                }
+            }
+        }
+        setSelectedPersona(null);
     };
 
     // Removed redundant reset effect to prevent race conditions.
@@ -177,6 +222,7 @@ export function BeneficiaryForm({ beneficiario, onSubmitted, onCancel, excludeId
                             onPersonaSelect={setSelectedPersona}
                             excludeIds={excludeIds}
                             placeholder="Buscar persona para añadir..."
+                            onCreateNew={handleCreateNew}
                         />
                         <p className="text-xs text-muted-foreground">O llene los campos de abajo para crear una nueva persona.</p>
                     </div>

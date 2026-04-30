@@ -55,14 +55,13 @@ export function LabOrderDisplay({ order }: LabOrderDisplayProps) {
         <section className="border-y border-black py-2">
           <h3 className="font-bold text-center mb-2">Datos del Paciente:</h3>
           <div className="grid grid-cols-2 gap-x-4">
-            <p><strong>Historia:</strong> {order?.pacienteId?.replace(/\D/g, '').slice(-6) || '____________________'}</p>
+            <p><strong>Historia:</strong> {String(order?.pacienteId || '').replace(/\D/g, '').slice(-6) || '____________________'}</p>
             <p><strong>Fecha Orden:</strong> {order?.orderDate ? format(order.orderDate, 'dd/MM/yyyy') : '____________________'}</p>
-            <p><strong>Ingreso:</strong> {order?.consultationId?.slice(-6) || '____________________'}</p>
+            <p><strong>Ingreso:</strong> {String(order?.consultationId || '').slice(-6) || '____________________'}</p>
             <p><strong>Sexo:</strong> {order?.paciente?.genero || '__________'}</p>
             <p><strong>Cédula:</strong> {order?.paciente?.cedula || '____________________'}</p>
             <p><strong>Edad:</strong> {ageString}</p>
             <p><strong>Nombre:</strong> {order?.paciente?.nombreCompleto || '________________________________________________'}</p>
-            <p><strong>Área / Departamento:</strong> {(order?.paciente as any)?.departamento || '____________________'}</p>
           </div>
         </section>
 

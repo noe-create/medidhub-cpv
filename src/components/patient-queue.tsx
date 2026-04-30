@@ -16,13 +16,14 @@ import {
   XCircle,
   ClipboardCheck,
   Briefcase,
+  Trash2,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { Patient, ServiceType, PatientStatus, User, Consultation } from '@/lib/types';
 import { ManagePatientDialog } from './manage-patient-sheet';
 import { WaitTimeStopwatch } from './wait-time-stopwatch';
 import { ScrollArea } from './ui/scroll-area';
-import { updatePatientStatus } from '@/actions/patient-actions';
+import { updatePatientStatus, removePatientFromWaitlist } from '@/actions/patient-actions';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu';
 import { calculateAge } from '@/lib/utils';
@@ -88,7 +89,7 @@ export function PatientQueue({ user, patients, onListRefresh }: PatientQueueProp
     if (!user) return [];
     const baseOptions: PatientStatus[] = ['Ausente', 'Pospuesto', 'Reevaluacion'];
 
-    if (['asistencial', 'administrator', 'admin', 'administradora', 'secretaria', 'recepcionista'].includes(user.role.id)) {
+    if ([1, 2, 3, 7].includes(Number(user.role.id)) || ['Superusuario', 'Admin', 'Secretaria', 'Recepcionista'].includes(user.role.name)) {
       return ['Esperando', ...baseOptions];
     }
 
@@ -96,8 +97,12 @@ export function PatientQueue({ user, patients, onListRefresh }: PatientQueueProp
       return ['Esperando', 'En Tratamiento', ...baseOptions];
     }
 
-    // doctor, superuser, dra_pediatra, dra_familiar
-    return ['Esperando', 'En Tratamiento', ...baseOptions];
+    // Clinical roles: Superusuario, Doctors
+    if ([1, 5, 6].includes(Number(user.role.id)) || ['Superusuario', 'Dra. Pediatra', 'Dra. Familiar'].includes(user.role.name)) {
+      return ['Esperando', 'En Tratamiento', ...baseOptions];
+    }
+
+    return baseOptions;
   }, [user]);
 
   const selectedPatient = React.useMemo(
@@ -165,6 +170,25 @@ export function PatientQueue({ user, patients, onListRefresh }: PatientQueueProp
     }
   };
 
+  const handleRemovePatient = async (patientId: string) => {
+    try {
+      await removePatientFromWaitlist(patientId);
+      toast({
+        title: 'Paciente Removido',
+        description: 'El paciente ha sido retirado completamente de la cola.',
+        variant: 'default',
+      });
+      onListRefresh();
+    } catch (error) {
+      console.error(error);
+      toast({
+        title: 'Error',
+        description: 'No se pudo remover al paciente de la lista.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const handleStartOrContinueConsultation = async (patient: Patient) => {
     if (patient.status === 'Esperando' || patient.status === 'Reevaluacion') {
       try {
@@ -186,40 +210,42 @@ export function PatientQueue({ user, patients, onListRefresh }: PatientQueueProp
   };
 
   const handleConsultationComplete = (consultation: Consultation) => {
-    toast({
-      variant: 'success',
-      title: 'Consulta Completada',
-      description: `La consulta de ${selectedPatient?.name} ha sido finalizada con éxito.`
-    });
+    console.log("handleConsultationComplete reached in PatientQueue", { consultation });
+    // Refrescar la cola
     onListRefresh();
-    setIsSheetOpen(false);
-    setSelectedPatientId(null);
+    // NOTA: No cerramos el dialog (setIsSheetOpen) ni reseteamos el id aquí,
+    // para permitir que el ManagePatientDialog cambie al tab de Historia Médica.
   };
 
   const visibleServices = React.useMemo(() => {
     const allServices = Object.keys(serviceInfo) as ServiceType[];
 
-    if (['doctor', 'dra_pediatra', 'dra_familiar'].includes(user.role.id)) {
+    const roleId = Number(user.role.id);
+    const roleName = user.role.name;
+
+    if ([5, 6].includes(roleId) || ['Dra. Pediatra', 'Dra. Familiar'].includes(roleName)) {
       if (user.specialty) {
-        if ((user.specialty as unknown as string) === 'medico familiar') {
+        const specialty = String(user.specialty).toLowerCase();
+        if (specialty === 'medico familiar') {
           return allServices.filter(s => s === 'medicina familiar');
         }
-        if ((user.specialty as unknown as string) === 'medico pediatra') {
+        if (specialty === 'medico pediatra') {
           return allServices.filter(s => s === 'consulta pediatrica');
         }
       }
 
-      // Fallback by role if specialty isn't matched
-      if (user.role.id === 'dra_familiar') {
+      // Fallback by role/name if specialty isn't matched
+      if (roleId === 6 || roleName === 'Dra. Familiar') {
         return allServices.filter(s => s === 'medicina familiar');
       }
-      if (user.role.id === 'dra_pediatra') {
+      if (roleId === 5 || roleName === 'Dra. Pediatra') {
         return allServices.filter(s => s === 'consulta pediatrica');
       }
     }
 
-    if (user.role.id === 'enfermera') {
-      return allServices.filter((s) => s === 'servicio de enfermeria');
+    if (roleId === 4 || roleName === 'Enfermera') {
+      // Nurses see all services to pre-fill physical exams
+      return allServices;
     }
 
     // For superuser, admin, and assistant, show all services
@@ -346,7 +372,7 @@ export function PatientQueue({ user, patients, onListRefresh }: PatientQueueProp
 
                         <div className="flex items-center gap-2 pt-2">
                           <div className="flex-1">
-                            {([1, 2, 5, 6].includes(Number(user?.role.id)) || ['Superusuario', 'Admin', 'Dra. Pediatra', 'Dra. Familiar'].includes(user?.role.name || '')) &&
+                            {([1, 2, 4, 5, 6].includes(Number(user?.role.id)) || ['Superusuario', 'Admin', 'Enfermera', 'Dra. Pediatra', 'Dra. Familiar'].includes(user?.role.name || '')) &&
                               (patient.status === 'Esperando' || patient.status === 'En Consulta' || patient.status === 'Reevaluacion') && (
                                 <Button
                                   onClick={() => handleStartOrContinueConsultation(patient)}
@@ -389,14 +415,30 @@ export function PatientQueue({ user, patients, onListRefresh }: PatientQueueProp
                                       {statusInfo[status as PatientStatus].label}
                                     </DropdownMenuItem>
                                   ))}
-                                  <DropdownMenuSeparator className="my-1" />
-                                  <DropdownMenuItem
-                                    className="text-destructive focus:text-destructive rounded-lg p-2.5 cursor-pointer bg-red-50 focus:bg-red-100"
-                                    onSelect={() => handleChangeStatus(patient.id, 'Cancelado')}
-                                  >
-                                    <XCircle className="mr-2 h-4 w-4" />
-                                    <span>Cancelar Cita</span>
-                                  </DropdownMenuItem>
+                                  {patient.status !== 'Cancelado' && (
+                                    <>
+                                      <DropdownMenuSeparator className="my-1" />
+                                      <DropdownMenuItem
+                                        className="text-destructive focus:text-destructive rounded-lg p-2.5 cursor-pointer bg-red-50 focus:bg-red-100"
+                                        onSelect={() => handleChangeStatus(patient.id, 'Cancelado')}
+                                      >
+                                        <XCircle className="mr-2 h-4 w-4" />
+                                        <span>Cancelar Cita</span>
+                                      </DropdownMenuItem>
+                                    </>
+                                  )}
+                                  {patient.status === 'Cancelado' && (
+                                    <>
+                                      <DropdownMenuSeparator className="my-1" />
+                                      <DropdownMenuItem
+                                        className="text-destructive focus:text-destructive rounded-lg p-2.5 cursor-pointer bg-red-50 focus:bg-red-100"
+                                        onSelect={() => handleRemovePatient(patient.id)}
+                                      >
+                                        <Trash2 className="mr-2 h-4 w-4" />
+                                        <span>Remover de la Lista</span>
+                                      </DropdownMenuItem>
+                                    </>
+                                  )}
                                 </DropdownMenuContent>
                               </DropdownMenu>
                             </div>

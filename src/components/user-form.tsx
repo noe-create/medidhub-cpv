@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import * as React from 'react';
@@ -10,13 +8,18 @@ import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, KeyRound, User as UserIcon, Shield, GraduationCap, UserSquare, CalendarDays } from 'lucide-react';
+import { Loader2, KeyRound, User as UserIcon, Shield, GraduationCap, UserSquare, CalendarDays, Plus } from 'lucide-react';
 import type { User, Role, Persona, Specialty } from '@/lib/types';
-import { getSpecialties } from '@/actions/specialty-actions';
+import { getSpecialties, createSpecialty } from '@/actions/specialty-actions';
 import { useUser } from './app-shell';
 import { calculateAge } from '@/lib/utils';
 import { es } from 'date-fns/locale';
 import { useFormDraft } from '@/hooks/use-form-draft';
+import { PersonaSearch } from './persona-search';
+import { Label } from './ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { SpecialtyForm } from './specialty-form';
+import { useToast } from '@/hooks/use-toast';
 
 const baseSchema = z.object({
   username: z.string().min(3, { message: 'El nombre de usuario es requerido (mínimo 3 caracteres).' }),
@@ -24,6 +27,7 @@ const baseSchema = z.object({
   roleId: z.coerce.string({ required_error: 'El rol es requerido.' }),
   specialtyId: z.coerce.string().optional(),
   fechaNacimiento: z.date({ required_error: 'La fecha de nacimiento es requerida.' }),
+  personaId: z.coerce.string().optional(),
 });
 
 const createUserSchema = baseSchema.extend({
@@ -53,11 +57,13 @@ interface UserFormProps {
 export function UserForm({ user, roles, onSubmitted, onCancel }: UserFormProps) {
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [specialties, setSpecialties] = React.useState<Specialty[]>([]);
+  const [isAddingSpecialty, setIsAddingSpecialty] = React.useState(false);
+  const { toast } = useToast();
   const currentUser = useUser();
   
   const initialDate = React.useMemo(() => {
-    // Robustly handle both naming conventions (camelCase from mapped results, snake_case from raw DB)
-    const dateValue = (user as any)?.fechaNacimiento || (user as any)?.fecha_nacimiento;
+    // Priority: user.persona.fechaNacimiento (normalized) -> legacy properties
+    const dateValue = user?.persona?.fechaNacimiento || (user as any)?.fechaNacimiento || (user as any)?.fecha_nacimiento;
     if (!dateValue) return undefined;
     
     let d = new Date(dateValue);
@@ -76,14 +82,18 @@ export function UserForm({ user, roles, onSubmitted, onCancel }: UserFormProps) 
     resolver: zodResolver(user ? updateUserSchema : createUserSchema),
     defaultValues: {
         username: user?.username || '',
-        name: user?.name || '',
+        name: user?.persona?.nombreCompleto || user?.name || '',
         roleId: user?.role?.id ? String(user.role.id) : '',
         specialtyId: user?.specialty?.id ? String(user.specialty.id) : '',
         fechaNacimiento: initialDate,
         password: '',
         confirmPassword: '',
+        personaId: user?.personaId ? String(user.personaId) : '',
     },
   });
+
+  const [selectedPersona, setSelectedPersona] = React.useState<Persona | null>(user?.persona || null);
+  const isPersonaSelected = !!selectedPersona;
 
   const { clearDraft } = useFormDraft(
       form, 
@@ -130,6 +140,37 @@ export function UserForm({ user, roles, onSubmitted, onCancel }: UserFormProps) 
     return arr;
   }, []);
 
+  const handlePersonaSelect = (p: Persona | null) => {
+    setSelectedPersona(p);
+    if (p) {
+        form.setValue('personaId', String(p.id), { shouldValidate: true });
+        form.setValue('name', p.nombreCompleto, { shouldValidate: true });
+        if (p.fechaNacimiento) {
+            form.setValue('fechaNacimiento', new Date(p.fechaNacimiento), { shouldValidate: true });
+        }
+    } else {
+        form.setValue('personaId', '');
+    }
+  };
+
+  const handleCreateNew = (name: string) => {
+    form.setValue('name', name, { shouldValidate: true });
+    setSelectedPersona(null);
+    form.setValue('personaId', '');
+  };
+
+  const handleQuickCreateSpecialty = async (values: { name: string }) => {
+    try {
+        const newSpecialty = await createSpecialty(values);
+        setSpecialties(prev => [...prev, newSpecialty].sort((a, b) => a.name.localeCompare(b.name)));
+        form.setValue('specialtyId', String(newSpecialty.id), { shouldValidate: true });
+        setIsAddingSpecialty(false);
+        toast({ title: "Especialidad creada", description: `Se ha añadido "${newSpecialty.name}" al catálogo.` });
+    } catch (error: any) {
+        toast({ title: "Error", description: error.message || "No se pudo crear la especialidad", variant: "destructive" });
+    }
+  };
+
   async function onSubmit(values: any) {
     setIsSubmitting(true);
     const dataToSubmit = { ...values };
@@ -153,6 +194,21 @@ export function UserForm({ user, roles, onSubmitted, onCancel }: UserFormProps) 
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
         <div className="space-y-4 max-h-[60vh] overflow-y-auto p-1">
+            {!user && (
+                <div className="space-y-2 mb-6 p-4 bg-muted/30 rounded-2xl border border-dashed border-border">
+                    <Label className="text-sm font-semibold">Vincular Persona Existente</Label>
+                    <PersonaSearch
+                        onPersonaSelect={handlePersonaSelect}
+                        placeholder="Buscar persona para el usuario..."
+                        onCreateNew={handleCreateNew}
+                    />
+                    <p className="text-xs text-muted-foreground italic">Recomendado para vincular a staff médico o administrativo ya registrado.</p>
+                </div>
+            )}
+
+            {/* Hidden field for personaId to ensure it's registered with react-hook-form */}
+            <input type="hidden" {...form.register('personaId')} />
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField
                     control={form.control}
@@ -211,58 +267,26 @@ export function UserForm({ user, roles, onSubmitted, onCancel }: UserFormProps) 
                     };
 
                     return (
-                        <FormItem className="flex flex-col gap-2 p-4 bg-muted/30 rounded-2xl border border-border/50 shadow-sm">
-                            <FormLabel className="flex items-center gap-2 text-sm font-extrabold text-foreground/80 mb-1">
-                                <CalendarDays className="h-4 w-4 text-indigo-500" />
+                        <FormItem className="space-y-1">
+                            <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground mb-1 mt-4">
+                                <CalendarDays className="h-4 w-4" />
                                 Fecha de Nacimiento
-                            </FormLabel>
-                            <div className="grid grid-cols-3 gap-2">
-                                <Select onValueChange={(v) => handleDateChange('day', v)} value={selectedDay?.toString()}>
-                                    <FormControl>
-                                        <SelectTrigger className="bg-white hover:bg-slate-50 transition-colors border-border/60 rounded-xl h-11 font-medium ring-offset-0 focus:ring-2 focus:ring-indigo-500/20">
-                                            <SelectValue placeholder="Día" />
-                                        </SelectTrigger>
-                                    </FormControl>
-                                    <SelectContent className="max-h-60 rounded-xl shadow-xl border-border/40">
-                                        {days.map(d => <SelectItem key={d} value={d.toString()} className="font-medium">{d}</SelectItem>)}
-                                    </SelectContent>
+                            </div>
+                            <div className="grid grid-cols-3 gap-2" style={{ opacity: isPersonaSelected ? 0.6 : 1, pointerEvents: isPersonaSelected ? 'none' : 'auto' }}>
+                                <Select value={selectedDay ? String(selectedDay) : ""} onValueChange={(v) => handleDateChange('day', v)}>
+                                    <SelectTrigger className="h-10 rounded-xl"><SelectValue placeholder="Día" /></SelectTrigger>
+                                    <SelectContent>{days.map(d => <SelectItem key={d} value={String(d)}>{d}</SelectItem>)}</SelectContent>
                                 </Select>
-
-                                <Select onValueChange={(v) => handleDateChange('month', v)} value={selectedMonth?.toString()}>
-                                    <FormControl>
-                                        <SelectTrigger className="bg-white hover:bg-slate-50 transition-colors border-border/60 rounded-xl h-11 font-medium ring-offset-0 focus:ring-2 focus:ring-indigo-500/20">
-                                            <SelectValue placeholder="Mes" />
-                                        </SelectTrigger>
-                                    </FormControl>
-                                    <SelectContent className="max-h-60 rounded-xl shadow-xl border-border/40">
-                                        {months.map(m => <SelectItem key={m.value} value={m.value.toString()} className="font-medium">{m.label}</SelectItem>)}
-                                    </SelectContent>
+                                <Select value={selectedMonth !== undefined ? String(selectedMonth) : ""} onValueChange={(v) => handleDateChange('month', v)}>
+                                    <SelectTrigger className="h-10 rounded-xl"><SelectValue placeholder="Mes" /></SelectTrigger>
+                                    <SelectContent>{months.map(m => <SelectItem key={m.value} value={String(m.value)}>{m.label}</SelectItem>)}</SelectContent>
                                 </Select>
-
-                                <Select onValueChange={(v) => handleDateChange('year', v)} value={selectedYear?.toString()}>
-                                    <FormControl>
-                                        <SelectTrigger className="bg-white hover:bg-slate-50 transition-colors border-border/60 rounded-xl h-11 font-medium ring-offset-0 focus:ring-2 focus:ring-indigo-500/20">
-                                            <SelectValue placeholder="Año" />
-                                        </SelectTrigger>
-                                    </FormControl>
-                                    <SelectContent className="max-h-60 rounded-xl shadow-xl border-border/40">
-                                        {years.map(y => <SelectItem key={y} value={y.toString()} className="font-medium">{y}</SelectItem>)}
-                                    </SelectContent>
+                                <Select value={selectedYear ? String(selectedYear) : ""} onValueChange={(v) => handleDateChange('year', v)}>
+                                    <SelectTrigger className="h-10 rounded-xl"><SelectValue placeholder="Año" /></SelectTrigger>
+                                    <SelectContent>{years.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent>
                                 </Select>
                             </div>
-                            
-                            {dateObj && (
-                                <div className="mt-2 p-2 bg-indigo-500/10 rounded-xl border border-indigo-500/20 flex items-center justify-between animate-in fade-in slide-in-from-top-1">
-                                    <span className="text-xs font-extrabold text-indigo-700 uppercase tracking-wider pl-1">Edad Calculada:</span>
-                                    <span className="text-sm font-black text-indigo-700 bg-white px-3 py-1 rounded-lg border border-indigo-100 shadow-sm">{calculateAge(dateObj)} años</span>
-                                </div>
-                            )}
-                            {!dateObj && (
-                                <div className="mt-2 p-2 bg-slate-100 rounded-xl border border-slate-200 border-dashed flex items-center justify-center">
-                                    <span className="text-xs font-bold text-slate-400 italic">Seleccione una fecha válida...</span>
-                                </div>
-                            )}
-                            <FormMessage className="text-[10px] font-bold" />
+                            <FormMessage />
                         </FormItem>
                     );
                 }}
@@ -299,7 +323,30 @@ export function UserForm({ user, roles, onSubmitted, onCancel }: UserFormProps) 
                     name="specialtyId"
                     render={({ field }) => (
                     <FormItem>
-                        <FormLabel className="flex items-center gap-2"><GraduationCap className="h-4 w-4 text-muted-foreground"/>Especialidad</FormLabel>
+                        <FormLabel className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                                <GraduationCap className="h-4 w-4 text-muted-foreground"/>
+                                Especialidad
+                            </div>
+                            <Dialog open={isAddingSpecialty} onOpenChange={setIsAddingSpecialty}>
+                                <DialogTrigger asChild>
+                                    <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-[10px] text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 font-bold uppercase tracking-wider">
+                                        <Plus className="h-3 w-3 mr-1" />
+                                        Nueva
+                                    </Button>
+                                </DialogTrigger>
+                                <DialogContent>
+                                    <DialogHeader>
+                                        <DialogTitle>Nueva Especialidad Médica</DialogTitle>
+                                    </DialogHeader>
+                                    <SpecialtyForm
+                                        specialty={null}
+                                        onSubmitted={handleQuickCreateSpecialty}
+                                        onCancel={() => setIsAddingSpecialty(false)}
+                                    />
+                                </DialogContent>
+                            </Dialog>
+                        </FormLabel>
                         <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
                             <SelectTrigger>

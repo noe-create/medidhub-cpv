@@ -1,45 +1,54 @@
 'use server';
 
-import { getDb } from '@/lib/db';
-import { revalidatePath } from 'next/cache';
+import { prisma } from '@/lib/prisma';
+import { startOfDay, endOfDay } from 'date-fns';
 
 export async function getDashboardStats() {
     try {
-        const db = await getDb();
-        const today = new Date().toISOString().split('T')[0];
+        const now = new Date();
+        const start = startOfDay(now);
+        const end = endOfDay(now);
 
-        // Parallelize queries for performance
-        const results = await Promise.all([
-            // Waiting List
-            db.get<{ count: number }>(`SELECT COUNT(*) as count FROM waitlist WHERE status = 'En espera'`),
-            // In Consultation
-            db.get<{ count: number }>(`SELECT COUNT(*) as count FROM waitlist WHERE status = 'En consulta'`),
-            // Total Patients
-            db.get<{ count: number }>(`SELECT COUNT(*) as count FROM pacientes`),
-            // Companies
-            db.get<{ count: number }>(`SELECT COUNT(*) as count FROM empresas`),
-            // Occupational Evaluations
-            db.get<{ count: number }>(`SELECT COUNT(*) as count FROM occupational_health_evaluations`),
-            // Users
-            db.get<{ count: number }>(`SELECT COUNT(*) as count FROM users`),
-            // Beneficiaries
-            db.get<{ count: number }>(`SELECT COUNT(*) as count FROM beneficiarios`),
-            // Titulars
-            db.get<{ count: number }>(`SELECT COUNT(*) as count FROM titulares`),
-            // Consultations Today
-            db.get<{ count: number }>(`SELECT COUNT(*) as count FROM consultations WHERE date("consultationDate") = date('now', 'localtime')`),
+        // Parallelize queries for performance using Prisma count
+        const [
+            waitlist,
+            inConsultation,
+            patients,
+            companies,
+            occupationalEvaluations,
+            users,
+            beneficiaries,
+            titulars,
+            todayConsultations
+        ] = await Promise.all([
+            prisma.waitlistEntry.count({ where: { status: 'En espera' } }),
+            prisma.waitlistEntry.count({ where: { status: 'En consulta' } }),
+            prisma.paciente.count(),
+            prisma.empresa.count(),
+            prisma.occupationalHealthEvaluation.count(),
+            prisma.user.count(),
+            prisma.beneficiario.count(),
+            prisma.titular.count(),
+            prisma.consultation.count({ 
+                where: { 
+                    consultationDate: {
+                        gte: start,
+                        lte: end
+                    } 
+                } 
+            }),
         ]);
 
         return {
-            waitlist: results[0]?.count || 0,
-            inConsultation: results[1]?.count || 0,
-            patients: results[2]?.count || 0,
-            companies: results[3]?.count || 0,
-            occupationalEvaluations: results[4]?.count || 0,
-            users: results[5]?.count || 0,
-            beneficiaries: results[6]?.count || 0,
-            titulars: results[7]?.count || 0,
-            todayConsultations: results[8]?.count || 0,
+            waitlist,
+            inConsultation,
+            patients,
+            companies,
+            occupationalEvaluations,
+            users,
+            beneficiaries,
+            titulars,
+            todayConsultations,
         };
     } catch (error) {
         console.error("Error fetching dashboard stats:", error);
@@ -52,6 +61,7 @@ export async function getDashboardStats() {
             users: 0,
             beneficiaries: 0,
             titulars: 0,
+            todayConsultations: 0,
         };
     }
 }

@@ -76,14 +76,13 @@ export function MedicalReportDisplay({ consultation }: MedicalReportDisplayProps
         <section className="border-y border-black py-2">
           <h3 className="font-bold text-center mb-2">Datos del Paciente:</h3>
           <div className="grid grid-cols-2 gap-x-4 text-sm">
-            <p><strong>Historia:</strong> {paciente?.id?.replace(/\D/g, '').slice(-6) || '____________________'}</p>
+            <p><strong>Historia:</strong> {String(paciente?.id || '').replace(/\D/g, '').slice(-6) || '____________________'}</p>
             <p><strong>Fecha:</strong> {consultation?.consultationDate ? format(consultation.consultationDate, 'dd/MM/yyyy') : '____________________'}</p>
-            <p><strong>Ingreso:</strong> {consultation?.waitlistId?.slice(-6) || '____________________'}</p>
+            <p><strong>Ingreso:</strong> {String(consultation?.waitlistId || '').slice(-6) || '____________________'}</p>
             <p><strong>Sexo:</strong> {paciente?.genero || '__________'}</p>
             <p><strong>Cédula:</strong> {paciente?.cedula || '____________________'}</p>
             <p><strong>Edad:</strong> {ageString || '__________'}</p>
             <p className="col-span-2"><strong>Nombre:</strong> {paciente?.nombreCompleto || '________________________________________________'}</p>
-            <p className="col-span-2"><strong>Área / Departamento:</strong> {(paciente as any)?.departamento || '____________________'}</p>
           </div>
         </section>
 

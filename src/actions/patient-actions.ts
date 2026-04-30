@@ -2,7 +2,9 @@
 
 'use server';
 
-import { getDb, getNextId, type Database } from '@/lib/db';
+import { prisma } from '@/lib/prisma';
+import { buildNombreCompleto, buildCedula, enrichPersona, enrichConsultation } from '@/lib/prisma-helpers';
+import { Prisma } from '@prisma/client';
 import type {
     Persona,
     Titular,
@@ -30,7 +32,8 @@ import type {
     Invoice,
     OccupationalHealthEvaluation,
     Service,
-    ServiceType
+    ServiceType,
+    UnidadServicio
 } from '@/lib/types';
 import { revalidatePath } from 'next/cache';
 import { getSession } from '@/lib/auth';
@@ -116,12 +119,71 @@ async function ensureDataEntryPermission() {
     }
 }
 
+// --- Unidades de Servicio Actions ---
+
+export async function getUnidadesServicio(): Promise<UnidadServicio[]> {
+    return await prisma.unidadServicio.findMany({
+        where: { isActive: true },
+        orderBy: [{ category: 'asc' }, { name: 'asc' }],
+    });
+}
+
+export async function getAllUnidadesServicio(): Promise<UnidadServicio[]> {
+    return await prisma.unidadServicio.findMany({
+        orderBy: [{ category: 'asc' }, { name: 'asc' }],
+    });
+}
+
+export async function createUnidadServicio(data: { name: string; category?: string }): Promise<UnidadServicio> {
+    await ensureAdminPermission();
+    return await prisma.unidadServicio.create({
+        data: { name: data.name, category: data.category || null },
+    });
+}
+
+export async function updateUnidadServicio(id: string, data: { name: string; category?: string; isActive?: boolean }): Promise<UnidadServicio> {
+    await ensureAdminPermission();
+    return await prisma.unidadServicio.update({
+        where: { id: Number(id) },
+        data: { name: data.name, category: data.category || null, isActive: data.isActive !== false },
+    });
+}
+
+export async function deleteUnidadServicio(id: string): Promise<{ success: boolean }> {
+    await ensureAdminPermission();
+    const usage = await prisma.titular.count({ where: { unidadServicioId: Number(id) } });
+    if (usage > 0) {
+        throw new Error(`Esta unidad de servicio está asignada a ${usage} titular(es). No se puede eliminar.`);
+    }
+    await prisma.unidadServicio.delete({ where: { id: Number(id) } });
+    return { success: true };
+}
+
+/**
+ * Resolves a unidadServicio text value to its ID in the unidades_servicio table.
+ * If the text doesn't exist yet, it creates a new entry.
+ */
+async function resolveUnidadServicioId(unidadServicioText: string): Promise<number> {
+    const existing = await prisma.unidadServicio.findFirst({
+        where: { name: { equals: unidadServicioText, mode: 'insensitive' } },
+    });
+    if (existing) return existing.id;
+
+    const created = await prisma.unidadServicio.create({
+        data: { name: unidadServicioText, category: 'Otros' },
+    });
+    return created.id;
+}
+
 // --- Persona Actions (Centralized Person Management) ---
 
-async function getOrCreatePersona(client: Database, personaData: Omit<Persona, 'id' | 'fechaNacimiento'> & { fechaNacimiento: string; representanteId?: number; }) {
+async function getOrCreatePersona(personaData: Omit<Persona, 'id' | 'fechaNacimiento'> & { fechaNacimiento: string; representanteId?: number; }) {
     let existingPersona;
     if (personaData.nacionalidad && personaData.cedulaNumero) {
-        existingPersona = await client.get<{ id: number }>('SELECT id FROM personas WHERE nacionalidad = ? AND "cedulaNumero" = ?', [personaData.nacionalidad, personaData.cedulaNumero]);
+        existingPersona = await prisma.persona.findFirst({
+            where: { nacionalidad: personaData.nacionalidad, cedulaNumero: personaData.cedulaNumero },
+            select: { id: true },
+        });
     }
 
     if (existingPersona) {
@@ -133,167 +195,186 @@ async function getOrCreatePersona(client: Database, personaData: Omit<Persona, '
         throw new Error('Un menor de edad sin cédula debe tener un representante asignado.');
     }
 
-    const personaId = await getNextId('personas');
-    await client.run(
-        'INSERT INTO personas (id, "primerNombre", "segundoNombre", "primerApellido", "segundoApellido", nacionalidad, "cedulaNumero", "fechaNacimiento", genero, telefono1, telefono2, email, direccion, "representanteId", "createdAt") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [personaId, personaData.primerNombre, personaData.segundoNombre, personaData.primerApellido, personaData.segundoApellido, personaData.nacionalidad, personaData.cedulaNumero, personaData.fechaNacimiento, personaData.genero, personaData.telefono1, personaData.telefono2, personaData.email, personaData.direccion, personaData.representanteId || null, new Date().toISOString()]
-    );
+    const created = await prisma.persona.create({
+        data: {
+            primerNombre: personaData.primerNombre,
+            segundoNombre: personaData.segundoNombre || null,
+            primerApellido: personaData.primerApellido,
+            segundoApellido: personaData.segundoApellido || null,
+            nacionalidad: personaData.nacionalidad || null,
+            cedulaNumero: personaData.cedulaNumero || null,
+            fechaNacimiento: new Date(personaData.fechaNacimiento),
+            genero: personaData.genero,
+            telefono1: personaData.telefono1 || null,
+            telefono2: personaData.telefono2 || null,
+            email: personaData.email || null,
+            direccion: personaData.direccion || null,
+            representanteId: personaData.representanteId || null,
+        },
+    });
 
-    await getOrCreatePaciente(client, personaId);
-    return personaId;
+    await getOrCreatePaciente(created.id);
+    return created.id;
 }
 
 
 // --- NEW: Full Persona Profile ---
 export async function getFullPersonaProfile(personaId: number | string) {
-    const db = await getDb();
-    const persona = await db.get<any>(`
-        SELECT p.*, ${fullNameSql} as "nombreCompleto", ${fullCedulaSql} as cedula
-        FROM personas p WHERE p.id = ?
-    `, [personaId]);
-
+    const id = Number(personaId);
+    const persona = await prisma.persona.findUnique({ where: { id } });
     if (!persona) return null;
 
-    const titularInfo = await db.get<any>('SELECT * FROM titulares WHERE "personaId" = ?', [personaId]);
-    const beneficiarioInfo = await db.all<any>(`
-        SELECT b.*, ${fullNameSql} as "titularNombre" 
-        FROM beneficiarios b
-        JOIN titulares t ON b."titularId" = t.id
-        JOIN personas p ON t."personaId" = p.id
-        WHERE b."personaId" = ?
-    `, [personaId]);
+    const titularRow = await prisma.titular.findUnique({
+        where: { personaId: id },
+        include: { unidadServicio: true },
+    });
+    const titularInfo = titularRow ? {
+        ...titularRow,
+        unidadServicio: titularRow.unidadServicio.name,
+    } : null;
 
-    const waitlistHistory = await db.all<any>(`
-        SELECT * FROM waitlist WHERE "personaId" = ? ORDER BY "checkInTime" DESC
-    `, [personaId]);
+    const beneficiarioRows = await prisma.beneficiario.findMany({
+        where: { personaId: id },
+        include: {
+            titular: {
+                include: { persona: true },
+            },
+        },
+    });
+    const beneficiarioInfo = beneficiarioRows.map(b => ({
+        ...b,
+        titularNombre: buildNombreCompleto(b.titular.persona),
+    }));
+
+    const waitlistHistory = await prisma.waitlistEntry.findMany({
+        where: { personaId: id },
+        orderBy: { checkInTime: 'desc' },
+    });
 
     return {
-        persona: { ...persona, fechaNacimiento: new Date(persona.fechaNacimiento) },
+        persona: enrichPersona(persona),
         titularInfo,
         beneficiarioInfo,
-        waitlistHistory: waitlistHistory.map((w: any) => ({ ...w, checkInTime: new Date(w.checkInTime) }))
+        waitlistHistory,
     };
 }
 
 export async function getPersonas(query?: string, page: number = 1, pageSize: number = 15): Promise<{ personas: Persona[], totalCount: number }> {
-    const db = await getDb();
+    // Get user-linked personaIds to exclude
+    const userPersonas = await prisma.user.findMany({
+        where: { personaId: { not: null } },
+        select: { personaId: true },
+    });
+    const excludedIds = userPersonas.map(u => u.personaId!).filter(Boolean);
 
-    let baseWhere = 'WHERE p.id NOT IN (SELECT "personaId" FROM users WHERE "personaId" IS NOT NULL)';
-    const whereParams: any[] = [];
-    let queryWhere = '';
+    const baseWhere: any = {
+        id: { notIn: excludedIds },
+    };
 
     if (query && query.trim().length > 1) {
         const searchQuery = `%${query.trim()}%`;
-        queryWhere = `
-            AND (${fullNameSql} ILIKE ?
-            OR ${fullCedulaSearchSql} ILIKE ?
-            OR p.email ILIKE ?)
-        `;
-        whereParams.push(searchQuery, searchQuery, searchQuery);
+        // Use prisma.$queryRawUnsafe for ILIKE full name search (Prisma doesn't support computed concat ILIKE)
+        const countResult = await prisma.$queryRawUnsafe<{ count: bigint }[]>(
+            `SELECT COUNT(*) as count FROM personas p
+             WHERE p.id NOT IN (SELECT "personaId" FROM users WHERE "personaId" IS NOT NULL)
+             AND (${fullNameSql} ILIKE $1 OR ${fullCedulaSearchSql} ILIKE $2 OR p.email ILIKE $3)`,
+            searchQuery, searchQuery, searchQuery
+        );
+        const totalCount = Number(countResult[0]?.count || 0);
+
+        const offset = (page - 1) * pageSize;
+        const rows = await prisma.$queryRawUnsafe<any[]>(
+            `SELECT p.* FROM personas p
+             WHERE p.id NOT IN (SELECT "personaId" FROM users WHERE "personaId" IS NOT NULL)
+             AND (${fullNameSql} ILIKE $1 OR ${fullCedulaSearchSql} ILIKE $2 OR p.email ILIKE $3)
+             ORDER BY p."primerNombre", p."primerApellido"
+             LIMIT $4 OFFSET $5`,
+            searchQuery, searchQuery, searchQuery, pageSize, offset
+        );
+
+        const personas = rows.map((row: any) => enrichPersona({ ...row, fechaNacimiento: new Date(row.fechaNacimiento) }));
+        return { personas, totalCount };
     }
 
-    const finalWhereClause = `${baseWhere} ${queryWhere}`;
-
-    const totalResult = await db.get<{ count: number }>(`SELECT COUNT(*) as count FROM personas p ${finalWhereClause}`, whereParams);
-    const totalCount = totalResult?.count || 0;
-
+    const totalCount = await prisma.persona.count({ where: baseWhere });
     const offset = (page - 1) * pageSize;
-    let selectQuery = `
-        SELECT p.id, p."primerNombre", p."segundoNombre", p."primerApellido", p."segundoApellido", p.nacionalidad, p."cedulaNumero", p."fechaNacimiento", p.genero, p.telefono1, p.telefono2, p.email, p.direccion, p."representanteId",
-        ${fullNameSql} as "nombreCompleto",
-        ${fullCedulaSql} as cedula
-        FROM personas p
-        ${finalWhereClause}
-        ORDER BY p."primerNombre", p."primerApellido"
-        LIMIT ? OFFSET ?
-    `;
-    const selectParams = [...whereParams, pageSize, offset];
 
-    const rows = await db.all(selectQuery, selectParams);
-    const personas = rows.map((row: any) => ({
-        ...row,
-        fechaNacimiento: new Date(row.fechaNacimiento),
-    }));
+    const rows = await prisma.persona.findMany({
+        where: baseWhere,
+        orderBy: [{ primerNombre: 'asc' }, { primerApellido: 'asc' }],
+        skip: offset,
+        take: pageSize,
+    });
 
+    const personas = rows.map(row => enrichPersona(row));
     return { personas, totalCount };
 }
 
 export async function getPersonaById(personaId: string): Promise<Persona | null> {
-    const db = await getDb();
-    const row = await db.get<any>(`
-        SELECT *, ${fullNameSql} as "nombreCompleto", ${fullCedulaSql} as cedula
-        FROM personas p
-        WHERE p.id = ?
-    `, [personaId]);
-
+    const row = await prisma.persona.findUnique({ where: { id: Number(personaId) } });
     if (!row) return null;
-    return { ...row, fechaNacimiento: new Date(row.fechaNacimiento) };
+    return enrichPersona(row);
 }
 
 
 // --- Titular Actions ---
 
 export async function getTitulares(query?: string, page: number = 1, pageSize: number = 10): Promise<{ titulares: Titular[], totalCount: number }> {
-    const db = await getDb();
+    const offset = (page - 1) * pageSize;
 
-    const whereParams: any[] = [];
-    let whereClause = '';
     if (query && query.trim().length > 1) {
         const searchQuery = `%${query.trim()}%`;
-        whereClause = `
-            WHERE ${fullNameSql} ILIKE ?
-            OR ${fullCedulaSearchSql} ILIKE ?
-        `;
-        whereParams.push(searchQuery, searchQuery);
+        const whereClause = `WHERE ${fullNameSql} ILIKE $1 OR ${fullCedulaSearchSql} ILIKE $2`;
+
+        const countResult = await prisma.$queryRawUnsafe<{ count: bigint }[]>(
+            `SELECT COUNT(*) as count FROM titulares t JOIN personas p ON t."personaId" = p.id ${whereClause}`,
+            searchQuery, searchQuery
+        );
+        const totalCount = Number(countResult[0]?.count || 0);
+
+        const rows = await prisma.$queryRawUnsafe<any[]>(
+            `SELECT t.id, t."personaId", t."unidadServicioId", t."numeroFicha",
+             p.*, us.name as "unidadServicioNombre",
+             (SELECT COUNT(*) FROM beneficiarios b WHERE b."titularId" = t.id) as "beneficiariosCount"
+             FROM titulares t JOIN personas p ON t."personaId" = p.id
+             LEFT JOIN unidades_servicio us ON t."unidadServicioId" = us.id
+             ${whereClause} ORDER BY p."primerNombre", p."primerApellido" LIMIT $3 OFFSET $4`,
+            searchQuery, searchQuery, pageSize, offset
+        );
+
+        const titulares = rows.map((row: any) => ({
+            id: row.id,
+            personaId: row.personaId,
+            unidadServicio: row.unidadServicioNombre || '',
+            unidadServicioId: row.unidadServicioId,
+            numeroFicha: row.numeroFicha,
+            beneficiariosCount: Number(row.beneficiariosCount),
+            persona: enrichPersona(row),
+        }));
+        return { titulares, totalCount };
     }
 
-    const countQuery = `
-        SELECT COUNT(*) as count 
-        FROM titulares t 
-        JOIN personas p ON t."personaId" = p.id
-        ${whereClause}`;
-    const totalResult = await db.get<{ count: number }>(countQuery, whereParams);
-    const totalCount = totalResult?.count || 0;
+    // No-query path: use Prisma Client
+    const totalCount = await prisma.titular.count();
+    const rows = await prisma.titular.findMany({
+        include: {
+            persona: true,
+            unidadServicio: true,
+            _count: { select: { beneficiarios: true } },
+        },
+        orderBy: { persona: { primerNombre: 'asc' } },
+        skip: offset,
+        take: pageSize,
+    });
 
-    const offset = (page - 1) * pageSize;
-    let selectQuery = `
-        SELECT 
-            t.id, t."personaId", t."unidadServicio", t."numeroFicha",
-            ${fullNameSql} as "nombreCompleto", ${fullCedulaSql} as cedula, p."fechaNacimiento", p.genero, p.telefono1, p.telefono2, p.email, p."primerNombre", p."segundoNombre", p."primerApellido", p."segundoApellido", p.direccion, p.nacionalidad, p."cedulaNumero",
-            (SELECT COUNT(*) FROM beneficiarios b WHERE b."titularId" = t.id) as "beneficiariosCount"
-        FROM titulares t
-        JOIN personas p ON t."personaId" = p.id
-        ${whereClause}
-        ORDER BY p."primerNombre", p."primerApellido"
-        LIMIT ? OFFSET ?
-    `;
-    const selectParams = [...whereParams, pageSize, offset];
-
-    const rows = await db.all<any>(selectQuery, selectParams);
-
-    const titulares = rows.map((row: any) => ({
+    const titulares = rows.map(row => ({
         id: row.id,
         personaId: row.personaId,
-        unidadServicio: row.unidadServicio,
+        unidadServicio: row.unidadServicio.name,
+        unidadServicioId: row.unidadServicioId,
         numeroFicha: row.numeroFicha,
-        beneficiariosCount: row.beneficiariosCount,
-        persona: {
-            id: row.personaId,
-            nombreCompleto: row.nombreCompleto,
-            cedula: row.cedula,
-            nacionalidad: row.nacionalidad,
-            cedulaNumero: row.cedulaNumero,
-            fechaNacimiento: new Date(row.fechaNacimiento),
-            genero: row.genero,
-            primerNombre: row.primerNombre,
-            segundoNombre: row.segundoNombre,
-            primerApellido: row.primerApellido,
-            segundoApellido: row.segundoApellido,
-            telefono1: row.telefono1,
-            telefono2: row.telefono2,
-            email: row.email,
-            direccion: row.direccion
-        }
+        beneficiariosCount: row._count.beneficiarios,
+        persona: enrichPersona(row.persona),
     }));
 
     return { titulares, totalCount };
@@ -301,41 +382,19 @@ export async function getTitulares(query?: string, page: number = 1, pageSize: n
 
 
 export async function getTitularById(id: string): Promise<Titular | null> {
-    const db = await getDb();
-    const row = await db.get<any>(`
-        SELECT 
-            t.id, t."personaId", t."unidadServicio", t."numeroFicha",
-            ${fullNameSql} as "nombreCompleto", ${fullCedulaSql} as cedula, p.nacionalidad, p."cedulaNumero", p."fechaNacimiento", p.genero, p.telefono1, p.telefono2, p.email, p."primerNombre", p."segundoNombre", p."primerApellido", p."segundoApellido", p.direccion, p."representanteId"
-        FROM titulares t
-        JOIN personas p ON t."personaId" = p.id
-        WHERE t.id = ?
-    `, [id]);
-
+    const row = await prisma.titular.findUnique({
+        where: { id: Number(id) },
+        include: { persona: true, unidadServicio: true },
+    });
     if (!row) return null;
 
     return {
         id: row.id,
         personaId: row.personaId,
-        unidadServicio: row.unidadServicio,
+        unidadServicio: row.unidadServicio.name,
+        unidadServicioId: row.unidadServicioId,
         numeroFicha: row.numeroFicha,
-        persona: {
-            id: row.personaId,
-            nombreCompleto: row.nombreCompleto,
-            cedula: row.cedula,
-            nacionalidad: row.nacionalidad,
-            cedulaNumero: row.cedulaNumero,
-            fechaNacimiento: new Date(row.fechaNacimiento),
-            genero: row.genero,
-            primerNombre: row.primerNombre,
-            segundoNombre: row.segundoNombre,
-            primerApellido: row.primerApellido,
-            segundoApellido: row.segundoApellido,
-            telefono1: row.telefono1,
-            telefono2: row.telefono2,
-            email: row.email,
-            direccion: row.direccion,
-            representanteId: row.representanteId
-        }
+        persona: enrichPersona(row.persona),
     };
 }
 
@@ -350,59 +409,49 @@ export async function createTitular(data: {
     numeroFicha?: string;
 }) {
     await ensureDataEntryPermission();
-    const db = await getDb();
 
-    let personaId: string;
+    let personaId: number;
 
-    await db.exec('BEGIN');
-    try {
-        if ('personaId' in data) {
-            personaId = data.personaId;
-        } else {
-            const personaData = { ...data.persona, fechaNacimiento: data.persona.fechaNacimiento.toISOString() };
-            personaId = await getOrCreatePersona(db, personaData as any);
-        }
-
-        const existingTitular = await db.get('SELECT id FROM titulares WHERE "personaId" = ?', [personaId]);
-        if (existingTitular) {
-            throw new Error('Esta persona ya tiene el rol de titular.');
-        }
-
-        const titularId = await getNextId('t');
-        await db.run(
-            'INSERT INTO titulares (id, "personaId", "unidadServicio", "numeroFicha") VALUES (?, ?, ?, ?)',
-            [titularId, personaId, data.unidadServicio, data.numeroFicha || null]
-        );
-
-        await db.exec('COMMIT');
-        revalidatePath('/dashboard/pacientes');
-        return { id: titularId, personaId: personaId };
-    } catch (e) {
-        await db.exec('ROLLBACK');
-        throw e;
+    if ('personaId' in data) {
+        personaId = Number(data.personaId);
+    } else {
+        const personaData = { ...data.persona, fechaNacimiento: data.persona.fechaNacimiento.toISOString() };
+        personaId = await getOrCreatePersona(personaData as any);
     }
+
+    const existingTitular = await prisma.titular.findUnique({ where: { personaId } });
+    if (existingTitular) {
+        throw new Error('Esta persona ya tiene el rol de titular.');
+    }
+
+    const unidadServicioId = await resolveUnidadServicioId(data.unidadServicio);
+
+    const titular = await prisma.titular.create({
+        data: {
+            personaId,
+            unidadServicioId,
+            numeroFicha: data.numeroFicha || null,
+        },
+    });
+
+    revalidatePath('/dashboard/pacientes');
+    return { id: titular.id, personaId };
 }
 
 export async function updateTitular(titularId: string, personaId: string, data: Omit<Persona, 'id' | 'fechaNacimiento' | 'nombreCompleto' | 'cedula'> & { fechaNacimiento: Date; unidadServicio: string; representanteId?: string; numeroFicha?: string; }) {
     await ensureDataEntryPermission();
-    const db = await getDb();
 
-    try {
-        await db.exec('BEGIN');
+    await updatePersona(personaId, data);
 
-        await updatePersona(personaId, data);
+    const unidadServicioId = await resolveUnidadServicioId(data.unidadServicio);
 
-        await db.run(
-            'UPDATE titulares SET "unidadServicio" = ?, "numeroFicha" = ? WHERE id = ?',
-            [data.unidadServicio, data.numeroFicha || null, titularId]
-        );
-
-        await db.exec('COMMIT');
-    } catch (error) {
-        await db.exec('ROLLBACK');
-        console.error("Error updating titular:", error);
-        throw error;
-    }
+    await prisma.titular.update({
+        where: { id: Number(titularId) },
+        data: {
+            unidadServicioId,
+            numeroFicha: data.numeroFicha || null,
+        },
+    });
 
     revalidatePath('/dashboard/pacientes');
     revalidatePath(`/dashboard/pacientes/${titularId}/beneficiarios`);
@@ -412,17 +461,13 @@ export async function updateTitular(titularId: string, personaId: string, data: 
 
 export async function deleteTitular(id: string): Promise<{ success: boolean }> {
     await ensureDataEntryPermission();
-    const db = await getDb();
 
-    const beneficiaryCountResult = await db.get<any>('SELECT COUNT(*) as count FROM beneficiarios WHERE "titularId" = ?', [id]);
-    if (beneficiaryCountResult && beneficiaryCountResult.count > 0) {
+    const beneficiaryCount = await prisma.beneficiario.count({ where: { titularId: Number(id) } });
+    if (beneficiaryCount > 0) {
         throw new Error('Este titular tiene beneficiarios asociados. Por favor, gestione los beneficiarios primero.');
     }
 
-    const result = await db.run('DELETE FROM titulares WHERE id = ?', [id]);
-    if (result.changes === 0) {
-        throw new Error('Titular no encontrado para eliminar');
-    }
+    await prisma.titular.delete({ where: { id: Number(id) } });
 
     revalidatePath('/dashboard/pacientes');
     return { success: true };
@@ -432,128 +477,106 @@ export async function deleteTitular(id: string): Promise<{ success: boolean }> {
 // --- Beneficiary Actions ---
 
 export async function getBeneficiarios(titularId: string): Promise<Beneficiario[]> {
-    const db = await getDb();
-    const rows = await db.all(`
-        SELECT 
-            b.id as "beneficiarioId", b."titularId", b."personaId",
-            p.*,
-            ${fullNameSql} as "nombreCompleto"
-        FROM beneficiarios b
-        JOIN personas p ON b."personaId" = p.id
-        WHERE b."titularId" = ?
-        ORDER BY p."primerNombre", p."primerApellido"
-    `, [titularId]);
+    const rows = await prisma.beneficiario.findMany({
+        where: { titularId: Number(titularId) },
+        include: { persona: true },
+        orderBy: { persona: { primerNombre: 'asc' } },
+    });
 
-    return rows.map((row: any) => ({
-        id: row.beneficiarioId,
+    return rows.map(row => ({
+        id: row.id,
         titularId: row.titularId,
         personaId: row.personaId,
-        persona: {
-            ...row,
-            id: row.personaId,
-            fechaNacimiento: new Date(row.fechaNacimiento),
-            cedula: row.nacionalidad && row.cedulaNumero ? `${row.nacionalidad}-${row.cedulaNumero}` : null
-        }
+        persona: enrichPersona(row.persona),
     }));
 }
 
 export async function getAllBeneficiarios(query?: string): Promise<BeneficiarioConTitular[]> {
-    const db = await getDb();
-    let selectQuery = `
-        SELECT 
-            b.id, 
-            b."personaId", 
-            b."titularId",
-            ${fullNameSql} as "nombreCompleto",
-            ${fullCedulaSql} as cedula,
-            p.nacionalidad, p."cedulaNumero",
-            p."fechaNacimiento", p.genero, p.telefono1, p.telefono2, p.email, p.direccion,
-            p."primerNombre", p."segundoNombre", p."primerApellido", p."segundoApellido",
-            ${titularNameSql} as "titularNombre"
-        FROM beneficiarios b
-        JOIN personas p ON b."personaId" = p.id
-        JOIN titulares t ON b."titularId" = t.id
-        JOIN personas p_titular ON t."personaId" = p_titular.id
-    `;
-    const params: any[] = [];
-
     if (query && query.trim().length > 1) {
         const searchQuery = `%${query.trim()}%`;
-        selectQuery += `
-            WHERE ${fullNameSql} ILIKE ?
-            OR ${fullCedulaSearchSql} ILIKE ?
-            OR ${titularNameSql} ILIKE ?
-        `;
-        params.push(searchQuery, searchQuery, searchQuery);
+        const rows = await prisma.$queryRawUnsafe<any[]>(
+            `SELECT b.id, b."personaId", b."titularId", p.*,
+             ${titularNameSql} as "titularNombre"
+             FROM beneficiarios b
+             JOIN personas p ON b."personaId" = p.id
+             JOIN titulares t ON b."titularId" = t.id
+             JOIN personas p_titular ON t."personaId" = p_titular.id
+             WHERE ${fullNameSql} ILIKE $1 OR ${fullCedulaSearchSql} ILIKE $2 OR ${titularNameSql} ILIKE $3
+             ORDER BY p."primerNombre", p."primerApellido"`,
+            searchQuery, searchQuery, searchQuery
+        );
+        return rows.map((row: any) => ({
+            id: row.id,
+            personaId: row.personaId,
+            titularId: row.titularId,
+            titularNombre: row.titularNombre,
+            persona: enrichPersona({ ...row, fechaNacimiento: new Date(row.fechaNacimiento) }),
+        }));
     }
 
-    selectQuery += ' ORDER BY p."primerNombre", p."primerApellido"';
+    // No-query path: use Prisma Client
+    const rows = await prisma.beneficiario.findMany({
+        include: {
+            persona: true,
+            titular: { include: { persona: true } },
+        },
+        orderBy: { persona: { primerNombre: 'asc' } },
+    });
 
-    const rows = await db.all(selectQuery, params);
-    return rows.map((row: any) => ({
+    return rows.map(row => ({
         id: row.id,
         personaId: row.personaId,
         titularId: row.titularId,
-        titularNombre: row.titularNombre,
-        persona: { ...row, fechaNacimiento: new Date(row.fechaNacimiento) }
+        titularNombre: buildNombreCompleto(row.titular.persona),
+        persona: enrichPersona(row.persona),
     }));
 }
 
 
 export async function createBeneficiario(titularId: string, data: { persona: Omit<Persona, 'id' | 'fechaNacimiento' | 'nombreCompleto' | 'cedula'> & { fechaNacimiento: Date } } | { personaId: string }): Promise<Beneficiario> {
     await ensureDataEntryPermission();
-    const db = await getDb();
-    const beneficiarioId = await getNextId('b');
-    let personaId: string = '';
+    let personaId: number;
 
-    try {
-        await db.exec('BEGIN');
-
-        if ('personaId' in data) {
-            const existingBeneficiary = await db.get('SELECT id FROM beneficiarios WHERE "personaId" = ? AND "titularId" = ?', [data.personaId, titularId]);
-            if (existingBeneficiary) {
-                throw new Error('Esta persona ya es beneficiaria de este titular.');
-            }
-            personaId = data.personaId;
-        } else {
-            const personaData = { ...data.persona, fechaNacimiento: data.persona.fechaNacimiento.toISOString() };
-            personaId = await getOrCreatePersona(db, personaData as any);
+    if ('personaId' in data) {
+        const existing = await prisma.beneficiario.findFirst({
+            where: { personaId: Number(data.personaId), titularId: Number(titularId) },
+        });
+        if (existing) {
+            throw new Error('Esta persona ya es beneficiaria de este titular.');
         }
-
-        await db.run(
-            'INSERT INTO beneficiarios (id, "titularId", "personaId") VALUES (?, ?, ?)',
-            [beneficiarioId, titularId, personaId]
-        );
-        await db.exec('COMMIT');
-
-    } catch (error) {
-        await db.exec('ROLLBACK');
-        console.error("Error creating beneficiario:", error);
-        throw error;
+        personaId = Number(data.personaId);
+    } else {
+        const personaData = { ...data.persona, fechaNacimiento: data.persona.fechaNacimiento.toISOString() };
+        personaId = await getOrCreatePersona(personaData as any);
     }
+
+    const beneficiario = await prisma.beneficiario.create({
+        data: { titularId: Number(titularId), personaId },
+        include: { persona: true },
+    });
 
     revalidatePath(`/dashboard/pacientes/${titularId}/beneficiarios`);
     revalidatePath('/dashboard/pacientes');
     revalidatePath('/dashboard/beneficiarios');
 
-    const createdPersona = await db.get<any>('SELECT * FROM personas WHERE id = ?', [personaId]);
     return {
-        id: beneficiarioId,
+        id: beneficiario.id,
         titularId,
         personaId,
-        persona: { ...createdPersona, fechaNacimiento: new Date(createdPersona.fechaNacimiento) }
+        persona: enrichPersona(beneficiario.persona),
     };
 }
 
 
 export async function updateBeneficiario(beneficiarioId: string, personaId: string, data: Omit<Persona, 'id' | 'fechaNacimiento' | 'nombreCompleto' | 'cedula'> & { fechaNacimiento: Date }): Promise<Beneficiario> {
     await ensureDataEntryPermission();
-    const db = await getDb();
 
     await updatePersona(personaId, data as any);
 
-    const updatedRow = await db.get<any>(`SELECT *, ${fullNameSql} as "nombreCompleto", ${fullCedulaSql} as cedula FROM personas p WHERE id = ?`, [personaId]);
-    const beneficiarioRow = await db.get<any>('SELECT "titularId" FROM beneficiarios WHERE id = ?', [beneficiarioId]);
+    const beneficiarioRow = await prisma.beneficiario.findUnique({
+        where: { id: Number(beneficiarioId) },
+        include: { persona: true },
+    });
 
     if (!beneficiarioRow) {
         throw new Error("No se pudo encontrar el beneficiario para actualizar la ruta.");
@@ -566,71 +589,81 @@ export async function updateBeneficiario(beneficiarioId: string, personaId: stri
         id: beneficiarioId,
         titularId: beneficiarioRow.titularId,
         personaId: personaId,
-        persona: { ...updatedRow, fechaNacimiento: new Date(updatedRow.fechaNacimiento) }
+        persona: enrichPersona(beneficiarioRow.persona),
     };
 }
 
 export async function deleteBeneficiario(id: string): Promise<{ success: boolean; titularId: string }> {
     await ensureDataEntryPermission();
-    const db = await getDb();
 
-    const beneficiario = await db.get<any>('SELECT "titularId" FROM beneficiarios WHERE id = ?', [id]);
+    const beneficiario = await prisma.beneficiario.findUnique({
+        where: { id: Number(id) },
+        select: { titularId: true },
+    });
     if (!beneficiario) {
         throw new Error('Beneficiario no encontrado para eliminar');
     }
 
-    await db.run('DELETE FROM beneficiarios WHERE id = ?', [id]);
+    await prisma.beneficiario.delete({ where: { id: Number(id) } });
 
     revalidatePath(`/dashboard/pacientes/${beneficiario.titularId}/beneficiarios`);
     revalidatePath('/dashboard/pacientes');
     revalidatePath('/dashboard/beneficiarios');
 
-    return { success: true, titularId: beneficiario.titularId };
+    return { success: true, titularId: String(beneficiario.titularId) };
 }
 
 
 // --- Patient Check-in and Search Actions ---
 
 export async function searchPeopleForCheckin(query: string): Promise<SearchResult[]> {
-    const db = await getDb();
     const searchQuery = `%${query.trim()}%`;
     const hasQuery = query && query.trim().length > 0;
 
-    const personasQuery = `
-        SELECT p.*, ${fullNameSql} as "nombreCompleto", ${fullCedulaSql} as cedula
-        FROM personas p
-        WHERE p.id NOT IN (SELECT "personaId" FROM users WHERE "personaId" IS NOT NULL)
-        ${hasQuery ? `AND (${fullNameSql} ILIKE ? OR ${fullCedulaSearchSql} ILIKE ?)` : ''}
-        ORDER BY "primerNombre", "primerApellido"
-        LIMIT 50
-    `;
-    const personasParams = hasQuery ? [searchQuery, searchQuery] : [];
-    const personas = await db.all<any>(personasQuery, personasParams);
+    // Use $queryRawUnsafe for ILIKE fullname search
+    let personas: any[];
+    if (hasQuery) {
+        personas = await prisma.$queryRawUnsafe<any[]>(
+            `SELECT p.*, ${fullNameSql} as "nombreCompleto", ${fullCedulaSql} as cedula
+             FROM personas p
+             WHERE p.id NOT IN (SELECT "personaId" FROM users WHERE "personaId" IS NOT NULL)
+             AND (${fullNameSql} ILIKE $1 OR ${fullCedulaSearchSql} ILIKE $2)
+             ORDER BY "primerNombre", "primerApellido" LIMIT 50`,
+            searchQuery, searchQuery
+        );
+    } else {
+        personas = await prisma.$queryRawUnsafe<any[]>(
+            `SELECT p.*, ${fullNameSql} as "nombreCompleto", ${fullCedulaSql} as cedula
+             FROM personas p
+             WHERE p.id NOT IN (SELECT "personaId" FROM users WHERE "personaId" IS NOT NULL)
+             ORDER BY "primerNombre", "primerApellido" LIMIT 50`
+        );
+    }
 
     if (personas.length === 0) return [];
 
-    const personaIds = personas.map((p: any) => p.id);
+    const personaIds = personas.map((p: any) => Number(p.id));
 
-    const placeholders = personaIds.map(() => '?').join(',');
-    const titularesInfo = await db.all<any>(`
-        SELECT "personaId", id, "unidadServicio" FROM titulares WHERE "personaId" IN (${placeholders})
-    `, personaIds);
+    // Batch load titulares and beneficiarios using Prisma
+    const titularesInfo = await prisma.titular.findMany({
+        where: { personaId: { in: personaIds } },
+        include: { unidadServicio: true },
+    });
+    const beneficiariosInfo = await prisma.beneficiario.findMany({
+        where: { personaId: { in: personaIds } },
+        include: { titular: { include: { persona: true } } },
+    });
 
-    const beneficiariosInfo = await db.all<any>(`
-        SELECT b."personaId", b."titularId", ${titularNameSql} as "titularNombre"
-        FROM beneficiarios b
-        JOIN titulares t ON b."titularId" = t.id
-        JOIN personas p_titular ON t."personaId" = p_titular.id
-        WHERE b."personaId" IN (${placeholders})
-    `, personaIds);
-
-    const titularesMap = new Map(titularesInfo.map((t: any) => [t.personaId, t]));
-    const beneficiariosMap = new Map<string, any[]>();
-    beneficiariosInfo.forEach((b: any) => {
+    const titularesMap = new Map(titularesInfo.map(t => [t.personaId, t]));
+    const beneficiariosMap = new Map<number, any[]>();
+    beneficiariosInfo.forEach(b => {
         if (!beneficiariosMap.has(b.personaId)) {
             beneficiariosMap.set(b.personaId, []);
         }
-        beneficiariosMap.get(b.personaId)!.push({ titularId: b.titularId, titularNombre: b.titularNombre });
+        beneficiariosMap.get(b.personaId)!.push({
+            titularId: b.titularId,
+            titularNombre: buildNombreCompleto(b.titular.persona),
+        });
     });
 
     const results: SearchResult[] = personas.map((p: any) => ({
@@ -638,7 +671,10 @@ export async function searchPeopleForCheckin(query: string): Promise<SearchResul
             ...p,
             fechaNacimiento: new Date(p.fechaNacimiento),
         },
-        titularInfo: titularesMap.get(p.id) ? { id: (titularesMap.get(p.id) as any).id, unidadServicio: (titularesMap.get(p.id) as any).unidadServicio } : undefined,
+        titularInfo: titularesMap.get(p.id) ? {
+            id: titularesMap.get(p.id)!.id,
+            unidadServicio: titularesMap.get(p.id)!.unidadServicio.name,
+        } : undefined,
         beneficiarioDe: beneficiariosMap.get(p.id) || []
     }));
 
@@ -646,10 +682,12 @@ export async function searchPeopleForCheckin(query: string): Promise<SearchResul
 }
 
 export async function getAccountTypeByTitularId(titularId: string): Promise<string | null> {
-    const db = await getDb();
-    const row = await db.get<any>('SELECT "unidadServicio" FROM titulares WHERE id = ?', [titularId]);
+    const row = await prisma.titular.findUnique({
+        where: { id: Number(titularId) },
+        include: { unidadServicio: true },
+    });
     if (row?.unidadServicio) {
-        if (["Gerencia General", "Recursos Humanos", "Junta Directiva"].includes(row.unidadServicio)) {
+        if (["Gerencia General", "Recursos Humanos", "Junta Directiva"].includes(row.unidadServicio.name)) {
             return 'Empleado';
         }
         return 'Afiliado Corporativo';
@@ -659,59 +697,49 @@ export async function getAccountTypeByTitularId(titularId: string): Promise<stri
 
 // --- Waitlist Actions ---
 
-async function getOrCreatePaciente(client: any, personaId: string): Promise<string> {
-    const existingPatient = await client.get('SELECT id FROM pacientes WHERE "personaId" = ?', [personaId]);
-    if (existingPatient) {
-        return existingPatient.id;
-    }
-    const pacienteId = await getNextId('pac');
-    await client.run('INSERT INTO pacientes (id, "personaId") VALUES (?, ?)', [pacienteId, personaId]);
-    return pacienteId;
+async function getOrCreatePaciente(personaId: number | string): Promise<number> {
+    const pid = Number(personaId);
+    const existing = await prisma.paciente.findUnique({ where: { personaId: pid }, select: { id: true } });
+    if (existing) return existing.id;
+
+    const created = await prisma.paciente.create({ data: { personaId: pid } });
+    return created.id;
 }
 
 export async function getWaitlist(): Promise<Patient[]> {
-    const db = await getDb();
-    const rows = await db.all(`
-        SELECT 
-            w.id, w."personaId", w."pacienteId", w.name, w.kind, w."serviceType", w."accountType", w.status, w."checkInTime", w."isReintegro", p."fechaNacimiento", p.genero
-        FROM waitlist w
-        JOIN personas p ON w."personaId" = p.id
-        WHERE w.status NOT IN ('Completado', 'Cancelado')
-        ORDER BY w."checkInTime" ASC
-    `);
+    const rows = await prisma.waitlistEntry.findMany({
+        where: { status: { notIn: ['Completado'] } },
+        include: { persona: { select: { fechaNacimiento: true, genero: true } } },
+        orderBy: { checkInTime: 'asc' },
+    });
 
     return rows.map((row: any) => ({
         ...row,
-        checkInTime: new Date(row.checkInTime),
-        fechaNacimiento: new Date(row.fechaNacimiento),
-        isReintegro: !!row.isReintegro
+        fechaNacimiento: row.persona.fechaNacimiento,
+        genero: row.persona.genero,
+        isReintegro: !!row.isReintegro,
     }));
 }
 
 export async function addPatientToWaitlist(data: Omit<Patient, 'id' | 'pacienteId'>): Promise<Patient> {
-    const db = await getDb();
+    const pacienteId = await getOrCreatePaciente(data.personaId);
 
-    try {
-        await db.exec('BEGIN');
-        const pacienteId = await getOrCreatePaciente(db, data.personaId);
-
-        const newPatient: Patient = {
-            ...data,
-            id: await getNextId('w'),
+    const entry = await prisma.waitlistEntry.create({
+        data: {
+            personaId: Number(data.personaId),
             pacienteId: pacienteId,
-        };
+            name: data.name,
+            kind: data.kind,
+            serviceType: data.serviceType,
+            accountType: data.accountType,
+            status: data.status,
+            checkInTime: data.checkInTime,
+            isReintegro: data.isReintegro || false,
+        },
+    });
 
-        await db.run(
-            'INSERT INTO waitlist (id, "personaId", "pacienteId", name, kind, "serviceType", "accountType", status, "checkInTime", "isReintegro") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [newPatient.id, newPatient.personaId, newPatient.pacienteId, newPatient.name, newPatient.kind, newPatient.serviceType, newPatient.accountType, newPatient.status, newPatient.checkInTime.toISOString(), newPatient.isReintegro ? 1 : 0]
-        );
-        await db.exec('COMMIT');
-        revalidatePath('/dashboard');
-        return newPatient;
-    } catch (e) {
-        await db.exec('ROLLBACK');
-        throw e;
-    }
+    revalidatePath('/dashboard');
+    return { ...data, id: entry.id, pacienteId } as any;
 }
 
 export async function updatePatientStatus(
@@ -719,27 +747,20 @@ export async function updatePatientStatus(
     status: PatientStatus,
     rescheduledDateTime?: Date
 ): Promise<{ success: boolean }> {
-    const db = await getDb();
-
     if (status === 'Cancelado') {
-        const patient = await db.get('SELECT status FROM waitlist WHERE id = ?', [id]);
+        const patient = await prisma.waitlistEntry.findUnique({ where: { id: Number(id) } });
         if (!patient) throw new Error('Paciente en lista de espera no encontrado');
     }
 
-    let query = 'UPDATE waitlist SET status = ?';
-    const params: any[] = [status];
-
+    const updateData: any = { status };
     if (status === 'Pospuesto' && rescheduledDateTime) {
-        query += ', "checkInTime" = ?';
-        params.push(rescheduledDateTime.toISOString());
+        updateData.checkInTime = rescheduledDateTime;
     }
 
-    query += ' WHERE id = ?';
-    params.push(id);
-
-    const result = await db.run(query, params);
-
-    if (result.changes === 0) throw new Error('Paciente en lista de espera no encontrado');
+    await prisma.waitlistEntry.update({
+        where: { id: Number(id) },
+        data: updateData,
+    });
 
     revalidatePath('/dashboard');
     revalidatePath('/dashboard/sala-de-espera');
@@ -747,43 +768,62 @@ export async function updatePatientStatus(
     return { success: true };
 }
 
+export async function removePatientFromWaitlist(id: string): Promise<{ success: boolean }> {
+    await prisma.waitlistEntry.delete({
+        where: { id: Number(id) },
+    });
+    revalidatePath('/dashboard');
+    revalidatePath('/dashboard/sala-de-espera');
+    return { success: true };
+}
+
 
 // --- EHR Actions ---
 
-async function parseConsultation(db: any, row: any): Promise<Consultation | null> {
+async function parseConsultation(row: any): Promise<Consultation | null> {
     if (!row) return null;
     const { fum, ...restOfGineco } = row.antecedentesGinecoObstetricos ? JSON.parse(row.antecedentesGinecoObstetricos) : {};
 
-    const diagnoses = await db.all('SELECT "cie10Code", "cie10Description" FROM consultation_diagnoses WHERE "consultationId" = ?', [row.id]);
-    const documents = await db.all('SELECT * FROM consultation_documents WHERE "consultationId" = ? ORDER BY "uploadedAt" ASC', [row.id]);
+    const diagnoses = await prisma.consultationDiagnosis.findMany({
+        where: { consultationId: row.id },
+        select: { cie10Code: true, cie10Description: true },
+    });
+    const documents = await prisma.consultationDocument.findMany({
+        where: { consultationId: row.id },
+        orderBy: { uploadedAt: 'asc' },
+    });
 
-    const orderRow = await db.get('SELECT * FROM treatment_orders WHERE "consultationId" = ?', [row.id]);
+    const orderRow = await prisma.treatmentOrder.findFirst({ where: { consultationId: row.id } });
     let treatmentOrder: TreatmentOrder | undefined = undefined;
     if (orderRow) {
-        const items = await db.all('SELECT * FROM treatment_order_items WHERE "treatmentOrderId" = ?', [orderRow.id]);
-        treatmentOrder = { ...orderRow, items: items, createdAt: new Date(orderRow.createdAt) };
+        const items = await prisma.treatmentOrderItem.findMany({ where: { treatmentOrderId: orderRow.id } });
+        treatmentOrder = { ...orderRow, items: items as any[], createdAt: new Date(orderRow.createdAt) } as any;
     }
 
-    const invoiceRow = await db.get('SELECT * FROM invoices WHERE "consultationId" = ?', [row.id]);
+    const invoiceRow = await prisma.invoice.findFirst({ where: { consultationId: row.id } });
     let invoice: Invoice | undefined = undefined;
     if (invoiceRow) {
-        const items = await db.all('SELECT * FROM invoice_items WHERE "invoiceId" = ?', [invoiceRow.id]);
-        invoice = { ...invoiceRow, items: items, createdAt: new Date(invoiceRow.createdAt) };
+        const items = await prisma.invoiceItem.findMany({ where: { invoiceId: invoiceRow.id } });
+        invoice = { ...invoiceRow, items: items as any[], createdAt: new Date(invoiceRow.createdAt) } as any;
     }
 
-    const pacienteRow = await db.get(
-        `SELECT p.*, w."serviceType", w."accountType", w."accountType" as departamento, w.kind, w.name, ${fullNameSql} as "nombreCompleto", ${fullCedulaSql} as cedula
+    // Load paciente + persona + waitlist info via raw query for computed fields
+    const pacienteRows = await prisma.$queryRawUnsafe<any[]>(
+        `SELECT p.*, w."serviceType", w."accountType", w.kind, w.name,
+         CASE WHEN w.kind = 'beneficiario' THEN 'Beneficiario' ELSE COALESCE(w."accountType", 'Privado') END as departamento,
+         ${fullNameSql} as "nombreCompleto", ${fullCedulaSql} as cedula
          FROM pacientes pac
          JOIN personas p ON pac."personaId" = p.id
          JOIN waitlist w ON pac.id = w."pacienteId"
-         WHERE pac.id = ?`,
-        [row.pacienteId]
+         WHERE pac.id = $1`,
+        row.pacienteId
     );
+    const pacienteRow = pacienteRows[0];
 
     const paciente = {
         ...pacienteRow,
-        fechaNacimiento: new Date(pacienteRow.fechaNacimiento),
-    }
+        fechaNacimiento: pacienteRow ? new Date(pacienteRow.fechaNacimiento) : undefined,
+    };
 
     return {
         ...row,
@@ -803,20 +843,20 @@ async function parseConsultation(db: any, row: any): Promise<Consultation | null
 
 
 export async function getPatientHistory(personaId: string): Promise<HistoryEntry[]> {
-    const db = await getDb();
+    const pid = Number(personaId);
 
-    const consultationsRows = await db.all(
+    const consultationsRows = await prisma.$queryRawUnsafe<any[]>(
         `SELECT c.* FROM consultations c
          JOIN pacientes pac ON c."pacienteId" = pac.id
-         WHERE pac."personaId" = ?
+         WHERE pac."personaId" = $1
          ORDER BY c."consultationDate" DESC`,
-        [personaId]
+        pid
     );
 
     const consultations: HistoryEntry[] = [];
     if (consultationsRows) {
         for (const row of consultationsRows) {
-            const parsedConsultation = await parseConsultation(db, row);
+            const parsedConsultation = await parseConsultation(row);
             if (parsedConsultation) {
                 consultations.push({
                     type: 'consultation' as const,
@@ -826,29 +866,35 @@ export async function getPatientHistory(personaId: string): Promise<HistoryEntry
         }
     }
 
-    const labOrdersRows = await db.all(
+    const labOrdersRows = await prisma.$queryRawUnsafe<any[]>(
         `SELECT lo.*, c."treatmentPlan", (SELECT string_agg("cie10Description", '; ') FROM consultation_diagnoses WHERE "consultationId" = lo."consultationId") as "diagnosticoPrincipal"
          FROM lab_orders lo
          JOIN pacientes pac ON lo."pacienteId" = pac.id
          JOIN consultations c ON lo."consultationId" = c.id
-         WHERE pac."personaId" = ?
+         WHERE pac."personaId" = $1
          ORDER BY lo."orderDate" DESC`,
-        [personaId]
+        pid
     );
 
     const labOrders: HistoryEntry[] = [];
     if (labOrdersRows) {
         for (const orderRow of labOrdersRows as any[]) {
-            const items = await db.all<{ testName: string }>('SELECT "testName" FROM lab_order_items WHERE "labOrderId" = ?', [orderRow.id]);
-            const persona = await db.get<any>(`
-                SELECT p.*, ${fullNameSql} as "nombreCompleto", ${fullCedulaSql} as cedula,
-                COALESCE(w."accountType", 'Privado') as departamento,
-                COALESCE(w."accountType", 'Privado') as "accountType"
-                FROM personas p
-                LEFT JOIN waitlist w ON p.id = w."personaId" AND w.status = 'Completado'
-                WHERE p.id = ?
-                ORDER BY w."checkInTime" DESC LIMIT 1
-            `, [personaId]);
+            const items = await prisma.labOrderItem.findMany({
+                where: { labOrderId: orderRow.id },
+                select: { testName: true },
+            });
+            const personaRows = await prisma.$queryRawUnsafe<any[]>(
+                `SELECT p.*, ${fullNameSql} as "nombreCompleto", ${fullCedulaSql} as cedula,
+                 w.kind,
+                 CASE WHEN w.kind = 'beneficiario' THEN 'Beneficiario' ELSE COALESCE(w."accountType", 'Privado') END as departamento,
+                 COALESCE(w."accountType", 'Privado') as "accountType"
+                 FROM personas p
+                 LEFT JOIN waitlist w ON p.id = w."personaId" AND w.status = 'Completado'
+                 WHERE p.id = $1
+                 ORDER BY w."checkInTime" DESC LIMIT 1`,
+                pid
+            );
+            const persona = personaRows[0];
             labOrders.push({
                 type: 'lab_order' as const,
                 data: {
@@ -857,7 +903,7 @@ export async function getPatientHistory(personaId: string): Promise<HistoryEntry
                     tests: items.map(i => i.testName),
                     paciente: {
                         ...persona,
-                        fechaNacimiento: new Date(persona.fechaNacimiento)
+                        fechaNacimiento: persona ? new Date(persona.fechaNacimiento) : undefined,
                     } as any,
                     diagnosticoPrincipal: orderRow.diagnosticoPrincipal,
                     treatmentPlan: orderRow.treatmentPlan
@@ -882,79 +928,203 @@ export async function getPatientHistory(personaId: string): Promise<HistoryEntry
 export async function createConsultation(data: CreateConsultationInput): Promise<Consultation> {
     const session = await getSession();
     const user = session.user;
-    if (!user || !['superuser', 'doctor', 'dra_pediatra', 'dra_familiar'].includes(user.role.id)) {
-        throw new Error('Acción no autorizada. Se requiere rol de doctor o superusuario.');
+    if (!user) {
+        throw new Error('Acción no autorizada. Debe iniciar sesión.');
     }
+    const roleId = Number(user.role.id);
+    const roleName = user.role.name;
+    const allowedClinicalRoles = [1, 4, 5, 6]; // Superusuario, Enfermera, Pediatra, Familiar
 
-    const db = await getDb();
-    const consultationId = await getNextId('consultations');
+    if (!allowedClinicalRoles.includes(roleId) && roleName !== 'Superusuario') {
+        throw new Error('Acción no autorizada. Se requiere rol de doctor, enfermera o superusuario.');
+    }
+    
+    const isNurse = roleId === 4 || roleName === 'Enfermera';
+
     const consultationDate = new Date();
-    const surveyInvitationToken = await getNextId('inv');
 
-    try {
-        await db.exec('BEGIN');
+    const consultation = await prisma.$transaction(async (tx) => {
+        // Look for existing consultation for this waitlist entry
+        const existing = await tx.consultation.findFirst({
+            where: { waitlistId: Number(data.waitlistId) }
+        });
 
-        await db.run(
-            `INSERT INTO consultations (
-                id, "pacienteId", "waitlistId", "consultationDate", "motivoConsulta", "enfermedadActual", 
-                "revisionPorSistemas", "antecedentesPersonales", "antecedentesFamiliares", 
-                "antecedentesGinecoObstetricos", "antecedentesPediatricos", "signosVitales", 
-                "examenFisicoGeneral", "treatmentPlan", "surveyInvitationToken", "radiologyOrders", reposo, "isReintegro", "occupationalReferral"
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [consultationId, data.pacienteId, data.waitlistId, consultationDate.toISOString(), JSON.stringify(data.motivoConsulta), data.enfermedadActual, data.revisionPorSistemas || null, JSON.stringify(data.antecedentesPersonales), data.antecedentesFamiliares || null, JSON.stringify(data.antecedentesGinecoObstetricos), JSON.stringify(data.antecedentesPediatricos), JSON.stringify(data.signosVitales), data.examenFisicoGeneral, data.treatmentPlan, surveyInvitationToken, data.radiologyOrder, data.reposo, data.isReintegro ? 1 : 0, data.occupationalReferral ? JSON.stringify(data.occupationalReferral) : null]
-        );
+        // Find or create Doctor record for this user if they are clinical staff
+        let doctorId: number | undefined;
+        const dbUser = await prisma.user.findUnique({
+            where: { id: Number(user.id) },
+            include: { 
+                role: true,
+                persona: {
+                    include: { doctor: true }
+                }
+            }
+        });
+
+        if (dbUser?.persona?.doctor) {
+            doctorId = dbUser.persona.doctor.id;
+        } else if (dbUser && dbUser.role.hasSpecialty) {
+            let personaId = dbUser.personaId;
+            if (!personaId) {
+                const names = (dbUser.name || dbUser.username).split(' ');
+                const primerNombre = names[0] || 'Médico';
+                const primerApellido = names[1] || 'Asociado';
+                const newPersona = await prisma.persona.create({
+                    data: {
+                        primerNombre,
+                        primerApellido,
+                        fechaNacimiento: new Date(1980, 0, 1),
+                        genero: 'Masculino',
+                    }
+                });
+                personaId = newPersona.id;
+                await prisma.user.update({
+                    where: { id: dbUser.id },
+                    data: { personaId }
+                });
+            }
+
+            const newDoctor = await prisma.doctor.create({
+                data: {
+                    personaId: personaId,
+                    // specialtyId: dbUser.specialtyId, // SpecialtyId is no longer on User
+                }
+            });
+            doctorId = newDoctor.id;
+        }
+
+        const consultationData: any = {
+            pacienteId: Number(data.pacienteId),
+            waitlistId: data.waitlistId ? Number(data.waitlistId) : undefined,
+            consultationDate,
+            motivoConsulta: data.motivoConsulta ? JSON.stringify(data.motivoConsulta) : undefined,
+            enfermedadActual: data.enfermedadActual || undefined,
+            enfermedadActualNinguno: data.enfermedadActualNinguno ?? false,
+            revisionPorSistemas: data.revisionPorSistemas || undefined,
+            revisionPorSistemasNinguno: data.revisionPorSistemasNinguno ?? false,
+            antecedentesPersonales: data.antecedentesPersonales ? JSON.stringify(data.antecedentesPersonales) : undefined,
+            antecedentesFamiliares: data.antecedentesFamiliares || undefined,
+            antecedentesGinecoObstetricos: data.antecedentesGinecoObstetricos ? JSON.stringify(data.antecedentesGinecoObstetricos) : undefined,
+            antecedentesPediatricos: data.antecedentesPediatricos ? JSON.stringify(data.antecedentesPediatricos) : undefined,
+            signosVitales: data.signosVitales ? JSON.stringify(data.signosVitales) : undefined,
+            examenFisicoGeneral: data.examenFisicoGeneral || undefined,
+            treatmentPlan: data.treatmentPlan || undefined,
+            treatmentPlanNotApplicable: data.treatmentPlanNotApplicable ?? false,
+            diagnosticoLibre: data.diagnosticoLibre || undefined,
+            diagnosticoLibreNinguno: data.diagnosticoLibreNinguno ?? false,
+            radiologyOrders: data.radiologyOrder || undefined,
+            reposo: data.reposo || undefined,
+            isReintegro: data.isReintegro || false,
+            occupationalReferral: data.occupationalReferral ? JSON.stringify(data.occupationalReferral) : undefined,
+            doctorName: user.name || user.username,
+            doctorId: doctorId,
+        };
+
+        const created = existing 
+            ? await tx.consultation.update({ where: { id: existing.id }, data: consultationData })
+            : await tx.consultation.create({ data: consultationData });
 
         if (data.diagnoses && data.diagnoses.length > 0) {
+            // If updating, we might want to clear old diagnoses, or just add. 
+            // For a "partial" to "final" transition, doctors will add diagnoses.
+            if (existing) {
+                await tx.consultationDiagnosis.deleteMany({ where: { consultationId: existing.id } });
+            }
             for (const diagnosis of data.diagnoses) {
-                await db.run('INSERT INTO consultation_diagnoses (id, "consultationId", "cie10Code", "cie10Description") VALUES (?, ?, ?, ?)', [await getNextId('diag'), consultationId, diagnosis.cie10Code, diagnosis.cie10Description]);
+                await tx.consultationDiagnosis.create({
+                    data: { consultationId: created.id, cie10Code: diagnosis.cie10Code, cie10Description: diagnosis.cie10Description },
+                });
             }
         }
 
         if (data.documents && data.documents.length > 0) {
             for (const doc of data.documents) {
-                await db.run('INSERT INTO consultation_documents (id, "consultationId", "fileName", "fileType", "documentType", description, "fileData", "uploadedAt") VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [await getNextId('doc'), consultationId, doc.fileName, doc.fileType, doc.documentType, doc.description, doc.fileData, new Date().toISOString()]);
+                await tx.consultationDocument.create({
+                    data: {
+                        consultationId: created.id,
+                        fileName: doc.fileName,
+                        fileType: doc.fileType,
+                        documentType: doc.documentType,
+                        description: doc.description,
+                        fileData: doc.fileData,
+                        uploadedAt: new Date(),
+                    },
+                });
             }
         }
 
-        if (data.treatmentItems && data.treatmentItems.length > 0) {
-            const orderId = await getNextId('order');
-            await db.run(
-                'INSERT INTO treatment_orders (id, "pacienteId", "consultationId", status, "createdAt") VALUES (?, ?, ?, ?, ?)',
-                [orderId, data.pacienteId, consultationId, 'Pendiente', new Date().toISOString()]
-            );
+        if (data.treatmentItems) {
+            // Remove any draft treatment orders for this consultation before creating final one
+            await tx.treatmentOrder.deleteMany({ 
+                where: { consultationId: created.id, status: 'Pendiente' } 
+            });
 
-            for (const item of data.treatmentItems) {
-                await db.run(`
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                `, [await getNextId('item'), orderId, item.medicamentoProcedimiento, item.dosis, item.via, item.frecuencia, item.duracion, item.instrucciones, 'Pendiente']);
+            if (data.treatmentItems.length > 0) {
+                const order = await tx.treatmentOrder.create({
+                    data: {
+                        pacienteId: Number(data.pacienteId),
+                        consultationId: created.id,
+                        status: 'Pendiente',
+                        createdAt: new Date(),
+                    },
+                });
+
+                for (const item of data.treatmentItems) {
+                    await tx.treatmentOrderItem.create({
+                        data: {
+                            treatmentOrderId: order.id,
+                            medicamentoProcedimiento: item.medicamentoProcedimiento,
+                            dosis: item.dosis,
+                            via: item.via,
+                            frecuencia: item.frecuencia,
+                            duracion: item.duracion,
+                            instrucciones: item.instrucciones,
+                            status: item.requiereAplicacionInmediata ? 'Pendiente' : 'Solo Récipe',
+                        },
+                    });
+                }
             }
         }
 
-        const activeSurvey = await db.get<{ id: string }>("SELECT id FROM surveys WHERE \"isActive\" = 1 LIMIT 1");
+        // Check for active survey
+        const activeSurvey = await tx.survey.findFirst({ where: { isActive: true } });
         if (activeSurvey) {
-            await db.run(
-                "INSERT INTO survey_invitations (token, \"consultationId\", \"surveyId\", \"createdAt\") VALUES (?, ?, ?, ?)",
-                [surveyInvitationToken, consultationId, activeSurvey.id, new Date().toISOString()]
-            );
+            await tx.surveyInvitation.create({
+                data: {
+                    consultationId: created.id,
+                    surveyId: activeSurvey.id,
+                    createdAt: new Date(),
+                },
+            });
         }
 
-        await db.run('UPDATE waitlist SET status = ? WHERE id = ?', ['Completado', data.waitlistId]);
+        // Update waitlist entry status
+        // If nurse is doing intake, keep it "En Consulta" or set it if it was "Esperando"
+        // If it's a doctor (or anyone else with clinical access), mark as "Completado"
+        await tx.waitlistEntry.update({
+            where: { id: Number(data.waitlistId) },
+            data: { status: isNurse ? 'En Consulta' : 'Completado' },
+        });
 
-        await db.exec('COMMIT');
-
-    } catch (error) {
-        await db.exec('ROLLBACK');
-        console.error("Error creating consultation:", error);
-        throw new Error('No se pudo guardar la consulta.');
-    }
+        return created;
+    });
 
     revalidatePath('/dashboard');
     revalidatePath('/dashboard/hce');
     revalidatePath('/dashboard/bitacora');
     revalidatePath('/dashboard/lista-pacientes');
+    revalidatePath('/dashboard/sala-de-espera');
 
-    const createdConsultationRaw = await db.get('SELECT * from consultations WHERE id = ?', [consultationId]);
-    const createdConsultation = await parseConsultation(db, createdConsultationRaw);
+    const createdConsultationRaw = await prisma.consultation.findUnique({ 
+        where: { id: consultation.id },
+        include: {
+            paciente: { include: { persona: true } },
+            diagnoses: true,
+            treatmentOrders: { include: { items: true } },
+            doctor: { include: { persona: true } }
+        }
+    });
+    const createdConsultation = enrichConsultation(createdConsultationRaw);
 
     if (!createdConsultation) {
         throw new Error('Failed to retrieve the created consultation after saving.');
@@ -963,65 +1133,189 @@ export async function createConsultation(data: CreateConsultationInput): Promise
     return createdConsultation;
 }
 
+/**
+ * Saves a partial consultation draft to the database.
+ * This is used for real-time sync between nursing and doctors.
+ * It DOES NOT complete the consultation or change waitlist status.
+ */
+export async function saveConsultationDraft(data: Partial<CreateConsultationInput>) {
+    const session = await getSession();
+    const user = session.user;
+    if (!user) throw new Error('No autorizado');
+    
+    if (!data.waitlistId) throw new Error('WaitlistId es requerido para guardar borrador.');
+
+    return await prisma.$transaction(async (tx) => {
+        const existing = await tx.consultation.findFirst({
+            where: { waitlistId: Number(data.waitlistId) }
+        });
+
+        const consultationData: any = {
+            pacienteId: Number(data.pacienteId),
+            waitlistId: Number(data.waitlistId),
+            motivoConsulta: data.motivoConsulta ? JSON.stringify(data.motivoConsulta) : undefined,
+            enfermedadActual: data.enfermedadActual || undefined,
+            enfermedadActualNinguno: data.enfermedadActualNinguno ?? undefined,
+            revisionPorSistemas: data.revisionPorSistemas || undefined,
+            revisionPorSistemasNinguno: data.revisionPorSistemasNinguno ?? undefined,
+            antecedentesPersonales: data.antecedentesPersonales ? JSON.stringify(data.antecedentesPersonales) : undefined,
+            antecedentesFamiliares: data.antecedentesFamiliares || undefined,
+            antecedentesGinecoObstetricos: data.antecedentesGinecoObstetricos ? JSON.stringify(data.antecedentesGinecoObstetricos) : undefined,
+            antecedentesPediatricos: data.antecedentesPediatricos ? JSON.stringify(data.antecedentesPediatricos) : undefined,
+            signosVitales: data.signosVitales ? JSON.stringify(data.signosVitales) : undefined,
+            examenFisicoGeneral: data.examenFisicoGeneral || undefined,
+            treatmentPlan: data.treatmentPlan || undefined,
+            treatmentPlanNotApplicable: data.treatmentPlanNotApplicable ?? undefined,
+            radiologyOrders: data.radiologyOrder || undefined,
+            reposo: data.reposo || undefined,
+            diagnosticoLibre: data.diagnosticoLibre || undefined,
+            diagnosticoLibreNinguno: data.diagnosticoLibreNinguno ?? undefined,
+        };
+
+        if (existing) {
+            const { pacienteId, waitlistId, ...updateData } = consultationData;
+            const updated = await tx.consultation.update({ where: { id: existing.id }, data: updateData });
+            
+            // Sync Diagnoses in Draft
+            if (data.diagnoses) {
+                await tx.consultationDiagnosis.deleteMany({ where: { consultationId: updated.id } });
+                for (const diagnosis of data.diagnoses) {
+                    await tx.consultationDiagnosis.create({
+                        data: { consultationId: updated.id, cie10Code: diagnosis.cie10Code, cie10Description: diagnosis.cie10Description },
+                    });
+                }
+            }
+
+            // Sync Treatment Items in Draft
+            if (data.treatmentItems) {
+                // Delete existing draft orders
+                await tx.treatmentOrder.deleteMany({ 
+                    where: { consultationId: updated.id, status: 'Pendiente' } 
+                });
+
+                if (data.treatmentItems.length > 0) {
+                    const order = await tx.treatmentOrder.create({
+                        data: {
+                            pacienteId: Number(data.pacienteId),
+                            consultationId: updated.id,
+                            status: 'Pendiente',
+                            createdAt: new Date(),
+                        },
+                    });
+
+                    for (const item of data.treatmentItems) {
+                        await tx.treatmentOrderItem.create({
+                            data: {
+                                treatmentOrderId: order.id,
+                                medicamentoProcedimiento: item.medicamentoProcedimiento,
+                                dosis: item.dosis,
+                                via: item.via,
+                                frecuencia: item.frecuencia,
+                                duracion: item.duracion,
+                                instrucciones: item.instrucciones,
+                                status: item.requiereAplicacionInmediata ? 'Pendiente' : 'Solo Récipe',
+                            },
+                        });
+                    }
+                }
+            }
+            return updated;
+        } else {
+            const created = await tx.consultation.create({ 
+                data: {
+                    ...consultationData,
+                    doctorName: user.name || user.username,
+                } 
+            });
+
+            // Initial Diagnoses
+            if (data.diagnoses && data.diagnoses.length > 0) {
+                for (const diagnosis of data.diagnoses) {
+                    await tx.consultationDiagnosis.create({
+                        data: { consultationId: created.id, cie10Code: diagnosis.cie10Code, cie10Description: diagnosis.cie10Description },
+                    });
+                }
+            }
+
+            // Initial Treatment Items
+            if (data.treatmentItems && data.treatmentItems.length > 0) {
+                const order = await tx.treatmentOrder.create({
+                    data: {
+                        pacienteId: Number(data.pacienteId),
+                        consultationId: created.id,
+                        status: 'Pendiente',
+                        createdAt: new Date(),
+                    },
+                });
+
+                for (const item of data.treatmentItems) {
+                    await tx.treatmentOrderItem.create({
+                        data: {
+                            treatmentOrderId: order.id,
+                            medicamentoProcedimiento: item.medicamentoProcedimiento,
+                            dosis: item.dosis,
+                            via: item.via,
+                            frecuencia: item.frecuencia,
+                            duracion: item.duracion,
+                            instrucciones: item.instrucciones,
+                            status: item.requiereAplicacionInmediata ? 'Pendiente' : 'Solo Récipe',
+                        },
+                    });
+                }
+            }
+            return created;
+        }
+    });
+}
+
 
 // --- Company Actions (Largely unchanged) ---
 
 export async function getEmpresas(query?: string, page: number = 1, pageSize: number = 10): Promise<{ empresas: Empresa[], totalCount: number }> {
-    const db = await getDb();
-
-    const whereParams: any[] = [];
-    let whereClause = '';
+    const where: any = {};
     if (query && query.trim().length > 1) {
-        const searchQuery = `%${query.trim()}%`;
-        whereClause = ' WHERE name ILIKE ? OR rif ILIKE ?';
-        whereParams.push(searchQuery, searchQuery);
+        where.OR = [
+            { name: { contains: query.trim(), mode: 'insensitive' } },
+            { rif: { contains: query.trim(), mode: 'insensitive' } },
+        ];
     }
 
-    const countQuery = `SELECT COUNT(*) as count FROM empresas${whereClause}`;
-    const totalResult = await db.get<{ count: number }>(countQuery, whereParams);
-    const totalCount = totalResult?.count || 0;
-
+    const totalCount = await prisma.empresa.count({ where });
     const offset = (page - 1) * pageSize;
-    let selectQuery = `SELECT * FROM empresas${whereClause} ORDER BY name LIMIT ? OFFSET ?`;
-    const selectParams = [...whereParams, pageSize, offset];
-
-    const empresas = await db.all<any>(selectQuery, selectParams);
+    const empresas = await prisma.empresa.findMany({
+        where,
+        orderBy: { name: 'asc' },
+        skip: offset,
+        take: pageSize,
+    });
 
     return { empresas, totalCount };
 }
 
 export async function createEmpresa(data: Omit<Empresa, 'id'>): Promise<Empresa> {
     await ensureDataEntryPermission();
-    const db = await getDb();
-    const newEmpresaData = { ...data, id: await getNextId('emp') };
-    await db.run(
-        'INSERT INTO empresas (id, name, rif, telefono, direccion) VALUES (?, ?, ?, ?, ?)',
-        [newEmpresaData.id, newEmpresaData.name, newEmpresaData.rif, newEmpresaData.telefono, newEmpresaData.direccion]
-    );
+    const empresa = await prisma.empresa.create({
+        data: { name: data.name, rif: data.rif, telefono: data.telefono, direccion: data.direccion },
+    });
     revalidatePath('/dashboard/empresas');
     revalidatePath('/dashboard/pacientes');
-    return newEmpresaData;
+    return empresa;
 }
 
 export async function updateEmpresa(data: Empresa): Promise<Empresa> {
     await ensureAdminPermission();
-    const db = await getDb();
-    const result = await db.run(
-        'UPDATE empresas SET name = ?, rif = ?, telefono = ?, direccion = ? WHERE id = ?',
-        [data.name, data.rif, data.telefono, data.direccion, data.id]
-    );
-    if (result.changes === 0) throw new Error('Empresa no encontrada');
+    const updated = await prisma.empresa.update({
+        where: { id: Number(data.id) },
+        data: { name: data.name, rif: data.rif, telefono: data.telefono, direccion: data.direccion },
+    });
     revalidatePath('/dashboard/empresas');
     revalidatePath('/dashboard/pacientes');
-    return data;
+    return updated;
 }
 
 export async function deleteEmpresa(id: string): Promise<{ success: boolean }> {
     await ensureAdminPermission();
-    const db = await getDb();
-
-    const result = await db.run('DELETE FROM empresas WHERE id = ?', [id]);
-    if (result.changes === 0) throw new Error('Empresa no encontrada para eliminar');
+    await prisma.empresa.delete({ where: { id: Number(id) } });
     revalidatePath('/dashboard/empresas');
     revalidatePath('/dashboard/pacientes');
     return { success: true };
@@ -1031,272 +1325,312 @@ export async function deleteEmpresa(id: string): Promise<{ success: boolean }> {
 
 export async function createPersona(data: Omit<Persona, 'id' | 'fechaNacimiento' | 'nombreCompleto' | 'cedula' | 'createdAt'> & { fechaNacimiento: Date, representanteId?: string }): Promise<string> {
     await ensureDataEntryPermission();
-    const db = await getDb();
 
-    try {
-        await db.exec('BEGIN');
-        const age = calculateAge(data.fechaNacimiento);
-        if (age < 18 && !data.cedulaNumero && !data.representanteId) {
-            throw new Error('Un menor de edad sin cédula debe tener un representante asignado.');
-        }
-
-        if (data.nacionalidad && data.cedulaNumero) {
-            const existingPersona = await db.get('SELECT id FROM personas WHERE nacionalidad = ? AND "cedulaNumero" = ?', [data.nacionalidad, data.cedulaNumero]);
-            if (existingPersona) {
-                throw new Error('Ya existe una persona con esa cédula.');
-            }
-        }
-
-        const personaId = await getNextId('personas');
-
-        await db.run(
-            'INSERT INTO personas (id, "primerNombre", "segundoNombre", "primerApellido", "segundoApellido", nacionalidad, "cedulaNumero", "fechaNacimiento", genero, telefono1, telefono2, email, direccion, "representanteId", "createdAt") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [personaId, data.primerNombre, data.segundoNombre, data.primerApellido, data.segundoApellido, data.nacionalidad || null, data.cedulaNumero || null, data.fechaNacimiento.toISOString(), data.genero, data.telefono1, data.telefono2, data.email, data.direccion, data.representanteId || null, new Date().toISOString()]
-        );
-
-        await getOrCreatePaciente(db, personaId);
-        await db.exec('COMMIT');
-        revalidatePath('/dashboard/personas');
-        return personaId as any;
-    } catch (e) {
-        await db.exec('ROLLBACK');
-        throw e;
+    const age = calculateAge(data.fechaNacimiento);
+    if (age < 18 && !data.cedulaNumero && !data.representanteId) {
+        throw new Error('Un menor de edad sin cédula debe tener un representante asignado.');
     }
+
+    if (data.nacionalidad && data.cedulaNumero) {
+        const existing = await prisma.persona.findFirst({
+            where: { nacionalidad: data.nacionalidad, cedulaNumero: data.cedulaNumero },
+        });
+        if (existing) {
+            throw new Error('Ya existe una persona con esa cédula.');
+        }
+    }
+
+    const persona = await prisma.persona.create({
+        data: {
+            primerNombre: data.primerNombre,
+            segundoNombre: data.segundoNombre || null,
+            primerApellido: data.primerApellido,
+            segundoApellido: data.segundoApellido || null,
+            nacionalidad: data.nacionalidad || null,
+            cedulaNumero: data.cedulaNumero || null,
+            fechaNacimiento: data.fechaNacimiento,
+            genero: data.genero,
+            telefono1: data.telefono1 || null,
+            telefono2: data.telefono2 || null,
+            email: data.email || null,
+            direccion: data.direccion || null,
+            representanteId: data.representanteId ? Number(data.representanteId) : null,
+        },
+    });
+
+    await getOrCreatePaciente(persona.id);
+    revalidatePath('/dashboard/personas');
+    return String(persona.id);
 }
 
 export async function bulkCreatePersonas(
     personasData: (Omit<Persona, 'id' | 'fechaNacimiento' | 'nombreCompleto'> & { fechaNacimiento: string })[]
 ): Promise<{ imported: number; skipped: number; errors: string[] }> {
     await ensureDataEntryPermission();
-    const db = await getDb();
     let importedCount = 0;
     let skippedCount = 0;
     const errorMessages: string[] = [];
     const seenInBatch = new Set<string>();
 
-    await db.exec('BEGIN');
-    try {
-        for (const [index, data] of personasData.entries()) {
-            const missingFields = [];
-            if (!data.primerNombre) missingFields.push('primer nombre');
-            if (!data.primerApellido) missingFields.push('primer apellido');
-            if (!data.fechaNacimiento) missingFields.push('fecha de nacimiento');
-            if (!data.genero) missingFields.push('género');
+    for (const [index, data] of personasData.entries()) {
+        const missingFields = [];
+        if (!data.primerNombre) missingFields.push('primer nombre');
+        if (!data.primerApellido) missingFields.push('primer apellido');
+        if (!data.fechaNacimiento) missingFields.push('fecha de nacimiento');
+        if (!data.genero) missingFields.push('género');
 
-            const personName = `${data.primerNombre} ${data.primerApellido}`.trim() || `Fila ${index + 1}`;
+        const personName = `${data.primerNombre} ${data.primerApellido}`.trim() || `Fila ${index + 1}`;
 
-            if (missingFields.length > 0) {
-                skippedCount++;
-                errorMessages.push(`${personName}: Faltan campos requeridos (${missingFields.join(', ')}).`);
-                continue;
-            }
-
-            const { cedula: cedulaCompleta } = data;
-            let nacionalidad: string | null = null;
-            let cedulaNumero: string | null = null;
-
-            if (cedulaCompleta) {
-                const parts = cedulaCompleta.split('-');
-                if (parts.length === 2 && (parts[0] === 'V' || parts[0] === 'E') && /^\d+$/.test(parts[1])) {
-                    nacionalidad = parts[0];
-                    cedulaNumero = parts[1];
-                } else {
-                    nacionalidad = 'V';
-                    cedulaNumero = cedulaCompleta;
-                }
-            }
-
-            const isoDate = parseDateToIso(data.fechaNacimiento);
-
-            if (!isoDate) {
-                skippedCount++;
-                errorMessages.push(`${personName}: Fecha '${data.fechaNacimiento}' inválida. Use DD/MM/AAAA.`);
-                continue;
-            }
-
-            if (nacionalidad && cedulaNumero) {
-                const existingPersona = await db.get<{ id: string }>('SELECT id FROM personas WHERE nacionalidad = ? AND "cedulaNumero" = ?', [nacionalidad, cedulaNumero]);
-                if (existingPersona) {
-                    // Update existing persona data to fix any previous import errors
-                    await db.run(
-                        'UPDATE personas SET "primerNombre" = ?, "segundoNombre" = ?, "primerApellido" = ?, "segundoApellido" = ?, "fechaNacimiento" = ?, genero = ?, telefono1 = ?, telefono2 = ?, email = ?, direccion = ? WHERE id = ?',
-                        [data.primerNombre, data.segundoNombre, data.primerApellido, data.segundoApellido, isoDate, data.genero, data.telefono1, data.telefono2, data.email, data.direccion, existingPersona.id]
-                    );
-                    // Sync date to users table if linked
-                    await db.run('UPDATE users SET "fecha_nacimiento" = ? WHERE "personaId" = ?', [isoDate, existingPersona.id]);
-                    importedCount++;
-                    continue;
-                }
-
-                const batchKey = `${nacionalidad}-${cedulaNumero}`;
-                if (seenInBatch.has(batchKey)) {
-                    skippedCount++;
-                    errorMessages.push(`${personName}: Duplicado dentro del archivo (Cédula ${nacionalidad}-${cedulaNumero}).`);
-                    continue;
-                }
-                seenInBatch.add(batchKey);
-            }
-
-            const personaId = await getNextId('personas');
-
-            await db.run(
-                'INSERT INTO personas (id, "primerNombre", "segundoNombre", "primerApellido", "segundoApellido", nacionalidad, "cedulaNumero", "fechaNacimiento", genero, telefono1, telefono2, email, direccion, "createdAt") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                [personaId, data.primerNombre, data.segundoNombre, data.primerApellido, data.segundoApellido, nacionalidad, cedulaNumero, isoDate, data.genero, data.telefono1, data.telefono2, data.email, data.direccion, new Date().toISOString()]
-            );
-
-            await getOrCreatePaciente(db, personaId);
-            importedCount++;
+        if (missingFields.length > 0) {
+            skippedCount++;
+            errorMessages.push(`${personName}: Faltan campos requeridos (${missingFields.join(', ')}).`);
+            continue;
         }
 
-        await db.exec('COMMIT');
-        revalidatePath('/dashboard/personas');
-        return { imported: importedCount, skipped: skippedCount, errors: errorMessages };
-    } catch (error: any) {
-        await db.exec('ROLLBACK');
-        console.error("Error bulk inserting personas:", error);
-        throw new Error(`Error masivo al insertar personas: ${error.message || 'Error desconocido'}. Se revirtieron todos los cambios.`);
+        const { cedula: cedulaCompleta } = data;
+        let nacionalidad: string | null = null;
+        let cedulaNumero: string | null = null;
+
+        if (cedulaCompleta) {
+            const parts = cedulaCompleta.split('-');
+            if (parts.length === 2 && (parts[0] === 'V' || parts[0] === 'E') && /^\d+$/.test(parts[1])) {
+                nacionalidad = parts[0];
+                cedulaNumero = parts[1];
+            } else {
+                nacionalidad = 'V';
+                cedulaNumero = cedulaCompleta;
+            }
+        }
+
+        const isoDate = parseDateToIso(data.fechaNacimiento);
+
+        if (!isoDate) {
+            skippedCount++;
+            errorMessages.push(`${personName}: Fecha '${data.fechaNacimiento}' inválida. Use DD/MM/AAAA.`);
+            continue;
+        }
+
+        if (nacionalidad && cedulaNumero) {
+            const existingPersona = await prisma.persona.findFirst({
+                where: { nacionalidad, cedulaNumero },
+                select: { id: true },
+            });
+            if (existingPersona) {
+                await prisma.persona.update({
+                    where: { id: existingPersona.id },
+                    data: {
+                        primerNombre: data.primerNombre,
+                        segundoNombre: data.segundoNombre || null,
+                        primerApellido: data.primerApellido,
+                        segundoApellido: data.segundoApellido || null,
+                        fechaNacimiento: new Date(isoDate),
+                        genero: data.genero,
+                        telefono1: data.telefono1 || null,
+                        telefono2: data.telefono2 || null,
+                        email: data.email || null,
+                        direccion: data.direccion || null,
+                    },
+                });
+                importedCount++;
+                continue;
+            }
+
+            const batchKey = `${nacionalidad}-${cedulaNumero}`;
+            if (seenInBatch.has(batchKey)) {
+                skippedCount++;
+                errorMessages.push(`${personName}: Duplicado dentro del archivo (Cédula ${nacionalidad}-${cedulaNumero}).`);
+                continue;
+            }
+            seenInBatch.add(batchKey);
+        }
+
+        const persona = await prisma.persona.create({
+            data: {
+                primerNombre: data.primerNombre,
+                segundoNombre: data.segundoNombre || null,
+                primerApellido: data.primerApellido,
+                segundoApellido: data.segundoApellido || null,
+                nacionalidad: nacionalidad,
+                cedulaNumero: cedulaNumero,
+                fechaNacimiento: new Date(isoDate),
+                genero: data.genero,
+                telefono1: data.telefono1 || null,
+                telefono2: data.telefono2 || null,
+                email: data.email || null,
+                direccion: data.direccion || null,
+            },
+        });
+
+        await getOrCreatePaciente(persona.id);
+        importedCount++;
     }
+
+    revalidatePath('/dashboard/personas');
+    return { imported: importedCount, skipped: skippedCount, errors: errorMessages };
 }
 
 export async function bulkCreateTitulares(
     titularesData: any[]
 ): Promise<{ imported: number; skipped: number; errors: string[] }> {
     await ensureDataEntryPermission();
-    const db = await getDb();
     let importedCount = 0;
     let skippedCount = 0;
     const errorMessages: string[] = [];
     const seenInBatch = new Set<string>();
 
-    await db.exec('BEGIN');
     try {
-        for (const [index, row] of titularesData.entries()) {
-            // Basic mapping from Excel columns/JSON keys to our internal fields
-            const data = {
-                primerNombre: row.primerNombre || row['Primer Nombre'],
-                segundoNombre: row.segundoNombre || row['Segundo Nombre'],
-                primerApellido: row.primerApellido || row['Primer Apellido'],
-                segundoApellido: row.segundoApellido || row['Segundo Apellido'],
-                nacionalidad: row.nacionalidad || row['Nacionalidad'],
-                cedulaNumero: String(row.cedulaNumero || row['Cédula'] || ''),
-                fechaNacimiento: row.fechaNacimiento || row['Fecha de Nacimiento'],
-                genero: row.genero || row['Género'],
-                unidadServicio: row.unidadServicio || row['Unidad/Servicio'],
-                numeroFicha: row.numeroFicha || row['Número de Ficha'] || row['Ficha'],
-                telefono1: row.telefono1 || row['Teléfono 1'],
-                telefono2: row.telefono2 || row['Teléfono 2'],
-                email: row.email || row['Email'],
-                direccion: row.direccion || row['Dirección']
-            };
+        await prisma.$transaction(async (tx) => {
+            for (const [index, row] of titularesData.entries()) {
+                const data = {
+                    primerNombre: row.primerNombre || row['Primer Nombre'],
+                    segundoNombre: row.segundoNombre || row['Segundo Nombre'],
+                    primerApellido: row.primerApellido || row['Primer Apellido'],
+                    segundoApellido: row.segundoApellido || row['Segundo Apellido'],
+                    nacionalidad: row.nacionalidad || row['Nacionalidad'],
+                    cedulaNumero: String(row.cedulaNumero || row['Cédula'] || ''),
+                    fechaNacimiento: row.fechaNacimiento || row['Fecha de Nacimiento'],
+                    genero: row.genero || row['Género'],
+                    unidadServicio: row.unidadServicio || row['Unidad/Servicio'],
+                    numeroFicha: row.numeroFicha || row['Número de Ficha'] || row['Ficha'],
+                    telefono1: row.telefono1 || row['Teléfono 1'],
+                    telefono2: row.telefono2 || row['Teléfono 2'],
+                    email: row.email || row['Email'],
+                    direccion: row.direccion || row['Dirección']
+                };
 
-            const personName = `${data.primerNombre} ${data.primerApellido}`.trim() || `Fila ${index + 1}`;
+                const personName = `${data.primerNombre} ${data.primerApellido}`.trim() || `Fila ${index + 1}`;
 
-            // Required fields check
-            const missingFields = [];
-            if (!data.primerNombre) missingFields.push('primer nombre');
-            if (!data.primerApellido) missingFields.push('primer apellido');
-            if (!data.fechaNacimiento) missingFields.push('fecha de nacimiento');
-            if (!data.genero) missingFields.push('género');
-            if (!data.unidadServicio) missingFields.push('unidad/servicio');
+                const missingFields = [];
+                if (!data.primerNombre) missingFields.push('primer nombre');
+                if (!data.primerApellido) missingFields.push('primer apellido');
+                if (!data.fechaNacimiento) missingFields.push('fecha de nacimiento');
+                if (!data.genero) missingFields.push('género');
+                if (!data.unidadServicio) missingFields.push('unidad/servicio');
 
-            if (missingFields.length > 0) {
-                skippedCount++;
-                errorMessages.push(`${personName}: Faltan campos requeridos (${missingFields.join(', ')}).`);
-                continue;
-            }
+                if (missingFields.length > 0) {
+                    skippedCount++;
+                    errorMessages.push(`${personName}: Faltan campos requeridos (${missingFields.join(', ')}).`);
+                    continue;
+                }
 
-            // Normalize Cédula
-            let nacionalidad = 'V';
-            let cedulaNumero = data.cedulaNumero.trim();
+                let nacionalidad = 'V';
+                let cedulaNumero = data.cedulaNumero.trim();
 
-            if (cedulaNumero.includes('-')) {
-                const parts = cedulaNumero.split('-');
-                if ((parts[0] === 'V' || parts[0] === 'E') && /^\d+$/.test(parts[1])) {
-                    nacionalidad = parts[0];
-                    cedulaNumero = parts[1];
+                if (cedulaNumero.includes('-')) {
+                    const parts = cedulaNumero.split('-');
+                    if ((parts[0] === 'V' || parts[0] === 'E') && /^\d+$/.test(parts[1])) {
+                        nacionalidad = parts[0];
+                        cedulaNumero = parts[1];
+                    } else {
+                        cedulaNumero = cedulaNumero.replace(/\D/g, '');
+                    }
                 } else {
                     cedulaNumero = cedulaNumero.replace(/\D/g, '');
                 }
-            } else {
-                cedulaNumero = cedulaNumero.replace(/\D/g, '');
-            }
 
-            const isoDate = parseDateToIso(data.fechaNacimiento);
+                const isoDate = parseDateToIso(data.fechaNacimiento);
 
-            if (!isoDate) {
-                skippedCount++;
-                errorMessages.push(`${personName}: Fecha '${data.fechaNacimiento}' inválida. Use DD/MM/AAAA.`);
-                continue;
-            }
-
-            if (cedulaNumero) {
-                // Check if already in batch
-                const batchKey = `${nacionalidad}-${cedulaNumero}`;
-                if (seenInBatch.has(batchKey)) {
+                if (!isoDate) {
                     skippedCount++;
-                    errorMessages.push(`${personName}: Duplicado dentro del archivo (Cédula ${batchKey}).`);
+                    errorMessages.push(`${personName}: Fecha '${data.fechaNacimiento}' inválida. Use DD/MM/AAAA.`);
                     continue;
                 }
-                seenInBatch.add(batchKey);
 
-                // Check if person exists
-                const existingPersona = await db.get<{ id: string }>('SELECT id FROM personas WHERE nacionalidad = ? AND "cedulaNumero" = ?', [nacionalidad, cedulaNumero]);
-                let personaId: string;
-
-                if (existingPersona) {
-                    personaId = existingPersona.id;
-                    
-                    // Sync/Update existing persona data (especially the birth date if it was previously wrong)
-                    await db.run(
-                        'UPDATE personas SET "primerNombre" = ?, "segundoNombre" = ?, "primerApellido" = ?, "segundoApellido" = ?, "fechaNacimiento" = ?, genero = ?, telefono1 = ?, telefono2 = ?, email = ?, direccion = ? WHERE id = ?',
-                        [data.primerNombre, data.segundoNombre, data.primerApellido, data.segundoApellido, isoDate, data.genero, data.telefono1, data.telefono2, data.email, data.direccion, personaId]
-                    );
-                    // Sync date to users table if linked
-                    await db.run('UPDATE users SET "fecha_nacimiento" = ? WHERE "personaId" = ?', [isoDate, personaId]);
-
-                    // Check if already titular
-                    const existingTitular = await db.get<{ id: string }>('SELECT id FROM titulares WHERE "personaId" = ?', [personaId]);
-                    if (existingTitular) {
-                        // Update titular specific info too
-                        await db.run(
-                            'UPDATE titulares SET "unidadServicio" = ?, "numeroFicha" = ? WHERE id = ?',
-                            [data.unidadServicio, data.numeroFicha || null, existingTitular.id]
-                        );
-                        importedCount++;
+                if (cedulaNumero) {
+                    const batchKey = `${nacionalidad}-${cedulaNumero}`;
+                    if (seenInBatch.has(batchKey)) {
+                        skippedCount++;
+                        errorMessages.push(`${personName}: Duplicado dentro del archivo (Cédula ${batchKey}).`);
                         continue;
                     }
+                    seenInBatch.add(batchKey);
+
+                    const existingPersona = await tx.persona.findFirst({
+                        where: { nacionalidad, cedulaNumero }
+                    });
+                    
+                    let personaId: number;
+
+                    if (existingPersona) {
+                        personaId = existingPersona.id;
+                        
+                        await tx.persona.update({
+                            where: { id: personaId },
+                            data: {
+                                primerNombre: data.primerNombre,
+                                segundoNombre: data.segundoNombre || null,
+                                primerApellido: data.primerApellido,
+                                segundoApellido: data.segundoApellido || null,
+                                fechaNacimiento: new Date(isoDate),
+                                genero: data.genero,
+                                telefono1: data.telefono1 || null,
+                                telefono2: data.telefono2 || null,
+                                email: data.email || null,
+                                direccion: data.direccion || null,
+                            }
+                        });
+
+                        const existingTitular = await tx.titular.findUnique({
+                            where: { personaId: personaId }
+                        });
+                        if (existingTitular) {
+                            const unidadServicioId = await resolveUnidadServicioId(data.unidadServicio);
+                            await tx.titular.update({
+                                where: { id: existingTitular.id },
+                                data: {
+                                    unidadServicioId: unidadServicioId,
+                                    numeroFicha: data.numeroFicha ? String(data.numeroFicha) : null,
+                                }
+                            });
+                            importedCount++;
+                            continue;
+                        }
+                    } else {
+                        const createdPersona = await tx.persona.create({
+                            data: {
+                                primerNombre: data.primerNombre,
+                                segundoNombre: data.segundoNombre || null,
+                                primerApellido: data.primerApellido,
+                                segundoApellido: data.segundoApellido || null,
+                                nacionalidad,
+                                cedulaNumero,
+                                fechaNacimiento: new Date(isoDate),
+                                genero: data.genero,
+                                telefono1: data.telefono1 || null,
+                                telefono2: data.telefono2 || null,
+                                email: data.email || null,
+                                direccion: data.direccion || null,
+                            }
+                        });
+                        personaId = createdPersona.id;
+                        
+                        // Ensure they are also in the patients table
+                        const existingPaciente = await tx.paciente.findUnique({ where: { personaId } });
+                        if (!existingPaciente) {
+                            await tx.paciente.create({ data: { personaId } });
+                        }
+                    }
+
+                    const unidadServicioId = await resolveUnidadServicioId(data.unidadServicio);
+                    await tx.titular.create({
+                        data: {
+                            personaId: personaId,
+                            unidadServicioId: unidadServicioId,
+                            numeroFicha: data.numeroFicha ? String(data.numeroFicha) : null,
+                        }
+                    });
+                    
+                    importedCount++;
                 } else {
-                    // Create Persona
-                    personaId = await getNextId('personas');
-                    
-                    await db.run(
-                        'INSERT INTO personas (id, "primerNombre", "segundoNombre", "primerApellido", "segundoApellido", nacionalidad, "cedulaNumero", "fechaNacimiento", genero, telefono1, telefono2, email, direccion, "createdAt") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                        [personaId, data.primerNombre, data.segundoNombre, data.primerApellido, data.segundoApellido, nacionalidad, cedulaNumero, isoDate, data.genero, data.telefono1, data.telefono2, data.email, data.direccion, new Date().toISOString()]
-                    );
-                    
-                    // Ensure they are also in the patients table
-                    await getOrCreatePaciente(db, personaId);
+                    skippedCount++;
+                    errorMessages.push(`${personName}: Cédula es requerida para el proceso de importación masiva.`);
                 }
-
-                // Create Titular
-                const titularId = await getNextId('titulares');
-                await db.run(
-                    'INSERT INTO titulares (id, "personaId", "unidadServicio", "numeroFicha") VALUES (?, ?, ?, ?)',
-                    [titularId, personaId, data.unidadServicio, data.numeroFicha || null]
-                );
-                
-                importedCount++;
-            } else {
-                skippedCount++;
-                errorMessages.push(`${personName}: Cédula es requerida para el proceso de importación masiva.`);
             }
-        }
+        });
 
-        await db.exec('COMMIT');
         revalidatePath('/dashboard/pacientes');
         return { imported: importedCount, skipped: skippedCount, errors: errorMessages };
     } catch (error: any) {
-        await db.exec('ROLLBACK');
         console.error("Error bulk creating titulares:", error);
         throw new Error(`Error masivo al insertar titulares: ${error.message || 'Error desconocido'}.`);
     }
@@ -1305,7 +1639,6 @@ export async function bulkCreateTitulares(
 
 export async function updatePersona(personaId: string, data: Omit<Persona, 'id' | 'fechaNacimiento' | 'nombreCompleto' | 'cedula'> & { fechaNacimiento: Date; representanteId?: string; }) {
     await ensureDataEntryPermission();
-    const db = await getDb();
 
     const age = calculateAge(data.fechaNacimiento);
     if (age < 18 && !data.cedulaNumero && !data.representanteId) {
@@ -1313,16 +1646,36 @@ export async function updatePersona(personaId: string, data: Omit<Persona, 'id' 
     }
 
     if (data.nacionalidad && data.cedulaNumero) {
-        const existingPersona = await db.get('SELECT id FROM personas WHERE nacionalidad = ? AND "cedulaNumero" = ? AND id != ?', [data.nacionalidad, data.cedulaNumero, personaId]);
-        if (existingPersona) {
+        const existing = await prisma.persona.findFirst({
+            where: {
+                nacionalidad: data.nacionalidad,
+                cedulaNumero: data.cedulaNumero,
+                id: { not: Number(personaId) },
+            },
+        });
+        if (existing) {
             throw new Error('Ya existe otra persona con la misma cédula.');
         }
     }
 
-    await db.run(
-        'UPDATE personas SET "primerNombre" = ?, "segundoNombre" = ?, "primerApellido" = ?, "segundoApellido" = ?, nacionalidad = ?, "cedulaNumero" = ?, "fechaNacimiento" = ?, genero = ?, telefono1 = ?, telefono2 = ?, email = ?, direccion = ?, "representanteId" = ? WHERE id = ?',
-        [data.primerNombre, data.segundoNombre, data.primerApellido, data.segundoApellido, data.nacionalidad || null, data.cedulaNumero || null, data.fechaNacimiento.toISOString(), data.genero, data.telefono1, data.telefono2, data.email, data.direccion, data.representanteId || null, personaId]
-    );
+    const updated = await prisma.persona.update({
+        where: { id: Number(personaId) },
+        data: {
+            primerNombre: data.primerNombre,
+            segundoNombre: data.segundoNombre || null,
+            primerApellido: data.primerApellido,
+            segundoApellido: data.segundoApellido || null,
+            nacionalidad: data.nacionalidad || null,
+            cedulaNumero: data.cedulaNumero || null,
+            fechaNacimiento: data.fechaNacimiento,
+            genero: data.genero,
+            telefono1: data.telefono1 || null,
+            telefono2: data.telefono2 || null,
+            email: data.email || null,
+            direccion: data.direccion || null,
+            representanteId: data.representanteId ? Number(data.representanteId) : null,
+        },
+    });
 
     revalidatePath('/dashboard/personas');
     revalidatePath('/dashboard/pacientes');
@@ -1330,36 +1683,29 @@ export async function updatePersona(personaId: string, data: Omit<Persona, 'id' 
     revalidatePath('/dashboard/lista-pacientes');
     revalidatePath('/dashboard/bitacora');
 
-
-    const updatedPersonaRow = await db.get<any>('SELECT * FROM personas WHERE id = ?', [personaId]);
-    return { ...updatedPersonaRow, fechaNacimiento: new Date(updatedPersonaRow.fechaNacimiento) };
+    return enrichPersona(updated);
 }
 
 
 export async function deletePersona(personaId: string): Promise<{ success: boolean }> {
     await ensureDataEntryPermission();
-    const db = await getDb();
+    const pid = Number(personaId);
 
-    const titular = await db.get<any>('SELECT id FROM titulares WHERE "personaId" = ?', [personaId]);
+    const titular = await prisma.titular.findUnique({ where: { personaId: pid } });
     if (titular) {
-        const beneficiaryCount = await db.get<any>('SELECT COUNT(*) as count FROM beneficiarios WHERE "titularId" = ?', [titular.id]);
-        if (beneficiaryCount && beneficiaryCount.count > 0) {
+        const beneficiaryCount = await prisma.beneficiario.count({ where: { titularId: titular.id } });
+        if (beneficiaryCount > 0) {
             throw new Error('No se puede eliminar esta persona porque es un titular con beneficiarios asociados. Por favor, gestione los beneficiarios primero desde el módulo de Titulares.');
         }
     }
 
-    const result = await db.run('DELETE FROM personas WHERE id = ?', [personaId]);
-
-    if (result.changes === 0) {
-        throw new Error('Persona no encontrada para eliminar.');
-    }
+    await prisma.persona.delete({ where: { id: pid } });
 
     revalidatePath('/dashboard/personas');
     revalidatePath('/dashboard/pacientes');
     revalidatePath('/dashboard/beneficiarios');
     revalidatePath('/dashboard/lista-pacientes');
     revalidatePath('/dashboard/bitacora');
-
 
     return { success: true };
 }
@@ -1371,44 +1717,34 @@ export async function getManagedCie10Codes(
     page?: number,
     pageSize?: number
 ): Promise<{ codes: Cie10Code[]; totalCount: number }> {
-    const db = await getDb();
-
-    const whereParams: any[] = [];
-    let whereClause = '';
+    const where: any = {};
     if (query && query.trim().length > 0) {
-        const searchQuery = `%${query.trim()}%`;
-        whereClause = ' WHERE code LIKE ? OR description LIKE ?';
-        whereParams.push(searchQuery, searchQuery);
+        where.OR = [
+            { code: { contains: query.trim(), mode: 'insensitive' } },
+            { description: { contains: query.trim(), mode: 'insensitive' } },
+        ];
     }
 
-    const countQuery = `SELECT COUNT(*) as count FROM cie10_codes${whereClause}`;
-    const totalResult = await db.get<any>(countQuery, whereParams);
-    const totalCount = totalResult?.count || 0;
+    const totalCount = await prisma.cie10Code.count({ where });
 
-    let selectQuery = `SELECT * FROM cie10_codes${whereClause} ORDER BY code`;
-    const selectParams = [...whereParams];
-
+    const findOptions: any = { where, orderBy: { code: 'asc' } };
     if (page && pageSize) {
-        const offset = (page - 1) * pageSize;
-        selectQuery += ` LIMIT ? OFFSET ?`;
-        selectParams.push(pageSize, offset);
+        findOptions.skip = (page - 1) * pageSize;
+        findOptions.take = pageSize;
     }
 
-    const codes = await db.all<any>(selectQuery, selectParams);
-
+    const codes = await prisma.cie10Code.findMany(findOptions);
     return { codes, totalCount };
 }
 
 export async function createCie10Code(data: Cie10Code): Promise<Cie10Code> {
     await ensureAdminPermission();
-    const db = await getDb();
     try {
-        await db.run(
-            'INSERT INTO cie10_codes (code, description) VALUES (?, ?)',
-            [data.code.toUpperCase(), data.description]
-        );
+        await prisma.cie10Code.create({
+            data: { code: data.code.toUpperCase(), description: data.description },
+        });
     } catch (error: any) {
-        if (error.code === 'SQLITE_CONSTRAINT') { // Unique violation code in SQLite
+        if (error.code === 'P2002') {
             throw new Error('El código CIE-10 ya existe.');
         }
         throw error;
@@ -1419,48 +1755,42 @@ export async function createCie10Code(data: Cie10Code): Promise<Cie10Code> {
 
 export async function updateCie10Code(code: string, data: { description: string }): Promise<Cie10Code> {
     await ensureAdminPermission();
-    const db = await getDb();
-    const result = await db.run(
-        'UPDATE cie10_codes SET description = ? WHERE code = ?',
-        [data.description, code]
-    );
-    if (result.changes === 0) throw new Error('Código CIE-10 no encontrado');
+    await prisma.cie10Code.update({
+        where: { code },
+        data: { description: data.description },
+    });
     revalidatePath('/dashboard/cie10');
-    return { code: code, description: data.description };
+    return { code, description: data.description };
 }
 
 export async function deleteCie10Code(code: string): Promise<{ success: boolean }> {
     await ensureAdminPermission();
-    const db = await getDb();
-    const usage = await db.get<any>('SELECT COUNT(*) as count FROM consultation_diagnoses WHERE "cie10Code" = ?', [code]);
-    if (usage && usage.count > 0) {
+    const usage = await prisma.consultationDiagnosis.count({ where: { cie10Code: code } });
+    if (usage > 0) {
         throw new Error('Este código CIE-10 está en uso y no puede ser eliminado.');
     }
-
-    const result = await db.run('DELETE FROM cie10_codes WHERE code = ?', [code]);
-    if (result.changes === 0) throw new Error('Código CIE-10 no encontrado para eliminar');
+    await prisma.cie10Code.delete({ where: { code } });
     revalidatePath('/dashboard/cie10');
     return { success: true };
 }
 
 export async function bulkCreateCie10Codes(codes: Cie10Code[]): Promise<{ imported: number; skipped: number }> {
     await ensureAdminPermission();
-    const db = await getDb();
     let importedCount = 0;
 
-    await db.exec('BEGIN');
-    try {
-        for (const code of codes) {
-            const result = await db.run('INSERT INTO cie10_codes (code, description) VALUES (?, ?) ON CONFLICT (code) DO NOTHING', [code.code.toUpperCase(), code.description]);
-            if (result.changes > 0) {
-                importedCount++;
+    for (const code of codes) {
+        try {
+            await prisma.cie10Code.create({
+                data: { code: code.code.toUpperCase(), description: code.description },
+            });
+            importedCount++;
+        } catch (error: any) {
+            if (error.code === 'P2002') {
+                // Skip duplicates
+                continue;
             }
+            throw new Error('Error masivo al insertar códigos CIE-10.');
         }
-        await db.exec('COMMIT');
-    } catch (error: any) {
-        await db.exec('ROLLBACK');
-        console.error("Error bulk inserting CIE-10 codes:", error);
-        throw new Error('Error masivo al insertar códigos CIE-10.');
     }
 
     revalidatePath('/dashboard/cie10');
@@ -1472,47 +1802,41 @@ export async function bulkCreateCie10Codes(codes: Cie10Code[]): Promise<{ import
 
 
 export async function searchCie10Codes(query: string): Promise<Cie10Code[]> {
-    const db = await getDb();
     if (!query || query.trim().length < 2) return [];
-    const searchQuery = `%${query.trim()}%`;
-    return await db.all(
-        'SELECT * FROM cie10_codes WHERE code ILIKE ? OR description ILIKE ? LIMIT 10',
-        [searchQuery, searchQuery]
-    );
+    return await prisma.cie10Code.findMany({
+        where: {
+            OR: [
+                { code: { contains: query.trim(), mode: 'insensitive' } },
+                { description: { contains: query.trim(), mode: 'insensitive' } },
+            ],
+        },
+        take: 10,
+    });
 }
 
 export async function getListaPacientes(query?: string): Promise<PacienteConInfo[]> {
-    const db = await getDb();
-    let selectQuery = `
-        SELECT
-            p.id,
-            ${fullNameSql} as "nombreCompleto",
-            ${fullCedulaSql} as cedula,
-            p.nacionalidad,
-            p."cedulaNumero",
-            p."fechaNacimiento",
-            p.genero,
-            p.telefono1,
-            p.telefono2,
-            p.email,
-            MAX(CASE WHEN t.id IS NOT NULL THEN 1 ELSE 0 END) as "isTitular",
-            MAX(CASE WHEN b.id IS NOT NULL THEN 1 ELSE 0 END) as "isBeneficiario"
-        FROM personas p
-        LEFT JOIN titulares t ON p.id = t."personaId"
-        LEFT JOIN beneficiarios b ON p.id = b."personaId"
-        JOIN pacientes ON p.id = pacientes."personaId"
-    `;
+    let whereClause = '';
     const params: any[] = [];
 
     if (query && query.trim().length > 1) {
         const searchQuery = `%${query.trim()}%`;
-        selectQuery += ` WHERE ${fullNameSql} ILIKE ? OR ${fullCedulaSearchSql} ILIKE ? OR p.email ILIKE ?`;
+        whereClause = `WHERE ${fullNameSql} ILIKE $1 OR ${fullCedulaSearchSql} ILIKE $2 OR p.email ILIKE $3`;
         params.push(searchQuery, searchQuery, searchQuery);
     }
 
-    selectQuery += ' GROUP BY p.id ORDER BY p."primerNombre", p."primerApellido"';
-
-    const rows = await db.all(selectQuery, params);
+    const rows = await prisma.$queryRawUnsafe<any[]>(
+        `SELECT p.id, ${fullNameSql} as "nombreCompleto", ${fullCedulaSql} as cedula,
+         p.nacionalidad, p."cedulaNumero", p."fechaNacimiento", p.genero, p.telefono1, p.telefono2, p.email,
+         MAX(CASE WHEN t.id IS NOT NULL THEN 1 ELSE 0 END) as "isTitular",
+         MAX(CASE WHEN b.id IS NOT NULL THEN 1 ELSE 0 END) as "isBeneficiario"
+         FROM personas p
+         LEFT JOIN titulares t ON p.id = t."personaId"
+         LEFT JOIN beneficiarios b ON p.id = b."personaId"
+         JOIN pacientes ON p.id = pacientes."personaId"
+         ${whereClause}
+         GROUP BY p.id ORDER BY p."primerNombre", p."primerApellido"`,
+        ...params
+    );
 
     return rows.map((row: any) => {
         const roles = [];
@@ -1530,73 +1854,79 @@ export async function getListaPacientes(query?: string): Promise<PacienteConInfo
 // --- Treatment Log Actions ---
 
 export async function getPacienteByPersonaId(personaId: string): Promise<{ id: string } | null> {
-    const db = await getDb();
-    const paciente = await db.get<any>('SELECT id FROM pacientes WHERE "personaId" = ?', [personaId]);
-    return paciente;
+    const paciente = await prisma.paciente.findUnique({
+        where: { personaId: Number(personaId) },
+        select: { id: true },
+    });
+    return paciente ? { id: String(paciente.id) } : null;
 }
 
 export async function getTreatmentOrders(query?: string): Promise<TreatmentOrder[]> {
-    const db = await getDb();
+    const offset = 0; // Not used in original, but could be added for pagination
 
-    let params: any[] = [];
-    let baseQuery = `
-        SELECT o.id
-        FROM treatment_orders o
-        JOIN pacientes pac ON o."pacienteId" = pac.id
-        JOIN personas p ON pac."personaId" = p.id
-    `;
+    let orderIds: number[] = [];
 
     if (query && query.trim().length > 1) {
         const searchQuery = `%${query.trim()}%`;
-        baseQuery += ` WHERE ${fullNameSql} ILIKE ? OR ${fullCedulaSearchSql} ILIKE ?`;
-        params.push(searchQuery, searchQuery);
+        const results = await prisma.$queryRawUnsafe<{ id: number }[]>(
+            `SELECT o.id
+             FROM treatment_orders o
+             JOIN pacientes pac ON o."pacienteId" = pac.id
+             JOIN personas p ON pac."personaId" = p.id
+             WHERE ${fullNameSql} ILIKE $1 OR ${fullCedulaSearchSql} ILIKE $2
+             ORDER BY o."createdAt" DESC`,
+            searchQuery, searchQuery
+        );
+        orderIds = results.map(r => r.id);
+    } else {
+        const results = await prisma.treatmentOrder.findMany({
+            select: { id: true },
+            orderBy: { createdAt: 'desc' },
+        });
+        orderIds = results.map(r => r.id);
     }
-
-    baseQuery += ' ORDER BY o."createdAt" DESC';
-
-    const orderIdsResult = await db.all<{ id: string }>(baseQuery, params);
-    const orderIds = orderIdsResult.map(r => r.id);
 
     if (orderIds.length === 0) {
         return [];
     }
 
-    const orders: TreatmentOrder[] = [];
-    for (const orderId of orderIds) {
-        const row = await db.get<any>(`
-            SELECT
-                o.id, o."pacienteId", o."consultationId", o.status, o."createdAt",
-                p.id as "personaId",
-                ${fullNameSql} as "pacienteNombre",
-                ${fullCedulaSql} as "pacienteCedula",
-                (SELECT string_agg("cie10Description", '; ') FROM consultation_diagnoses WHERE "consultationId" = o."consultationId") as "diagnosticoPrincipal"
-            FROM treatment_orders o
-            JOIN pacientes pac ON o."pacienteId" = pac.id
-            JOIN personas p ON pac."personaId" = p.id
-            WHERE o.id = ?
-        `, [orderId]);
+    const rows = await prisma.treatmentOrder.findMany({
+        where: { id: { in: orderIds } },
+        include: {
+            paciente: {
+                include: { persona: true }
+            },
+            consultation: {
+                include: { diagnoses: true }
+            },
+            items: {
+                where: { status: 'Pendiente' }
+            },
+        },
+        orderBy: { createdAt: 'desc' },
+    });
 
-        if (row) {
-            const items = await db.all<TreatmentOrderItem[]>('SELECT * FROM treatment_order_items WHERE "treatmentOrderId" = ?', [row.id]);
-            orders.push({
-                ...row,
-                createdAt: new Date(row.createdAt),
-                items,
-                paciente: {
-                    id: row.pacienteId,
-                    personaId: row.personaId,
-                    nombreCompleto: row.pacienteNombre,
-                    cedula: row.pacienteCedula
-                }
-            } as any);
+    const filteredRows = rows.filter(row => row.items.length > 0);
+
+    return filteredRows.map(row => ({
+        id: row.id,
+        pacienteId: row.pacienteId,
+        consultationId: row.consultationId,
+        status: row.status,
+        createdAt: row.createdAt,
+        diagnosticoPrincipal: row.consultation.diagnoses.map(d => d.cie10Description).join('; '),
+        items: row.items as any[],
+        paciente: {
+            id: row.pacienteId,
+            personaId: row.paciente.personaId,
+            nombreCompleto: buildNombreCompleto(row.paciente.persona),
+            cedula: buildCedula(row.paciente.persona),
         }
-    }
-    return orders;
+    })) as any[];
 }
 
 export async function createTreatmentExecution(data: CreateTreatmentExecutionInput): Promise<TreatmentExecution> {
     const session = await getSession();
-    const db = await getDb();
     
     if (!session.isLoggedIn || !session.user) {
         throw new Error('Acción no autorizada.');
@@ -1610,38 +1940,35 @@ export async function createTreatmentExecution(data: CreateTreatmentExecutionInp
         throw new Error('Acción no autorizada.');
     }
     const executedBy = session.user.name || session.user.username;
-    const executionId = await getNextId('treatment_executions');
     const executionTime = new Date();
 
-    try {
-        await db.exec('BEGIN');
+    const created = await prisma.$transaction(async (tx) => {
+        const execution = await tx.treatmentExecution.create({
+            data: {
+                treatmentOrderItemId: Number(data.treatmentOrderItemId),
+                executionTime: executionTime,
+                observations: data.observations || null,
+                executedBy: executedBy,
+            }
+        });
 
-        await db.run(
-            'INSERT INTO treatment_executions (id, "treatmentOrderItemId", "executionTime", observations, "executedBy") VALUES (?, ?, ?, ?, ?)',
-            [executionId, data.treatmentOrderItemId, executionTime.toISOString(), data.observations, executedBy]
-        );
+        await tx.treatmentOrderItem.update({
+            where: { id: Number(data.treatmentOrderItemId) },
+            data: { status: 'Administrado' }
+        });
 
-        await db.run(
-            'UPDATE treatment_order_items SET status = ? WHERE id = ?',
-            ['Administrado', data.treatmentOrderItemId]
-        );
-
-        await db.exec('COMMIT');
-    } catch (e) {
-        await db.exec('ROLLBACK');
-        console.error("Error creating treatment execution:", e);
-        throw new Error("No se pudo registrar la ejecución del tratamiento.");
-    }
+        return execution;
+    });
 
     revalidatePath('/dashboard/bitacora');
     revalidatePath('/dashboard/hce');
 
     return {
-        id: executionId,
-        treatmentOrderItemId: data.treatmentOrderItemId,
-        executionTime,
-        observations: data.observations,
-        executedBy: executedBy,
+        id: created.id,
+        treatmentOrderItemId: created.treatmentOrderItemId,
+        executionTime: created.executionTime,
+        observations: created.observations || undefined,
+        executedBy: created.executedBy,
     };
 }
 
@@ -1654,33 +1981,35 @@ export async function updateTreatmentOrderStatus(orderId: string, status: 'En Pr
     if (!session.isLoggedIn || !session.user || (!allowedClinicalRoles.includes(roleId) && roleName !== 'Superusuario')) {
         throw new Error('Acción no autorizada.');
     }
-    const db = await getDb();
 
     if (status === 'Completado') {
-        const executions = await db.get<any>(
-            `SELECT COUNT(*) as count FROM treatment_executions te
-             JOIN treatment_order_items toi ON te."treatmentOrderItemId" = toi.id
-             WHERE toi."treatmentOrderId" = ?`,
-            [orderId]
-        );
-        if (executions && executions.count === 0) {
+        const executionCount = await prisma.treatmentExecution.count({
+            where: {
+                treatmentOrderItem: {
+                    treatmentOrderId: Number(orderId)
+                }
+            }
+        });
+        if (executionCount === 0) {
             throw new Error('No se puede completar una orden de tratamiento sin haber registrado al menos una ejecución.');
         }
 
-        const pendingItems = await db.get<any>(
-            `SELECT COUNT(*) as count FROM treatment_order_items WHERE "treatmentOrderId" = ? AND status = 'Pendiente'`,
-            [orderId]
-        );
-        if (pendingItems && pendingItems.count > 0) {
+        const pendingCount = await prisma.treatmentOrderItem.count({
+            where: {
+                treatmentOrderId: Number(orderId),
+                status: 'Pendiente'
+            }
+        });
+        if (pendingCount > 0) {
             throw new Error('No se puede completar la orden. Aún hay ítems pendientes de administrar.');
         }
     }
 
-    const result = await db.run(
-        'UPDATE treatment_orders SET status = ? WHERE id = ?',
-        [status, orderId]
-    );
-    if (result.changes === 0) throw new Error('Orden de tratamiento no encontrada');
+    await prisma.treatmentOrder.update({
+        where: { id: Number(orderId) },
+        data: { status }
+    });
+
     revalidatePath('/dashboard/bitacora');
     return { success: true };
 }
@@ -1696,52 +2025,56 @@ export async function createLabOrder(consultationId: string, pacienteId: string,
     if (!session.isLoggedIn || !session.user || (!allowedDocRoles.includes(roleId) && roleName !== 'Superusuario')) {
         throw new Error('Acción no autorizada.');
     }
-    const db = await getDb();
-    const orderId = await getNextId('lab_orders');
+
     const orderDate = new Date();
 
-    try {
-        await db.exec('BEGIN');
-
-        await db.run(
-            'INSERT INTO lab_orders (id, "pacienteId", "consultationId", "orderDate", status) VALUES (?, ?, ?, ?, ?)',
-            [orderId, pacienteId, consultationId, orderDate.toISOString(), 'Pendiente']
-        );
+    const created = await prisma.$transaction(async (tx) => {
+        const order = await tx.labOrder.create({
+            data: {
+                pacienteId: Number(pacienteId),
+                consultationId: Number(consultationId),
+                orderDate: orderDate,
+                status: 'Pendiente',
+            }
+        });
 
         for (const testName of tests) {
-            await db.run('INSERT INTO lab_order_items (id, "labOrderId", "testName") VALUES (?, ?, ?)', [await getNextId('lab_order_items'), orderId, testName]);
+            await tx.labOrderItem.create({
+                data: {
+                    labOrderId: order.id,
+                    testName,
+                }
+            });
         }
 
-        await db.exec('COMMIT');
-    } catch (error) {
-        await db.exec('ROLLBACK');
-        console.error("Error creating lab order:", error);
-        throw new Error('No se pudo guardar la orden de laboratorio.');
-    }
+        return order;
+    });
 
     revalidatePath('/dashboard/hce');
 
-    const persona = await db.get<any>(`SELECT *, ${fullNameSql} as "nombreCompleto", ${fullCedulaSql} as cedula FROM personas p JOIN pacientes ON p.id = pacientes."personaId" WHERE pacientes.id = ?`, [pacienteId]);
+    const paciente = await prisma.paciente.findUnique({
+        where: { id: Number(pacienteId) },
+        include: { persona: true }
+    });
 
-    const consultationInfo = await db.get(
-        `SELECT "treatmentPlan", (SELECT string_agg("cie10Description", '; ') FROM consultation_diagnoses WHERE "consultationId" = c.id) as "diagnosticoPrincipal"
-       FROM consultations c WHERE c.id = ?`,
-        [consultationId]
-    );
+    const consultation = await prisma.consultation.findUnique({
+        where: { id: Number(consultationId) },
+        include: { diagnoses: true }
+    });
 
     return {
-        id: orderId,
-        pacienteId,
-        consultationId,
-        orderDate,
-        status: 'Pendiente',
+        id: created.id,
+        pacienteId: String(created.pacienteId),
+        consultationId: String(created.consultationId),
+        orderDate: created.orderDate,
+        status: created.status,
         tests,
         paciente: {
-            ...persona,
-            fechaNacimiento: new Date(persona.fechaNacimiento),
+            ...enrichPersona(paciente!.persona),
+            id: paciente!.id,
         } as any,
-        diagnosticoPrincipal: (consultationInfo as any)?.diagnosticoPrincipal,
-        treatmentPlan: (consultationInfo as any)?.treatmentPlan,
+        diagnosticoPrincipal: consultation?.diagnoses.map(d => d.cie10Description).join('; '),
+        treatmentPlan: consultation?.treatmentPlan || undefined,
     };
 }
 
@@ -1749,33 +2082,25 @@ export async function createLabOrder(consultationId: string, pacienteId: string,
 // --- Dashboard KPI Actions ---
 
 export async function getWaitlistCount(): Promise<number> {
-    const db = await getDb();
-    const result = await db.get<{ count: number }>("SELECT COUNT(*) as count FROM waitlist WHERE status NOT IN ('Completado', 'Cancelado')");
-    return result?.count || 0;
+    return await prisma.waitlistEntry.count({
+        where: { status: { notIn: ['Completado', 'Cancelado'] } },
+    });
 }
 
 export async function getTodayConsultationsCount(): Promise<number> {
-    const db = await getDb();
-    const todayStart = startOfDay(new Date()).toISOString();
-    const todayEnd = endOfDay(new Date()).toISOString();
-
-    const result = await db.get<{ count: number }>(
-        "SELECT COUNT(*) as count FROM consultations WHERE \"consultationDate\" BETWEEN ? AND ?",
-        [todayStart, todayEnd]
-    );
-    return result?.count || 0;
+    const todayStart = startOfDay(new Date());
+    const todayEnd = endOfDay(new Date());
+    return await prisma.consultation.count({
+        where: { consultationDate: { gte: todayStart, lte: todayEnd } },
+    });
 }
 
 export async function getTodayRegisteredPeopleCount(): Promise<number> {
-    const db = await getDb();
-    const todayStart = startOfDay(new Date()).toISOString();
-    const todayEnd = endOfDay(new Date()).toISOString();
-
-    const result = await db.get<{ count: number }>(
-        "SELECT COUNT(*) as count FROM personas WHERE \"createdAt\" BETWEEN ? AND ?",
-        [todayStart, todayEnd]
-    );
-    return result?.count || 0;
+    const todayStart = startOfDay(new Date());
+    const todayEnd = endOfDay(new Date());
+    return await prisma.persona.count({
+        where: { createdAt: { gte: todayStart, lte: todayEnd } },
+    });
 }
 
 
@@ -1849,41 +2174,41 @@ export async function getPatientSummary(personaId: string): Promise<PatientSumma
 
 // --- Occupational Health Actions ---
 export async function createOccupationalHealthEvaluation(personaId: string, data: Omit<OccupationalHealthEvaluation, 'id' | 'personaId' | 'evaluationDate'>): Promise<OccupationalHealthEvaluation> {
-    const db = await getDb();
-    const evaluationId = await getNextId('occ');
     const evaluationDate = new Date();
 
-    const newEvaluation: OccupationalHealthEvaluation = {
-        id: evaluationId,
-        personaId,
-        evaluationDate,
-        ...data,
-        // Ensure complex objects are stringified for DB storage
-        occupationalRisks: JSON.stringify(data.occupationalRisks),
-        lifestyle: JSON.stringify(data.lifestyle),
-        vitalSigns: JSON.stringify(data.vitalSigns),
-        anthropometry: JSON.stringify(data.anthropometry),
-        diagnoses: JSON.stringify(data.diagnoses),
-        nextFollowUp: data.nextFollowUp ? data.nextFollowUp : undefined,
-    };
-
-    await db.run(
-        `INSERT INTO occupational_health_evaluations (
-        id, "personaId", "companyId", "companyName", "evaluationDate", "patientType", "consultationPurpose", 
-        "jobPosition", "jobDescription", "occupationalRisks", "riskDetails", 
-        "personalHistory", "familyHistory", lifestyle, "mentalHealth", 
-        "vitalSigns", anthropometry, "physicalExamFindings", 
-        diagnoses, "fitnessForWork", "occupationalRecommendations", 
-        "generalHealthPlan", interconsultation, "nextFollowUp"
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [newEvaluation.id, newEvaluation.personaId, newEvaluation.companyId || null, newEvaluation.companyName || null, newEvaluation.evaluationDate.toISOString(), newEvaluation.patientType, newEvaluation.consultationPurpose, newEvaluation.jobPosition, newEvaluation.jobDescription, newEvaluation.occupationalRisks, newEvaluation.riskDetails, newEvaluation.personalHistory, newEvaluation.familyHistory, newEvaluation.lifestyle, newEvaluation.mentalHealth || null, newEvaluation.vitalSigns, newEvaluation.anthropometry, newEvaluation.physicalExamFindings, newEvaluation.diagnoses, newEvaluation.fitnessForWork, newEvaluation.occupationalRecommendations, newEvaluation.generalHealthPlan, newEvaluation.interconsultation || null, newEvaluation.nextFollowUp?.toISOString() || null]
-    );
+    const created = await prisma.occupationalHealthEvaluation.create({
+        data: {
+            personaId: Number(personaId),
+            companyId: data.companyId ? Number(data.companyId) : null,
+            companyName: data.companyName || null,
+            evaluationDate: evaluationDate,
+            patientType: data.patientType,
+            consultationPurpose: data.consultationPurpose,
+            jobPosition: data.jobPosition,
+            jobDescription: data.jobDescription,
+            occupationalRisks: JSON.stringify(data.occupationalRisks),
+            riskDetails: data.riskDetails,
+            personalHistory: data.personalHistory,
+            familyHistory: data.familyHistory,
+            lifestyle: JSON.stringify(data.lifestyle),
+            mentalHealth: data.mentalHealth || null,
+            vitalSigns: JSON.stringify(data.vitalSigns),
+            anthropometry: JSON.stringify(data.anthropometry),
+            physicalExamFindings: data.physicalExamFindings,
+            diagnoses: JSON.stringify(data.diagnoses),
+            fitnessForWork: data.fitnessForWork,
+            occupationalRecommendations: data.occupationalRecommendations,
+            generalHealthPlan: data.generalHealthPlan,
+            interconsultation: data.interconsultation || null,
+            nextFollowUp: data.nextFollowUp || null,
+        }
+    });
 
     revalidatePath('/dashboard/historial-ocupacional');
 
     return {
         ...data,
-        id: evaluationId,
+        id: created.id,
         personaId,
         evaluationDate,
     };
@@ -1891,59 +2216,58 @@ export async function createOccupationalHealthEvaluation(personaId: string, data
 
 
 export async function getOccupationalHealthHistory(personaId: string): Promise<OccupationalHealthEvaluation[]> {
-    const db = await getDb();
-    const rows = await db.all<any>(
-        'SELECT * FROM occupational_health_evaluations WHERE "personaId" = ? ORDER BY "evaluationDate" DESC',
-        [personaId]
-    );
+    const rows = await prisma.occupationalHealthEvaluation.findMany({
+        where: { personaId: Number(personaId) },
+        orderBy: { evaluationDate: 'desc' }
+    });
 
     return rows.map(row => ({
         ...row,
-        evaluationDate: new Date(row.evaluationDate),
-        nextFollowUp: row.nextFollowUp ? new Date(row.nextFollowUp) : undefined,
-        occupationalRisks: JSON.parse(row.occupationalRisks),
-        lifestyle: JSON.parse(row.lifestyle),
-        vitalSigns: JSON.parse(row.vitalSigns),
-        anthropometry: JSON.parse(row.anthropometry),
-        diagnoses: JSON.parse(row.diagnoses),
-    }));
+        personaId: String(row.personaId),
+        companyId: row.companyId ? String(row.companyId) : undefined,
+        evaluationDate: row.evaluationDate,
+        nextFollowUp: row.nextFollowUp || undefined,
+        occupationalRisks: JSON.parse(row.occupationalRisks as string),
+        lifestyle: JSON.parse(row.lifestyle as string),
+        vitalSigns: JSON.parse(row.vitalSigns as string),
+        anthropometry: JSON.parse(row.anthropometry as string),
+        diagnoses: JSON.parse(row.diagnoses as string),
+    })) as any[];
 }
 
 export async function getServices(query?: string): Promise<Service[]> {
-    const db = await getDb();
-    let selectQuery = `SELECT * FROM services`;
-    const params: any[] = [];
+    const where: any = {};
     if (query && query.trim().length > 1) {
-        selectQuery += ` WHERE name ILIKE ? OR description ILIKE ?`;
-        params.push(`%${query}%`, `%${query}%`);
+        where.OR = [
+            { name: { contains: query.trim(), mode: 'insensitive' } },
+            { description: { contains: query.trim(), mode: 'insensitive' } },
+        ];
     }
-    selectQuery += ' ORDER BY name';
-    return await db.all<any>(selectQuery, params);
+    return await prisma.service.findMany({ where, orderBy: { name: 'asc' } });
 }
 
 export async function createService(data: Omit<Service, 'id'>): Promise<Service> {
     await ensureAdminPermission();
-    const db = await getDb();
-    const newService = { ...data, id: await getNextId('services') };
-    await db.run('INSERT INTO services (id, name, description, price) VALUES (?, ?, ?, ?)', [newService.id as any, newService.name, newService.description, newService.price]);
+    const service = await prisma.service.create({
+        data: { name: data.name, description: data.description, price: data.price },
+    });
     revalidatePath('/dashboard/servicios');
-    return newService;
+    return service;
 }
 
 export async function updateService(id: string, data: Omit<Service, 'id'>): Promise<Service> {
     await ensureAdminPermission();
-    const db = await getDb();
-    const result = await db.run('UPDATE services SET name = ?, description = ?, price = ? WHERE id = ?', [data.name, data.description, data.price, id]);
-    if (result.changes === 0) throw new Error('Servicio no encontrado');
+    const updated = await prisma.service.update({
+        where: { id: Number(id) },
+        data: { name: data.name, description: data.description, price: data.price },
+    });
     revalidatePath('/dashboard/servicios');
-    return { ...data, id };
+    return updated;
 }
 
 export async function deleteService(id: string): Promise<{ success: boolean }> {
     await ensureAdminPermission();
-    const db = await getDb();
-    const result = await db.run('DELETE FROM services WHERE id = ?', [id]);
-    if (result.changes === 0) throw new Error('Servicio no encontrado para eliminar');
+    await prisma.service.delete({ where: { id: Number(id) } });
     revalidatePath('/dashboard/servicios');
     return { success: true };
 }
@@ -1952,21 +2276,19 @@ export async function deleteService(id: string): Promise<{ success: boolean }> {
 // --- Reports ---
 
 export async function getMorbidityReport(params: { from: Date; to: Date }): Promise<MorbidityReportRow[]> {
-    const db = await getDb();
-
     const { from, to } = params;
-    const fromDate = startOfDay(from).toISOString();
-    const toDate = endOfDay(to).toISOString();
+    const fromDate = startOfDay(from);
+    const toDate = endOfDay(to);
 
-    const rows = await db.all<MorbidityReportRow>(
-        `SELECT "cie10Code", "cie10Description", COUNT(*) as frequency
+    const rows = await prisma.$queryRawUnsafe<MorbidityReportRow[]>(
+        `SELECT "cie10Code", "cie10Description", COUNT(*)::int as frequency
          FROM consultation_diagnoses
          WHERE "consultationId" IN (
-            SELECT id FROM consultations WHERE "consultationDate" BETWEEN ? AND ?
+            SELECT id FROM consultations WHERE "consultationDate" BETWEEN $1 AND $2
          )
          GROUP BY "cie10Code", "cie10Description"
          ORDER BY frequency DESC`,
-        [fromDate, toDate]
+        fromDate, toDate
     );
 
     return rows;
@@ -1974,38 +2296,35 @@ export async function getMorbidityReport(params: { from: Date; to: Date }): Prom
 
 
 export async function getOperationalReport(params: { from: Date; to: Date }): Promise<OperationalReportData> {
-    const db = await getDb();
     const { from, to } = params;
-    const fromDate = startOfDay(from).toISOString();
-    const toDate = endOfDay(to).toISOString();
+    const fromDate = startOfDay(from);
+    const toDate = endOfDay(to);
 
-    const totalConsultationsResult = await db.get<{ count: number }>(
-        `SELECT COUNT(*) as count FROM consultations WHERE "consultationDate" BETWEEN ? AND ?`,
-        [fromDate, toDate]
-    );
+    const totalConsultations = await prisma.consultation.count({
+        where: { consultationDate: { gte: fromDate, lte: toDate } }
+    });
 
-    const newPeopleResult = await db.get<{ count: number }>(
-        `SELECT COUNT(*) as count FROM personas WHERE "createdAt" BETWEEN ? AND ?`,
-        [fromDate, toDate]
-    );
+    const newPeopleRegistered = await prisma.persona.count({
+        where: { createdAt: { gte: fromDate, lte: toDate } }
+    });
 
-    const consultationsByServiceResult = await db.all<{ serviceType: ServiceType; count: number }>(
-        `SELECT w."serviceType", COUNT(c.id) as count
+    const consultationsByServiceResult = await prisma.$queryRawUnsafe<any[]>(
+        `SELECT w."serviceType", COUNT(c.id)::int as count
          FROM consultations c
          JOIN waitlist w ON c."waitlistId" = w.id
-         WHERE c."consultationDate" BETWEEN ? AND ?
+         WHERE c."consultationDate" BETWEEN $1 AND $2
          GROUP BY w."serviceType"`,
-        [fromDate, toDate]
+        fromDate, toDate
     );
 
-    const consultationsQuery = `
-        SELECT p.genero, p."fechaNacimiento"
-        FROM consultations c
-        JOIN pacientes pac ON c."pacienteId" = pac.id
-        JOIN personas p ON pac."personaId" = p.id
-        WHERE c."consultationDate" BETWEEN ? AND ?
-    `;
-    const patientDemographics = await db.all<any>(consultationsQuery, [fromDate, toDate]);
+    const patientDemographics = await prisma.$queryRawUnsafe<any[]>(
+        `SELECT p.genero, p."fechaNacimiento"
+         FROM consultations c
+         JOIN pacientes pac ON c."pacienteId" = pac.id
+         JOIN personas p ON pac."personaId" = p.id
+         WHERE c."consultationDate" BETWEEN $1 AND $2`,
+        fromDate, toDate
+    );
 
     let men = 0;
     let women = 0;
@@ -2023,9 +2342,12 @@ export async function getOperationalReport(params: { from: Date; to: Date }): Pr
     });
 
     return {
-        totalConsultations: totalConsultationsResult?.count || 0,
-        newPeopleRegistered: newPeopleResult?.count || 0,
-        consultationsByService: consultationsByServiceResult || [],
+        totalConsultations,
+        newPeopleRegistered,
+        consultationsByService: consultationsByServiceResult.map(r => ({
+            serviceType: r.serviceType,
+            count: r.count
+        })),
         demographics: {
             byGender: { men, women },
             byAgeGroup: { children, adults, seniors },
@@ -2051,11 +2373,9 @@ export async function getAppointmentsReport(params: {
     isReintegro: boolean;
     departamento: string;
 }>> {
-    const db = await getDb();
-
     // Default to last 30 days if no dates provided
-    const fromDate = params.dateFrom ? startOfDay(params.dateFrom).toISOString() : startOfDay(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)).toISOString();
-    const toDate = params.dateTo ? endOfDay(params.dateTo).toISOString() : endOfDay(new Date()).toISOString();
+    const fromDate = params.dateFrom ? startOfDay(params.dateFrom) : startOfDay(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000));
+    const toDate = params.dateTo ? endOfDay(params.dateTo) : endOfDay(new Date());
 
     let query = `
         SELECT 
@@ -2075,14 +2395,14 @@ export async function getAppointmentsReport(params: {
         LEFT JOIN pacientes pac ON w."pacienteId" = pac.id
         LEFT JOIN personas p ON pac."personaId" = p.id
         LEFT JOIN users u ON w."personaId" = u."personaId"
-        WHERE w."checkInTime" >= ? AND w."checkInTime" <= ?
+        WHERE w."checkInTime" >= $1 AND w."checkInTime" <= $2
     `;
 
     const queryParams: any[] = [fromDate, toDate];
 
     // Add service type filter if provided
     if (params.serviceType && params.serviceType !== 'todos') {
-        query += ` AND w."serviceType" = ?`;
+        query += ` AND w."serviceType" = $${queryParams.length + 1}`;
         queryParams.push(params.serviceType);
     }
 
@@ -2099,7 +2419,7 @@ export async function getAppointmentsReport(params: {
 
     query += ` ORDER BY w."checkInTime" DESC LIMIT 1000`;
 
-    const rows = await db.all(query, queryParams);
+    const rows = await prisma.$queryRawUnsafe<any[]>(query, ...queryParams);
 
     return rows.map((row: any) => {
         const fechaObj = new Date(row.fecha);
@@ -2118,25 +2438,22 @@ export async function getAppointmentsReport(params: {
 }
 
 export async function searchClinicEmployees(query: string): Promise<SearchResult[]> {
-    const db = await getDb();
     const searchQuery = `%${query.trim()}%`;
     const hasQuery = query && query.trim().length > 0;
 
-    // Filter people who are in the 'titulares' table and belong to specific units (Employees)
-    // We exclude 'Afiliado Corporativo' (other companies) and beneficiaries.
     const personasQuery = `
         SELECT p.*, ${fullNameSql} as "nombreCompleto", ${fullCedulaSql} as cedula,
-               t.id as titular_id, t."unidadServicio", t."numeroFicha"
+               t.id as titular_id, t."unidadServicioId", t."numeroFicha"
         FROM personas p
         JOIN titulares t ON p.id = t."personaId"
-        WHERE t."unidadServicio" <> 'Afiliado Corporativo'
-        ${hasQuery ? `AND (${fullNameSql} ILIKE ? OR ${fullCedulaSearchSql} ILIKE ?)` : ''}
+        WHERE 1=1
+        ${hasQuery ? `AND (${fullNameSql} ILIKE $1 OR ${fullCedulaSearchSql} ILIKE $2)` : ''}
         ORDER BY "primerNombre", "primerApellido"
         LIMIT 50
     `;
 
     const personasParams = hasQuery ? [searchQuery, searchQuery] : [];
-    const rows = await db.all<any>(personasQuery, personasParams);
+    const rows = await prisma.$queryRawUnsafe<any[]>(personasQuery, ...personasParams);
 
     return rows.map((row: any) => ({
         persona: {
@@ -2146,8 +2463,137 @@ export async function searchClinicEmployees(query: string): Promise<SearchResult
         },
         titularInfo: {
             id: row.titular_id,
-            unidadServicio: row.unidadServicio,
+            unidadServicioId: row.unidadServicioId,
             numeroFicha: row.numeroFicha
         }
     }));
 }
+
+export async function getRecentPatients(limit: number = 5) {
+    try {
+        const personas = await prisma.persona.findMany({
+            take: limit,
+            orderBy: { createdAt: 'desc' },
+            select: {
+                id: true,
+                primerNombre: true,
+                segundoNombre: true,
+                primerApellido: true,
+                segundoApellido: true,
+                nacionalidad: true,
+                cedulaNumero: true,
+                createdAt: true,
+            }
+        });
+
+        const { enrichPersona } = await import('@/lib/prisma-helpers');
+        return personas.map(enrichPersona);
+    } catch (error) {
+        console.error("Error fetching recent patients:", error);
+        return [];
+    }
+}
+
+export async function getConsultationByWaitlistId(waitlistId: number) {
+    try {
+        const consultation = await prisma.consultation.findFirst({
+            where: { waitlistId: Number(waitlistId) },
+            include: {
+                diagnoses: true,
+                treatmentOrders: {
+                    include: { items: true }
+                }
+            }
+        });
+
+        if (!consultation) return null;
+
+        const { enrichConsultation } = await import('@/lib/prisma-helpers');
+        return enrichConsultation(consultation);
+    } catch (error) {
+        console.error("Error fetching consultation by waitlistId:", error);
+        return null;
+    }
+}
+
+export async function getCompletedConsultations(params: {
+    dateFrom?: Date;
+    dateTo?: Date;
+    search?: string;
+    page?: number;
+    pageSize?: number;
+}) {
+    const { dateFrom, dateTo, search, page = 1, pageSize = 50 } = params;
+    const skip = (page - 1) * pageSize;
+
+    let whereClause: any = {};
+
+    if (dateFrom && dateTo) {
+        whereClause.consultationDate = {
+            gte: dateFrom,
+            lte: dateTo,
+        };
+    } else if (dateFrom) {
+        whereClause.consultationDate = { gte: dateFrom };
+    } else if (dateTo) {
+        whereClause.consultationDate = { lte: dateTo };
+    }
+
+    if (search && search.trim().length > 0) {
+        const searchTerm = `%${search.trim()}%`;
+        const matchingPersonas = await prisma.$queryRawUnsafe<{ id: number }[]>(
+            `SELECT id FROM personas WHERE ${fullNameSql} ILIKE $1 OR ${fullCedulaSearchSql} ILIKE $2`,
+            searchTerm, searchTerm
+        );
+        const personaIds = matchingPersonas.map(p => p.id);
+        
+        whereClause.paciente = {
+            personaId: { in: personaIds }
+        };
+    }
+
+    const totalCount = await prisma.consultation.count({ where: whereClause });
+
+    const consultations = await prisma.consultation.findMany({
+        where: whereClause,
+        include: {
+            paciente: {
+                include: { 
+                    persona: {
+                        include: {
+                            titular: { include: { unidadServicio: true } },
+                            beneficiarios: {
+                                include: {
+                                    titular: { include: { unidadServicio: true } }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            waitlistEntry: true,
+            diagnoses: true,
+            treatmentOrders: {
+                include: { 
+                    items: true 
+                }
+            },
+            doctor: {
+                include: {
+                    persona: true,
+                    specialty: true
+                }
+            }
+        },
+        orderBy: { consultationDate: 'desc' },
+        skip,
+        take: pageSize,
+    });
+
+    const { enrichConsultation } = await import('@/lib/prisma-helpers');
+    const enriched = consultations.map(c => enrichConsultation(c as any));
+
+    return { consultations: enriched, totalCount };
+}
+
+

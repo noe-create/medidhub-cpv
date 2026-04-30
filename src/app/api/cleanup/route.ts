@@ -1,15 +1,20 @@
-import { getDb } from '@/lib/db';
+import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import { revalidatePath } from 'next/cache';
 
 export async function GET() {
     try {
-        const db = await getDb();
-        const result = await db.run(`DELETE FROM personas WHERE "primerApellido" LIKE '%GMT-%'`);
+        const result = await prisma.persona.deleteMany({
+            where: {
+                primerApellido: {
+                    contains: 'GMT-'
+                }
+            }
+        });
         revalidatePath('/dashboard/personas');
         return NextResponse.json({ 
             success: true, 
-            deleted: result.changes,
+            deleted: result.count,
             message: 'Limpieza realizada con éxito.' 
         });
     } catch (error: any) {
