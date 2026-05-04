@@ -6,6 +6,7 @@
  */
 
 import type { Persona as PrismaPersona } from '@prisma/client';
+import { calculateAge } from './utils';
 
 /** Builds a computed full name string from persona fields */
 export function buildNombreCompleto(p: Pick<PrismaPersona, 'primerNombre' | 'segundoNombre' | 'primerApellido' | 'segundoApellido'>): string {
@@ -63,6 +64,9 @@ export function enrichConsultation(c: any) {
         enriched.paciente.persona = enrichPersona(enriched.paciente.persona);
         enriched.paciente.nombreCompleto = enriched.paciente.persona.nombreCompleto;
         enriched.paciente.cedula = enriched.paciente.persona.cedula;
+        enriched.paciente.genero = enriched.paciente.persona.genero;
+        enriched.paciente.fechaNacimiento = enriched.paciente.persona.fechaNacimiento;
+        enriched.paciente.edad = enriched.paciente.persona.fechaNacimiento ? calculateAge(enriched.paciente.persona.fechaNacimiento) : null;
 
         // Compute Departamento / Área
         const p = enriched.paciente.persona;

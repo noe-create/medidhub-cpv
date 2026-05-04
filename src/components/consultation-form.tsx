@@ -127,7 +127,7 @@ const consultationSchema = z.object({
     occupationalReferral: z.object({
         enabled: z.boolean().optional(),
         observations: z.string().optional(),
-    }).optional(),
+    }).nullish(),
 })
     .refine(data => data.enfermedadActualNinguno || (data.enfermedadActual && data.enfermedadActual.length > 0), {
         message: 'La historia de la enfermedad actual es obligatoria.',
@@ -156,7 +156,7 @@ export function ConsultationForm({ patient, onConsultationComplete }: Consultati
     const isFemale = patient.genero === 'Femenino';
     const isPediatric = age < 18;
     const isReintegroMode = !!patient.isReintegro;
-    const isActuallyNurse = user.role.id === 4 || user.role.name === 'Enfermera';
+    const isActuallyNurse = user.role.name === 'Enfermería' || user.role.name === 'Enfermero/a' || user.role.name === 'Paramédico' || user.role.id === 4;
     const storageKey = `consultation-draft-${patient.id}`;
 
     const defaultValues: Partial<z.infer<typeof consultationSchema>> = {
@@ -250,6 +250,10 @@ export function ConsultationForm({ patient, onConsultationComplete }: Consultati
                             } : defaultValues.antecedentesPersonales,
                         };
                         form.reset(formValues);
+                        if (dbConsultation.labOrders && dbConsultation.labOrders.length > 0) {
+                            const tests = dbConsultation.labOrders.map((lo: any) => lo.testName).filter(Boolean);
+                            setSelectedLabTests(tests);
+                        }
                         setIsDraftLoading(false);
                         return;
                     }
@@ -291,7 +295,7 @@ export function ConsultationForm({ patient, onConsultationComplete }: Consultati
         if (isReintegroMode) {
             return [
                 { id: 'examen', name: 'Evaluación de Reintegro', fields: ['signosVitales', 'examenFisicoGeneral'] },
-                { id: 'plan', name: 'Plan y Remisión', fields: ['diagnoses', 'diagnosticoLibre', 'treatmentPlan', 'treatmentItems', 'reposo'] },
+                { id: 'plan', name: 'Plan y Remisión', fields: ['diagnoses', 'diagnosticoLibre', 'diagnosticoLibreNinguno', 'treatmentPlan', 'treatmentPlanNotApplicable', 'treatmentItems', 'reposo', 'radiologyOrder', 'radiologyNotApplicable', 'occupationalReferral'] },
             ];
         }
         
@@ -303,9 +307,9 @@ export function ConsultationForm({ patient, onConsultationComplete }: Consultati
 
         return [
             { id: 'examen', name: 'Examen Físico', fields: ['signosVitales', 'examenFisicoGeneral'] },
-            { id: 'anamnesis', name: 'Anamnesis', fields: ['motivoConsulta', 'enfermedadActual', 'revisionPorSistemas'] },
-            { id: 'antecedentes', name: 'Antecedentes', fields: ['antecedentesPersonales', 'antecedentesFamiliares', 'antecedentesGinecoObstetricos', 'antecedentesPediatricos'] },
-            { id: 'plan', name: 'Diagnóstico y Plan', fields: ['diagnoses', 'diagnosticoLibre', 'diagnosticoLibreNinguno', 'treatmentPlan', 'treatmentItems', 'reposo', 'radiologyOrder'] },
+            { id: 'anamnesis', name: 'Anamnesis', fields: ['motivoConsulta', 'enfermedadActual', 'enfermedadActualNinguno', 'revisionPorSistemas', 'revisionPorSistemasNinguno'] },
+            { id: 'antecedentes', name: 'Antecedentes', fields: ['antecedentesPersonales', 'antecedentesFamiliares', 'antecedentesFamiliaresNinguno', 'antecedentesGinecoObstetricos', 'antecedentesPediatricos'] },
+            { id: 'plan', name: 'Diagnóstico y Plan', fields: ['diagnoses', 'diagnosticoLibre', 'diagnosticoLibreNinguno', 'treatmentPlan', 'treatmentPlanNotApplicable', 'treatmentItems', 'reposo', 'radiologyOrder', 'radiologyNotApplicable', 'occupationalReferral'] },
         ];
     }, [isReintegroMode, isActuallyNurse]);
 
@@ -348,9 +352,10 @@ export function ConsultationForm({ patient, onConsultationComplete }: Consultati
                 reposo: values.reposo,
                 diagnoses: values.diagnoses,
                 treatmentItems: values.treatmentItems,
+                labOrders: selectedLabTests,
             };
 
-            await saveConsultationDraft(draftData);
+            await saveConsultationDraft(draftData as any);
             
             if (!silent) {
                 toast({
@@ -529,16 +534,49 @@ export function ConsultationForm({ patient, onConsultationComplete }: Consultati
                             <form 
                                 id="consultation-form"
                                 onSubmit={form.handleSubmit(onSubmit, (errors) => {
-                                    console.error("Form validation errors:", errors);
-                                    // Identify the step with errors
+                                    console.log("Form validation errors (full object):", errors);
+                                    
                                     const errorFields = Object.keys(errors);
-                                    const errorStep = steps.find(step => step.fields.some(field => errorFields.includes(field)));
+                                    if (errorFields.length === 0) return;
+
+                                    // Identify the step with errors, handling nested fields (e.g. 'signosVitales.satO2')
+                                    const errorStep = steps.find(step => 
+                                        step.fields.some(field => 
+                                            errorFields.some(errKey => errKey === field || errKey.startsWith(`${field}.`))
+                                        )
+                                    );
+                                    
                                     if (errorStep) {
                                         const stepIndex = steps.findIndex(s => s.id === errorStep.id);
                                         setCurrentStep(stepIndex);
+                                        
+                                        // Find first error message within this step
+                                        const firstErrorField = errorFields.find(errKey => 
+                                            errorStep.fields.some(field => errKey === field || errKey.startsWith(`${field}.`))
+                                        );
+                                        
+                                        // Extract error message safely from nested object
+                                        const getErrorMessage = (obj: any, path: string): string => {
+                                            const parts = path.split('.');
+                                            let current = obj;
+                                            for (const part of parts) {
+                                                if (current[part]) current = current[part];
+                                                else return 'Dato inválido';
+                                            }
+                                            return current?.message || 'Dato requerido';
+                                        };
+
+                                        const errorMessage = firstErrorField ? getErrorMessage(errors, firstErrorField) : 'Faltan datos obligatorios';
+
                                         toast({
                                             title: 'Información Faltante',
-                                            description: `Por favor revise el paso: ${errorStep.name}`,
+                                            description: `${errorMessage} (en ${errorStep.name})`,
+                                            variant: 'destructive',
+                                        });
+                                    } else {
+                                        toast({
+                                            title: 'Error de Validación',
+                                            description: `Hay errores en campos técnicos: ${errorFields.join(', ')}.`,
                                             variant: 'destructive',
                                         });
                                     }

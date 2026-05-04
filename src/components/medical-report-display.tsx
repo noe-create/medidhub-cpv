@@ -18,11 +18,12 @@ export function MedicalReportDisplay({ consultation }: MedicalReportDisplayProps
   const [ageString, setAgeString] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    if (paciente?.fechaNacimiento) {
-      const age = calculateAge(paciente.fechaNacimiento);
+    const birthDate = paciente?.fechaNacimiento || paciente?.persona?.fechaNacimiento;
+    if (birthDate) {
+      const age = calculateAge(birthDate);
       setAgeString(`${age} Año(s)`);
     }
-  }, [paciente?.fechaNacimiento]);
+  }, [paciente?.fechaNacimiento, paciente?.persona?.fechaNacimiento]);
 
   const getConsultationType = () => {
     const serviceType = (paciente as any)?.serviceType;
@@ -41,7 +42,8 @@ export function MedicalReportDisplay({ consultation }: MedicalReportDisplayProps
   }
 
   const getVitalSignValue = (value: any, unit: string = '') => {
-    return value !== undefined && value !== null && value !== '' ? `${value}${unit}` : '          ';
+    if (value === undefined || value === null || String(value).trim() === '') return '---';
+    return `${value}${unit}`;
   }
 
   const sv = consultation?.signosVitales;
@@ -79,10 +81,10 @@ export function MedicalReportDisplay({ consultation }: MedicalReportDisplayProps
             <p><strong>Historia:</strong> {String(paciente?.id || '').replace(/\D/g, '').slice(-6) || '____________________'}</p>
             <p><strong>Fecha:</strong> {consultation?.consultationDate ? format(consultation.consultationDate, 'dd/MM/yyyy') : '____________________'}</p>
             <p><strong>Ingreso:</strong> {String(consultation?.waitlistId || '').slice(-6) || '____________________'}</p>
-            <p><strong>Sexo:</strong> {paciente?.genero || '__________'}</p>
-            <p><strong>Cédula:</strong> {paciente?.cedula || '____________________'}</p>
+            <p><strong>Sexo:</strong> {paciente?.genero || paciente?.persona?.genero || '__________'}</p>
+            <p><strong>Cédula:</strong> {paciente?.cedula || paciente?.persona?.cedula || '____________________'}</p>
             <p><strong>Edad:</strong> {ageString || '__________'}</p>
-            <p className="col-span-2"><strong>Nombre:</strong> {paciente?.nombreCompleto || '________________________________________________'}</p>
+            <p className="col-span-2"><strong>Nombre:</strong> {paciente?.nombreCompleto || paciente?.persona?.nombreCompleto || '________________________________________________'}</p>
           </div>
         </section>
 

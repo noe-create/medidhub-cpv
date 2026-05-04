@@ -46,7 +46,7 @@ export function PersonaSearch({ onPersonaSelect, excludeIds = [], placeholder = 
             setIsLoading(true);
             try {
                 const currentExcludeIds = JSON.parse(stableExcludeIds);
-                const data = await getPersonas(debouncedQuery);
+                const data = await getPersonas(debouncedQuery, 1, 15, true);
                 const filteredData = data.personas.filter(p => !currentExcludeIds.includes(p.id));
                 setResults(filteredData);
             } catch (e) {

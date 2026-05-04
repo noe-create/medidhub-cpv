@@ -195,21 +195,24 @@ async function getOrCreatePersona(personaData: Omit<Persona, 'id' | 'fechaNacimi
         throw new Error('Un menor de edad sin cédula debe tener un representante asignado.');
     }
 
+    // Safeguard: Remove computed fields that are not in the schema
+    const { nombreCompleto, cedula, edad, age: _, ...cleanPersonaData } = personaData as any;
+
     const created = await prisma.persona.create({
         data: {
-            primerNombre: personaData.primerNombre,
-            segundoNombre: personaData.segundoNombre || null,
-            primerApellido: personaData.primerApellido,
-            segundoApellido: personaData.segundoApellido || null,
-            nacionalidad: personaData.nacionalidad || null,
-            cedulaNumero: personaData.cedulaNumero || null,
-            fechaNacimiento: new Date(personaData.fechaNacimiento),
-            genero: personaData.genero,
-            telefono1: personaData.telefono1 || null,
-            telefono2: personaData.telefono2 || null,
-            email: personaData.email || null,
-            direccion: personaData.direccion || null,
-            representanteId: personaData.representanteId || null,
+            primerNombre: cleanPersonaData.primerNombre,
+            segundoNombre: cleanPersonaData.segundoNombre || null,
+            primerApellido: cleanPersonaData.primerApellido,
+            segundoApellido: cleanPersonaData.segundoApellido || null,
+            nacionalidad: cleanPersonaData.nacionalidad || null,
+            cedulaNumero: cleanPersonaData.cedulaNumero || null,
+            fechaNacimiento: new Date(cleanPersonaData.fechaNacimiento),
+            genero: cleanPersonaData.genero,
+            telefono1: cleanPersonaData.telefono1 || null,
+            telefono2: cleanPersonaData.telefono2 || null,
+            email: cleanPersonaData.email || null,
+            direccion: cleanPersonaData.direccion || null,
+            representanteId: cleanPersonaData.representanteId || null,
         },
     });
 
@@ -259,24 +262,36 @@ export async function getFullPersonaProfile(personaId: number | string) {
     };
 }
 
-export async function getPersonas(query?: string, page: number = 1, pageSize: number = 15): Promise<{ personas: Persona[], totalCount: number }> {
-    // Get user-linked personaIds to exclude
-    const userPersonas = await prisma.user.findMany({
-        where: { personaId: { not: null } },
-        select: { personaId: true },
-    });
-    const excludedIds = userPersonas.map(u => u.personaId!).filter(Boolean);
+export async function getPersonas(
+    query?: string, 
+    page: number = 1, 
+    pageSize: number = 15, 
+    onlyUnlinked: boolean = false
+): Promise<{ personas: Persona[], totalCount: number }> {
+    let excludedIds: number[] = [];
+    
+    if (onlyUnlinked) {
+        const userPersonas = await prisma.user.findMany({
+            where: { personaId: { not: null } },
+            select: { personaId: true },
+        });
+        excludedIds = userPersonas.map(u => u.personaId!).filter(Boolean);
+    }
 
-    const baseWhere: any = {
-        id: { notIn: excludedIds },
-    };
+    const baseWhere: any = {};
+    if (onlyUnlinked && excludedIds.length > 0) {
+        baseWhere.id = { notIn: excludedIds };
+    }
 
     if (query && query.trim().length > 1) {
         const searchQuery = `%${query.trim()}%`;
-        // Use prisma.$queryRawUnsafe for ILIKE full name search (Prisma doesn't support computed concat ILIKE)
+        
+        // Build exclusion clause for raw SQL if needed
+        const exclusionClause = onlyUnlinked ? `AND p.id NOT IN (SELECT "personaId" FROM users WHERE "personaId" IS NOT NULL)` : '';
+
         const countResult = await prisma.$queryRawUnsafe<{ count: bigint }[]>(
             `SELECT COUNT(*) as count FROM personas p
-             WHERE p.id NOT IN (SELECT "personaId" FROM users WHERE "personaId" IS NOT NULL)
+             WHERE 1=1 ${exclusionClause}
              AND (${fullNameSql} ILIKE $1 OR ${fullCedulaSearchSql} ILIKE $2 OR p.email ILIKE $3)`,
             searchQuery, searchQuery, searchQuery
         );
@@ -285,7 +300,7 @@ export async function getPersonas(query?: string, page: number = 1, pageSize: nu
         const offset = (page - 1) * pageSize;
         const rows = await prisma.$queryRawUnsafe<any[]>(
             `SELECT p.* FROM personas p
-             WHERE p.id NOT IN (SELECT "personaId" FROM users WHERE "personaId" IS NOT NULL)
+             WHERE 1=1 ${exclusionClause}
              AND (${fullNameSql} ILIKE $1 OR ${fullCedulaSearchSql} ILIKE $2 OR p.email ILIKE $3)
              ORDER BY p."primerNombre", p."primerApellido"
              LIMIT $4 OFFSET $5`,
@@ -333,7 +348,7 @@ export async function getTitulares(query?: string, page: number = 1, pageSize: n
         const totalCount = Number(countResult[0]?.count || 0);
 
         const rows = await prisma.$queryRawUnsafe<any[]>(
-            `SELECT t.id, t."personaId", t."unidadServicioId", t."numeroFicha",
+            `SELECT t.id as "titularIdTable", t."personaId", t."unidadServicioId", t."numeroFicha",
              p.*, us.name as "unidadServicioNombre",
              (SELECT COUNT(*) FROM beneficiarios b WHERE b."titularId" = t.id) as "beneficiariosCount"
              FROM titulares t JOIN personas p ON t."personaId" = p.id
@@ -343,7 +358,7 @@ export async function getTitulares(query?: string, page: number = 1, pageSize: n
         );
 
         const titulares = rows.map((row: any) => ({
-            id: row.id,
+            id: row.titularIdTable,
             personaId: row.personaId,
             unidadServicio: row.unidadServicioNombre || '',
             unidadServicioId: row.unidadServicioId,
@@ -1106,6 +1121,27 @@ export async function createConsultation(data: CreateConsultationInput): Promise
             data: { status: isNurse ? 'En Consulta' : 'Completado' },
         });
 
+        // Lab Orders
+        if (data.labOrders && data.labOrders.length > 0) {
+            const order = await tx.labOrder.create({
+                data: {
+                    pacienteId: Number(data.pacienteId),
+                    consultationId: consultation.id,
+                    status: 'Pendiente'
+                }
+            });
+
+            for (const testName of data.labOrders) {
+                await tx.labOrderItem.create({
+                    data: {
+                        labOrderId: order.id,
+                        testName,
+                        status: 'Pendiente'
+                    }
+                });
+            }
+        }
+
         return created;
     });
 
@@ -1138,7 +1174,7 @@ export async function createConsultation(data: CreateConsultationInput): Promise
  * This is used for real-time sync between nursing and doctors.
  * It DOES NOT complete the consultation or change waitlist status.
  */
-export async function saveConsultationDraft(data: Partial<CreateConsultationInput>) {
+export async function saveConsultationDraft(data: Partial<CreateConsultationInput> & { labOrders?: string[] }) {
     const session = await getSession();
     const user = session.user;
     if (!user) throw new Error('No autorizado');
@@ -1219,6 +1255,39 @@ export async function saveConsultationDraft(data: Partial<CreateConsultationInpu
                     }
                 }
             }
+            // Sync Lab Orders in Draft
+            if (data.labOrders) {
+                // Delete existing draft lab orders and their items
+                const existingOrders = await tx.labOrder.findMany({
+                    where: { consultationId: updated.id, status: 'Pendiente' }
+                });
+                for (const order of existingOrders) {
+                    await tx.labOrderItem.deleteMany({ where: { labOrderId: order.id } });
+                }
+                await tx.labOrder.deleteMany({ 
+                    where: { consultationId: updated.id, status: 'Pendiente' } 
+                });
+
+                if (data.labOrders.length > 0) {
+                    const order = await tx.labOrder.create({
+                        data: {
+                            pacienteId: Number(data.pacienteId),
+                            consultationId: updated.id,
+                            status: 'Pendiente'
+                        },
+                    });
+
+                    for (const testName of data.labOrders) {
+                        await tx.labOrderItem.create({
+                            data: {
+                                labOrderId: order.id,
+                                testName,
+                                status: 'Pendiente'
+                            }
+                        });
+                    }
+                }
+            }
             return updated;
         } else {
             const created = await tx.consultation.create({ 
@@ -1263,6 +1332,27 @@ export async function saveConsultationDraft(data: Partial<CreateConsultationInpu
                     });
                 }
             }
+            // Sync Lab Orders in New Draft
+            if (data.labOrders && data.labOrders.length > 0) {
+                const order = await tx.labOrder.create({
+                    data: {
+                        pacienteId: Number(data.pacienteId),
+                        consultationId: created.id,
+                        status: 'Pendiente'
+                    },
+                });
+
+                for (const testName of data.labOrders) {
+                    await tx.labOrderItem.create({
+                        data: {
+                            labOrderId: order.id,
+                            testName,
+                            status: 'Pendiente'
+                        }
+                    });
+                }
+            }
+
             return created;
         }
     });
@@ -1803,15 +1893,20 @@ export async function bulkCreateCie10Codes(codes: Cie10Code[]): Promise<{ import
 
 export async function searchCie10Codes(query: string): Promise<Cie10Code[]> {
     if (!query || query.trim().length < 2) return [];
-    return await prisma.cie10Code.findMany({
+    const results = await prisma.cie10Code.findMany({
         where: {
             OR: [
                 { code: { contains: query.trim(), mode: 'insensitive' } },
                 { description: { contains: query.trim(), mode: 'insensitive' } },
             ],
         },
-        take: 10,
+        take: 20,
     });
+
+    return results.map(r => ({
+        code: r.code,
+        description: r.description
+    }));
 }
 
 export async function getListaPacientes(query?: string): Promise<PacienteConInfo[]> {
@@ -2384,7 +2479,7 @@ export async function getAppointmentsReport(params: {
             ${fullNameSql} as paciente,
             w."serviceType" as servicio,
             w."accountType" as departamento,
-            COALESCE(u.name, 'No asignado') as medico,
+            COALESCE(TRIM(pm."primerNombre" || ' ' || pm."primerApellido"), 'No asignado') as medico,
             w."isReintegro",
             CASE 
                 WHEN w.status = 'Completado' THEN 'Completada'
@@ -2395,6 +2490,7 @@ export async function getAppointmentsReport(params: {
         LEFT JOIN pacientes pac ON w."pacienteId" = pac.id
         LEFT JOIN personas p ON pac."personaId" = p.id
         LEFT JOIN users u ON w."personaId" = u."personaId"
+        LEFT JOIN personas pm ON u."personaId" = pm.id
         WHERE w."checkInTime" >= $1 AND w."checkInTime" <= $2
     `;
 

@@ -21,6 +21,7 @@ import { LabOrderForm } from '../lab-order-form';
 import { FormSection } from './form-section';
 import { Checkbox } from '../ui/checkbox';
 import { RadiologyOrderForm } from '../radiology-order-form';
+import { cn } from '@/lib/utils';
 
 
 const DiagnosisSelector = ({ form }: { form: any }) => {
@@ -34,7 +35,7 @@ const DiagnosisSelector = ({ form }: { form: any }) => {
 
     const handleSearch = async (val: string) => {
         setSearchTerm(val);
-        if (val.length < 3) {
+        if (val.length < 2) {
             setResults([]);
             return;
         }
@@ -51,10 +52,10 @@ const DiagnosisSelector = ({ form }: { form: any }) => {
     };
 
     const addDiagnosis = (code: Cie10Code) => {
-        if (fields.some((f: any) => f.cie10Code === code.codigo)) return;
+        if (fields.some((f: any) => f.cie10Code === code.code)) return;
         append({
-            cie10Code: code.codigo,
-            cie10Description: code.descripcion
+            cie10Code: code.code,
+            cie10Description: code.description
         });
         setSearchTerm('');
         setResults([]);
@@ -64,7 +65,7 @@ const DiagnosisSelector = ({ form }: { form: any }) => {
         <FormSection icon={<Stethoscope className="h-5 w-5 text-primary" />} title="Diagnósticos (CIE-10)">
             <div className="space-y-4">
                 <div className="relative">
-                    <Command className="border rounded-md shadow-sm">
+                    <Command className="border rounded-md shadow-sm" shouldFilter={false}>
                         <CommandInput 
                             placeholder="Buscar por código o descripción (ej: E11, Gripe)..." 
                             value={searchTerm}
@@ -74,16 +75,16 @@ const DiagnosisSelector = ({ form }: { form: any }) => {
                             {isSearching && <div className="p-4 text-center text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin inline mr-2" /> Buscando...</div>}
                             {searchTerm.length >= 3 && results.length === 0 && !isSearching && <CommandEmpty>No se encontraron diagnósticos.</CommandEmpty>}
                             <CommandGroup>
-                                {results.map((res) => (
+                                {results.map((res, idx) => (
                                     <CommandItem
-                                        key={res.codigo}
-                                        value={`${res.codigo} ${res.descripcion}`}
+                                        key={`${res.code}-${idx}`}
+                                        value={`${res.code} ${res.description}`}
                                         onSelect={() => addDiagnosis(res)}
                                         className="cursor-pointer"
                                     >
-                                        <Check className={cn("mr-2 h-4 w-4", fields.some((f: any) => f.cie10Code === res.codigo) ? "opacity-100" : "opacity-0")} />
-                                        <span className="font-mono font-bold text-primary mr-2">{res.codigo}</span>
-                                        {res.descripcion}
+                                        <Check className={cn("mr-2 h-4 w-4", fields.some((f: any) => f.cie10Code === res.code) ? "opacity-100" : "opacity-0")} />
+                                        <span className="font-mono font-bold text-primary mr-2">{res.code}</span>
+                                        {res.description}
                                     </CommandItem>
                                 ))}
                             </CommandGroup>

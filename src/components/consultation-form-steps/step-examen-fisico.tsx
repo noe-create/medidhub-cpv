@@ -23,11 +23,21 @@ export const StepExamenFisico = ({ form }: { form: any }) => {
 
         if (peso && talla) {
             const pesoKg = pesoUnidad === 'lb' ? peso / 2.20462 : peso;
-            const tallaM = tallaUnidad === 'in' ? talla * 0.0254 : talla / 100;
+            
+            // Heuristic: if talla < 3 and unit is 'cm', the user likely entered meters (e.g. 1.65)
+            let tallaM = talla;
+            if (tallaUnidad === 'in') {
+                tallaM = talla * 0.0254;
+            } else if (tallaUnidad === 'cm') {
+                tallaM = talla < 3 ? talla : talla / 100;
+            }
+
             if (tallaM > 0) {
                 const imc = pesoKg / (tallaM * tallaM);
-                form.setValue('signosVitales.imc', parseFloat(imc.toFixed(2)));
+                form.setValue('signosVitales.imc', parseFloat(imc.toFixed(2)), { shouldValidate: true });
             }
+        } else {
+            form.setValue('signosVitales.imc', undefined);
         }
     }, [form.watch('signosVitales.peso'), form.watch('signosVitales.pesoUnidad'), form.watch('signosVitales.talla'), form.watch('signosVitales.tallaUnidad'), form]);
 
