@@ -245,7 +245,7 @@ export function AppShell({ children, user, permissions }: { children: React.Reac
                                   theme.darkHoverBg
                                 )}
                               >
-                                <Link href={option.href} className="flex items-center gap-3 w-full">
+                                <Link href={option.href} prefetch={true} className="flex items-center gap-3 w-full">
                                   <div className={`
                                     flex items-center justify-center p-2 rounded-xl shadow-sm transition-all duration-300
                                     bg-gradient-to-br ${theme.gradient}
