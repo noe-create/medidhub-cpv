@@ -1,1 +1,0 @@
-SELECT p.id, p."primerNombre", p."primerApellido", (SELECT COUNT(*) FROM pacientes pt WHERE pt."personaId" = p.id) as is_patient FROM personas p WHERE p."primerNombre" ILIKE '%alejandro%' OR p."primerApellido" ILIKE '%herrera%';
