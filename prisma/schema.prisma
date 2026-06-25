@@ -1,0 +1,553 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ==============================
+// === SEGURIDAD Y ACCESO ===
+// ==============================
+
+model Role {
+  id           Int              @id @default(autoincrement())
+  name         String           @unique
+  description  String?
+  hasSpecialty Boolean          @default(false)
+  users        User[]
+  permissions  RolePermission[]
+
+  @@map("roles")
+}
+
+model RolePermission {
+  roleId       Int
+  permissionId String
+  role         Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model Specialty {
+  id    Int    @id @default(autoincrement())
+  name  String @unique
+  doctors Doctor[]
+
+  @@map("specialties")
+}
+
+model User {
+  id        Int        @id @default(autoincrement())
+  username  String     @unique
+  password  String
+  roleId    Int
+  role      Role       @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  personaId Int?       @unique
+  persona   Persona?   @relation(fields: [personaId], references: [id], onDelete: SetNull)
+
+  @@map("users")
+}
+
+// ==============================
+// === PERSONAS (NÚCLEO) ===
+// ==============================
+
+model Persona {
+  id              Int       @id @default(autoincrement())
+  primerNombre    String
+  segundoNombre   String?
+  primerApellido  String
+  segundoApellido String?
+  nacionalidad    String?   // 'V' | 'E'
+  cedulaNumero    String?
+  fechaNacimiento DateTime
+  genero          String    // 'Masculino' | 'Femenino'
+  telefono1       String?
+  telefono2       String?
+  email           String?
+  direccion       String?
+  createdAt       DateTime  @default(now())
+
+  // Auto-referencia para representantes (menores de edad)
+  representanteId Int?
+  representante   Persona?  @relation("RepresentanteHijos", fields: [representanteId], references: [id], onDelete: SetNull)
+  representados   Persona[] @relation("RepresentanteHijos")
+
+  // Relaciones
+  user                   User?
+  paciente               Paciente?
+  titular                Titular?
+  beneficiarios          Beneficiario[]
+  waitlistEntries        WaitlistEntry[]
+  doctor                 Doctor?
+  occupationalIncidents  OccupationalIncident[]
+  occupationalEvaluations OccupationalHealthEvaluation[]
+
+  @@unique([nacionalidad, cedulaNumero])
+  @@index([cedulaNumero])
+  @@index([primerNombre, primerApellido])
+  @@map("personas")
+}
+
+// ==============================
+// === GESTIÓN DE PACIENTES ===
+// ==============================
+
+model Paciente {
+  id        Int     @id @default(autoincrement())
+  personaId Int     @unique
+  persona   Persona @relation(fields: [personaId], references: [id], onDelete: Cascade)
+
+  // Relaciones
+  consultations  Consultation[]
+  treatmentOrders TreatmentOrder[]
+  labOrders       LabOrder[]
+  waitlistEntries WaitlistEntry[]
+  occupationalEvaluations OccupationalHealthEvaluation[]
+
+  @@index([personaId])
+  @@map("pacientes")
+}
+
+model UnidadServicio {
+  id       Int      @id @default(autoincrement())
+  name     String   @unique
+  category String?
+  isActive Boolean  @default(true)
+
+  // Relaciones
+  titulares Titular[]
+
+  @@map("unidades_servicio")
+}
+
+model Titular {
+  id               Int            @id @default(autoincrement())
+  personaId        Int            @unique
+  persona          Persona        @relation(fields: [personaId], references: [id], onDelete: Cascade)
+  unidadServicioId Int
+  unidadServicio   UnidadServicio @relation(fields: [unidadServicioId], references: [id], onDelete: Restrict)
+  numeroFicha      String?
+
+  // Relaciones
+  beneficiarios Beneficiario[]
+
+  @@index([unidadServicioId])
+  @@map("titulares")
+}
+
+model Beneficiario {
+  id        Int     @id @default(autoincrement())
+  personaId Int
+  persona   Persona @relation(fields: [personaId], references: [id], onDelete: Cascade)
+  titularId Int
+  titular   Titular @relation(fields: [titularId], references: [id], onDelete: Cascade)
+
+  @@unique([personaId, titularId])
+  @@map("beneficiarios")
+}
+
+// ==============================
+// === EMPRESAS ===
+// ==============================
+
+model Empresa {
+  id        Int    @id @default(autoincrement())
+  name      String
+  rif       String @unique
+  telefono  String
+  direccion String
+
+  // Relaciones
+  occupationalIncidents   OccupationalIncident[]
+  occupationalEvaluations OccupationalHealthEvaluation[]
+
+  @@map("empresas")
+}
+
+// ==============================
+// === FLUJO DE ATENCIÓN ===
+// ==============================
+
+model WaitlistEntry {
+  id          Int       @id @default(autoincrement())
+  personaId   Int
+  persona     Persona   @relation(fields: [personaId], references: [id], onDelete: Cascade)
+  pacienteId  Int
+  paciente    Paciente  @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
+  name        String    // Nombre desnormalizado para display rápido en la cola
+  kind        String    // 'titular' | 'beneficiario'
+  serviceType String    // 'medicina familiar' | 'consulta pediatrica' | 'servicio de enfermeria'
+  accountType String    // 'Empleado' | 'Afiliado Corporativo' | 'Privado'
+  status      String    // 'Esperando' | 'En Consulta' | ...
+  checkInTime DateTime
+  appointmentId String?
+  isReintegro Boolean   @default(false)
+
+  // Relaciones
+  consultations Consultation[]
+
+  @@index([status])
+  @@index([checkInTime])
+  @@index([pacienteId])
+  @@map("waitlist")
+}
+
+// ==============================
+// === DOCTORES ===
+// ==============================
+
+model Doctor {
+  id          Int            @id @default(autoincrement())
+  personaId   Int            @unique
+  persona     Persona        @relation(fields: [personaId], references: [id], onDelete: Cascade)
+  specialtyId Int?
+  specialty   Specialty?     @relation(fields: [specialtyId], references: [id], onDelete: SetNull)
+  msas        String?        // Matrícula MPPS
+  rif         String?
+  isActive    Boolean        @default(true)
+  
+  // Relaciones
+  consultations Consultation[]
+
+  @@map("doctores")
+}
+
+// ==============================
+// === HISTORIA CLÍNICA ===
+// ==============================
+
+model Consultation {
+  id                          Int       @id @default(autoincrement())
+  pacienteId                  Int
+  paciente                    Paciente  @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
+  waitlistId                  Int?
+  waitlistEntry               WaitlistEntry? @relation(fields: [waitlistId], references: [id], onDelete: SetNull)
+  consultationDate            DateTime  @default(now())
+  doctorId                    Int?
+  doctor                      Doctor?   @relation(fields: [doctorId], references: [id], onDelete: SetNull)
+  doctorName                  String?   // Legacy/Snapshot field
+
+  // Datos clínicos (JSON para estructuras complejas)
+  motivoConsulta              Json?     // { sintomas: string[], otros?: string }
+  enfermedadActual            String?
+  revisionPorSistemas         String?
+  antecedentesPersonales      Json?     // { patologicos, quirurgicos, alergicos, ... }
+  antecedentesFamiliares      String?
+  antecedentesGinecoObstetricos Json?   // { menarquia, ciclos, fum, g, p, a, c, ... }
+  antecedentesPediatricos     Json?     // { prenatales, natales, postnatales, ... }
+  signosVitales               Json?     // { taSistolica, taDiastolica, fc, fr, ... }
+  examenFisicoGeneral         String?
+  enfermedadActualNinguno     Boolean   @default(false)
+  revisionPorSistemasNinguno  Boolean   @default(false)
+  treatmentPlan               String?
+  treatmentPlanNotApplicable  Boolean   @default(false)
+  diagnosticoLibre            String?
+  diagnosticoLibreNinguno     Boolean   @default(false)
+  radiologyOrders             String?
+  surveyInvitationToken       String?
+  reposo                      String?
+  isReintegro                 Boolean   @default(false)
+  occupationalReferral        Json?
+
+  // Relaciones
+  diagnoses        ConsultationDiagnosis[]
+  documents        ConsultationDocument[]
+  treatmentOrders  TreatmentOrder[]
+  labOrders        LabOrder[]
+  surveyInvitation SurveyInvitation?
+  invoice          Invoice?
+
+  @@index([consultationDate])
+  @@index([pacienteId])
+  @@map("consultations")
+}
+
+model ConsultationDiagnosis {
+  id               Int          @id @default(autoincrement())
+  consultationId   Int
+  consultation     Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  cie10Code        String
+  cie10Description String
+
+  @@map("consultation_diagnoses")
+}
+
+model ConsultationDocument {
+  id             Int          @id @default(autoincrement())
+  consultationId Int
+  consultation   Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  fileName       String
+  fileType       String
+  documentType   String       // 'laboratorio' | 'imagenologia' | 'informe medico' | 'otro'
+  description    String?
+  fileData       String       // Base64 data URI
+  uploadedAt     DateTime     @default(now())
+
+  @@map("consultation_documents")
+}
+
+// ==============================
+// === CATÁLOGOS ===
+// ==============================
+
+model Cie10Code {
+  code        String @id
+  description String
+
+  @@map("cie10_codes")
+}
+
+// ==============================
+// === ÓRDENES DE TRATAMIENTO ===
+// ==============================
+
+model TreatmentOrder {
+  id             Int          @id @default(autoincrement())
+  pacienteId     Int
+  paciente       Paciente     @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
+  consultationId Int
+  consultation   Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  status         String       @default("Pendiente") // 'Pendiente' | 'En Progreso' | 'Completado' | 'Cancelado'
+  createdAt      DateTime     @default(now())
+
+  items TreatmentOrderItem[]
+
+  @@map("treatment_orders")
+}
+
+model TreatmentOrderItem {
+  id                       Int            @id @default(autoincrement())
+  treatmentOrderId         Int
+  treatmentOrder           TreatmentOrder @relation(fields: [treatmentOrderId], references: [id], onDelete: Cascade)
+  medicamentoProcedimiento String
+  dosis                    String?
+  via                      String?
+  frecuencia               String?
+  duracion                 String?
+  instrucciones            String?
+  status                   String         @default("Pendiente") // 'Pendiente' | 'Administrado' | 'Omitido'
+
+  executions TreatmentExecution[]
+
+  @@map("treatment_order_items")
+}
+
+model TreatmentExecution {
+  id                   Int                @id @default(autoincrement())
+  treatmentOrderItemId Int
+  treatmentOrderItem   TreatmentOrderItem @relation(fields: [treatmentOrderItemId], references: [id], onDelete: Cascade)
+  executionTime        DateTime           @default(now())
+  observations         String
+  executedBy           String
+
+  @@map("treatment_executions")
+}
+
+// ==============================
+// === LABORATORIO ===
+// ==============================
+
+model LabOrder {
+  id             Int          @id @default(autoincrement())
+  pacienteId     Int
+  paciente       Paciente     @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
+  consultationId Int
+  consultation   Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  orderDate      DateTime     @default(now())
+  status         String       @default("Pendiente") // 'Pendiente' | 'Completado'
+
+  items LabOrderItem[]
+
+  @@map("lab_orders")
+}
+
+model LabOrderItem {
+  id         Int      @id @default(autoincrement())
+  labOrderId Int
+  labOrder   LabOrder @relation(fields: [labOrderId], references: [id], onDelete: Cascade)
+  testName   String
+
+  @@map("lab_order_items")
+}
+
+// ==============================
+// === ENCUESTAS ===
+// ==============================
+
+model Survey {
+  id          Int              @id @default(autoincrement())
+  title       String
+  description String?
+  isActive    Boolean          @default(true)
+  createdAt   DateTime         @default(now())
+
+  questions   SurveyQuestion[]
+  invitations SurveyInvitation[]
+
+  @@map("surveys")
+}
+
+model SurveyQuestion {
+  id           Int              @id @default(autoincrement())
+  surveyId     Int
+  survey       Survey           @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  questionText String
+  questionType String           // 'escala_1_5' | 'si_no' | 'texto_abierto'
+  displayOrder Int
+
+  responses SurveyResponse[]
+
+  @@map("survey_questions")
+}
+
+model SurveyInvitation {
+  token          String       @id @default(cuid())
+  consultationId Int          @unique
+  consultation   Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  surveyId       Int
+  survey         Survey       @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  isCompleted    Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+
+  responses SurveyResponse[]
+
+  @@map("survey_invitations")
+}
+
+model SurveyResponse {
+  id              Int              @id @default(autoincrement())
+  invitationToken String
+  invitation      SurveyInvitation @relation(fields: [invitationToken], references: [token], onDelete: Cascade)
+  questionId      Int
+  question        SurveyQuestion   @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  answerValue     String?
+  submittedAt     DateTime         @default(now())
+
+  @@map("survey_responses")
+}
+
+// ==============================
+// === FACTURACIÓN ===
+// ==============================
+
+model Service {
+  id          Int           @id @default(autoincrement())
+  name        String        @unique
+  description String?
+  price       Decimal       @db.Decimal(10, 2)
+
+  invoiceItems InvoiceItem[]
+
+  @@map("services")
+}
+
+model Invoice {
+  id             Int          @id @default(autoincrement())
+  consultationId Int          @unique
+  consultation   Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  totalAmount    Decimal      @db.Decimal(10, 2)
+  status         String       @default("Pendiente") // 'Pendiente' | 'Pagada' | 'Anulada'
+  createdAt      DateTime     @default(now())
+
+  items InvoiceItem[]
+
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id        Int     @id @default(autoincrement())
+  invoiceId Int
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  serviceId Int
+  service   Service @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  price     Decimal @db.Decimal(10, 2)
+  // REMOVED: serviceName — accesible via service.name
+
+  @@map("invoice_items")
+}
+
+// ==============================
+// === SALUD OCUPACIONAL ===
+// ==============================
+
+model JobPosition {
+  id          Int     @id @default(autoincrement())
+  name        String
+  description String?
+  riskLevel   String?
+  risks       String?
+
+  evaluations OccupationalHealthEvaluation[]
+
+  @@map("job_positions")
+}
+
+model OccupationalIncident {
+  id            Int      @id @default(autoincrement())
+  personaId     Int
+  persona       Persona  @relation(fields: [personaId], references: [id], onDelete: Cascade)
+  companyId     Int
+  company       Empresa  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  incidentDate  DateTime
+  incidentType  String
+  description   String
+  severity      String
+  witnesses     String?
+  actionsTaken  String?
+  reportedBy    String
+  createdAt     DateTime @default(now())
+
+  @@map("occupational_incidents")
+}
+
+model OccupationalHealthEvaluation {
+  id                          Int          @id @default(autoincrement())
+  personaId                   Int
+  persona                     Persona      @relation(fields: [personaId], references: [id], onDelete: Cascade)
+  pacienteId                  Int?
+  paciente                    Paciente?    @relation(fields: [pacienteId], references: [id], onDelete: SetNull)
+  jobPositionId               Int?
+  jobPosition                 JobPosition? @relation(fields: [jobPositionId], references: [id], onDelete: SetNull)
+  companyId                   Int?
+  company                     Empresa?     @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  evaluationDate              DateTime
+  patientType                 String
+  consultationPurpose         String
+  jobDescription              String?
+  occupationalRisks           String       // JSON array as string
+  riskDetails                 String
+  personalHistory             String
+  familyHistory               String
+  lifestyle                   String       // JSON string
+  mentalHealth                String?
+  vitalSigns                  String       // JSON string
+  anthropometry               String       // JSON string
+  physicalExamFindings        String
+  diagnoses                   String       // JSON array as string
+  fitnessForWork              String       // 'Apto' | 'Apto con Restricciones' | 'No Apto'
+  occupationalRecommendations String
+  generalHealthPlan           String
+  interconsultation           String?
+  nextFollowUp                DateTime?
+  // REMOVED: companyName — accesible via company.name
+  // REMOVED: jobPosition TEXT — accesible via jobPosition.name
+
+  @@map("occupational_health_evaluations")
+}
+
+// ==============================
+// === CONFIGURACIÓN ===
+// ==============================
+
+model Setting {
+  key   String @id
+  value String
+
+  @@map("settings")
+}

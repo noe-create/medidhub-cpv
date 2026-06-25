@@ -1,0 +1,65 @@
+
+import type { Metadata } from 'next';
+import { Figtree } from 'next/font/google';
+import './globals.css';
+import { Toaster } from '@/components/ui/toaster';
+import { ThemeProvider } from '@/components/theme-provider';
+
+export const metadata: Metadata = {
+  title: 'MediHub',
+  description: 'Optimizando la gestión de pacientes con flujos de trabajo inteligentes.',
+  manifest: '/manifest.json',
+  icons: {
+    icon: [
+      { url: '/logo-original.png', sizes: 'any' },
+      { url: '/icon-192x192.png', sizes: '192x192', type: 'image/png' },
+    ],
+    apple: [
+      { url: '/icon-192x192.png', sizes: '180x180', type: 'image/png' },
+    ],
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'MediHub',
+  },
+  formatDetection: {
+    telephone: false,
+  },
+  themeColor: '#3b82f6',
+  viewport: {
+    width: 'device-width',
+    initialScale: 1,
+    maximumScale: 1,
+  },
+};
+
+const figtree = Figtree({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-figtree',
+  weight: ['300', '400', '500', '600', '700'],
+});
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  return (
+    <html lang="es" suppressHydrationWarning className={figtree.variable}>
+      <head />
+      <body className="font-body antialiased" suppressHydrationWarning>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          {children}
+          <Toaster />
+        </ThemeProvider>
+      </body>
+    </html>
+  );
+}
